@@ -6,11 +6,13 @@ import {
   ToolExecutionContext,
 } from '../../services/routing/toolRegistry.js';
 import { ToolDefinition, ToolResult } from '../../types/tools.js';
-import { generateAsyncJobMessage } from '@/utils/jobMessages.js';
+import { generateAsyncJobMessage } from '../../utils/jobMessages.js';
+import { jobManager } from '../../services/job-manager/index.js';
 
 const prdInputSchema = z.object({
   productDescription: z.string().min(10),
   research: z.string().optional(),
+  async: z.boolean().optional(),
 });
 
 async function generatePRD(
@@ -54,6 +56,7 @@ ${input.research ? `## Research\n${input.research}` : ''}
     }
 
     return {
+      isError: false,
       content: [
         {
           type: 'text',
@@ -66,7 +69,11 @@ ${input.research ? `## Research\n${input.research}` : ''}
     };
   } catch (error) {
     logger.error({ err: error }, 'Error generating PRD');
-    throw error;
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `Error generating PRD: ${error instanceof Error ? error.message : String(error)}` }],
+      errorDetails: error instanceof Error ? error : new Error(String(error)),
+    };
   }
 }
 

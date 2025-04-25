@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jobManager } from '../../services/job-manager/index.js';
+import { jobManager, JobStatus } from '../../services/job-manager/index.js';
 import { ToolResult, ToolExecutionContext } from '../../types/tools.js';
 
 // Input schema for polling job status
@@ -40,8 +40,8 @@ export async function getCodeRefactorJobResult(
     };
   }
   switch (job.status) {
-    case 'PENDING':
-    case 'RUNNING':
+    case JobStatus.PENDING:
+    case JobStatus.RUNNING:
       return {
         isError: false,
         content: [{ type: 'text', text: `Job "${jobId}" is still in progress (status: ${job.status}).` }],
@@ -49,7 +49,7 @@ export async function getCodeRefactorJobResult(
           status: job.status,
         },
       };
-    case 'COMPLETED':
+    case JobStatus.COMPLETED:
       return {
         isError: false,
         content: [{ type: 'text', text: typeof job.result === 'string' ? job.result : JSON.stringify(job.result) }],
@@ -57,7 +57,7 @@ export async function getCodeRefactorJobResult(
           status: job.status,
         },
       };
-    case 'FAILED':
+    case JobStatus.FAILED:
       return {
         isError: true,
         content: [{ type: 'text', text: job.error ? (job.error.message || String(job.error)) : 'Job failed.' }],

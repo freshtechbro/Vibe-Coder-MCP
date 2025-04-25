@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock modules before importing the code that uses them
 vi.mock('fs/promises');
-vi.mock('./utils/exec.js', () => ({
+vi.mock('../utils/exec.js', () => ({
   executeCommand: vi.fn(),
 }));
 vi.mock('./generateMonorepoConfigs.js', () => ({
@@ -60,7 +60,7 @@ import { generateDocs } from './generateDocs.js';
 import { generateMonorepoConfigs } from './generateMonorepoConfigs.js';
 import { generatePackageConfigs } from './generatePackageConfigs.js';
 import { generateRootPackageJson } from './generateRootPackageJson.js';
-import { executeCommand } from './utils/exec.js';
+import { executeCommand } from '../utils/exec.js';
 
 // Create a local main function for testing since it's not exported from cli.js
 async function main() {

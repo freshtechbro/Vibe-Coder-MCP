@@ -10,9 +10,9 @@ import {
   getCodeRefactorJobResult,
 } from './job-result.js';
 import { codeRefactorInputSchema, CodeRefactorInput } from './schema.js';
-import { generateAsyncJobMessage } from '@/utils/jobMessages.js';
-import { performDirectLlmCall } from '@/utils/llmHelper.js';
-import { toolRegistry } from '@/services/routing/toolRegistry.js';
+import { generateAsyncJobMessage } from '../../utils/jobMessages.js';
+import { performDirectLlmCall } from '../../utils/llmHelper.js';
+import { toolRegistry } from '../../services/routing/toolRegistry.js';
 
 // Uses ToolExecutionContext for compatibility with toolRegistry and handler infrastructure
 async function generateRefactor(
@@ -49,7 +49,9 @@ async function generateRefactor(
           if (result.isError) {
             jobManager.failJob(
               jobId,
-              result.errorDetails ?? new Error('Unknown error')
+              result.errorDetails instanceof Error 
+                ? result.errorDetails 
+                : new Error(String(result.errorDetails || 'Unknown error'))
             );
           } else {
             jobManager.completeJob(jobId, result.content);

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock logger to avoid actual logging
-vi.mock('@/logger.js', () => ({
+vi.mock('../logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -69,27 +69,61 @@ describe('selectModelForTask', () => {
   const defaultModel = 'default';
 
   it('returns defaultModel when mapping missing', () => {
-    const config = {} as OpenRouterConfig;
+    const config: OpenRouterConfig = {
+      apiKey: 'test',
+      baseUrl: 'test',
+      defaultModel: 'test',
+      temperature: 0.7,
+      maxTokens: 1000
+    };
     expect(selectModelForTask(config, 'task', defaultModel)).toBe(defaultModel);
   });
 
   it('returns defaultModel when mapping empty', () => {
-    const config = { llm_mapping: {} } as OpenRouterConfig;
+    const config: OpenRouterConfig = {
+      apiKey: 'test',
+      baseUrl: 'test',
+      defaultModel: 'test',
+      temperature: 0.7,
+      maxTokens: 1000,
+      llm_mapping: {}
+    };
     expect(selectModelForTask(config, 'task', defaultModel)).toBe(defaultModel);
   });
 
   it('returns specific mapping if present', () => {
-    const config = { llm_mapping: { task: 'model1', default_generation: 'model2' } } as OpenRouterConfig;
+    const config: OpenRouterConfig = {
+      apiKey: 'test',
+      baseUrl: 'test',
+      defaultModel: 'test',
+      temperature: 0.7,
+      maxTokens: 1000,
+      llm_mapping: { task: 'model1', default_generation: 'model2' }
+    };
     expect(selectModelForTask(config, 'task', defaultModel)).toBe('model1');
   });
 
   it('returns default_generation when specific missing', () => {
-    const config = { llm_mapping: { default_generation: 'model2' } } as OpenRouterConfig;
+    const config: OpenRouterConfig = {
+      apiKey: 'test',
+      baseUrl: 'test',
+      defaultModel: 'test',
+      temperature: 0.7,
+      maxTokens: 1000,
+      llm_mapping: { default_generation: 'model2' }
+    };
     expect(selectModelForTask(config, 'other', defaultModel)).toBe('model2');
   });
 
   it('returns defaultModel when no mapping match', () => {
-    const config = { llm_mapping: { another: 'model' } } as OpenRouterConfig;
+    const config: OpenRouterConfig = {
+      apiKey: 'test',
+      baseUrl: 'test',
+      defaultModel: 'test',
+      temperature: 0.7,
+      maxTokens: 1000,
+      llm_mapping: { another: 'model' }
+    };
     expect(selectModelForTask(config, 'task', defaultModel)).toBe(defaultModel);
   });
 });

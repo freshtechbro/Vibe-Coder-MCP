@@ -35,18 +35,16 @@ async function retrieveJobResult(
   if (!job) {
     logger.warn({ jobId }, 'Job not found');
     return {
+      isError: true,
       content: [
         {
           type: 'text',
           text: `Job with ID "${jobId}" not found.`,
         },
       ],
-      metadata: {
-        isError: true,
-        errorDetails: {
-          type: 'JobNotFoundError',
-          message: `Job with ID "${jobId}" not found.`,
-        },
+      errorDetails: {
+        type: 'JobNotFoundError',
+        message: `Job with ID "${jobId}" not found.`,
       },
     };
   }
@@ -56,6 +54,7 @@ async function retrieveJobResult(
   switch (job.status) {
     case 'pending':
       return {
+        isError: false,
         content: [
           {
             type: 'text',
@@ -67,6 +66,7 @@ async function retrieveJobResult(
 
     case 'running':
       return {
+        isError: false,
         content: [
           {
             type: 'text',
@@ -80,18 +80,16 @@ async function retrieveJobResult(
       if (job.result === undefined || job.result === null) {
         logger.error({ jobId }, 'Completed job has no result stored.');
         return {
+          isError: true,
           content: [
             {
               type: 'text',
               text: `Job "${jobId}" is completed but has no result stored.`,
             },
           ],
-          metadata: {
-            isError: true,
-            errorDetails: {
-              type: 'MissingJobResultError',
-              message: `Job "${jobId}" is completed but has no result stored.`,
-            },
+          errorDetails: {
+            type: 'MissingJobResultError',
+            message: `Job "${jobId}" is completed but has no result stored.`,
           },
         };
       }
@@ -99,6 +97,7 @@ async function retrieveJobResult(
       const completedResult = job.result as ToolResult;
       return {
         ...completedResult,
+        isError: completedResult.isError || false,
         metadata: {
           ...(completedResult.metadata || {}),
           status: 'completed',
@@ -111,37 +110,35 @@ async function retrieveJobResult(
         job.error instanceof Error ? job.error.message : 'Unknown error';
       logger.warn({ jobId, error: job.error }, 'Job failed');
       return {
+        isError: true,
         content: [
           {
             type: 'text',
             text: `Job "${jobId}" failed: ${errorMessage}`,
           },
         ],
+        errorDetails: {
+          type: job.error?.name || 'JobFailedError',
+          message: errorMessage,
+        },
         metadata: {
-          isError: true,
           status: 'failed',
-          errorDetails: {
-            type: job.error?.name || 'JobFailedError',
-            message: errorMessage,
-          },
         },
       };
 
     default:
       logger.error({ jobId, status: job.status }, 'Job has unknown status');
       return {
+        isError: true,
         content: [
           {
             type: 'text',
             text: `Job "${jobId}" has an unknown status: ${job.status}`,
           },
         ],
-        metadata: {
-          isError: true,
-          errorDetails: {
-            type: 'UnknownJobStatusError',
-            message: `Job "${jobId}" has an unknown status: ${job.status}`,
-          },
+        errorDetails: {
+          type: 'UnknownJobStatusError',
+          message: `Job "${jobId}" has an unknown status: ${job.status}`,
         },
       };
   }

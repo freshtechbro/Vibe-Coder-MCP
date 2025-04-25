@@ -64,8 +64,8 @@ describe('getJobResult Tool Executor', () => {
     expect(result.content[0]?.text).toContain(
       `Job with ID "${jobId}" not found.`
     );
-    expect(result.metadata?.isError).toBe(true);
-    expect(result.metadata?.errorDetails).toEqual({
+    expect(result.isError).toBe(true);
+    expect(result.errorDetails).toEqual({
       type: 'JobNotFoundError',
       message: `Job with ID "${jobId}" not found.`,
     });
@@ -86,7 +86,7 @@ describe('getJobResult Tool Executor', () => {
     expect(result.content[0]?.text).toBe(
       `Job "${jobId}" is currently pending.`
     );
-    expect(result.metadata?.isError).toBeUndefined();
+    expect(result.isError).toBe(false);
     expect(result.metadata?.status).toBe(JobStatus.PENDING);
   });
 
@@ -105,13 +105,14 @@ describe('getJobResult Tool Executor', () => {
     expect(result.content[0]?.text).toBe(
       `Job "${jobId}" is currently running.`
     );
-    expect(result.metadata?.isError).toBeUndefined();
+    expect(result.isError).toBe(false);
     expect(result.metadata?.status).toBe(JobStatus.RUNNING);
   });
 
   it('should return the final ToolResult if the job is COMPLETED', async () => {
     const jobId = 'completed-job';
     const finalResultData: ToolResult = {
+      isError: false,
       content: [{ type: 'text', text: 'Final success data!' }],
       metadata: { originalMeta: 'value' },
     };
@@ -135,7 +136,7 @@ describe('getJobResult Tool Executor', () => {
       status: JobStatus.COMPLETED,
       jobId: jobId,
     });
-    expect(result.metadata?.isError).toBeUndefined();
+    expect(result.isError).toBe(false);
   });
 
   it('should return a structured error ToolResult if the job is FAILED', async () => {
@@ -155,9 +156,9 @@ describe('getJobResult Tool Executor', () => {
     expect(result.content[0]?.text).toBe(
       `Job "${jobId}" failed: ${error.message}`
     );
-    expect(result.metadata?.isError).toBe(true);
+    expect(result.isError).toBe(true);
     expect(result.metadata?.status).toBe(JobStatus.FAILED);
-    expect(result.metadata?.errorDetails).toEqual({
+    expect(result.errorDetails).toEqual({
       type: 'ToolError',
       message: error.message,
     });
@@ -182,8 +183,8 @@ describe('getJobResult Tool Executor', () => {
     expect(result.content[0]?.text).toContain(
       `Job "${jobId}" is completed but has no result stored.`
     );
-    expect(result.metadata?.isError).toBe(true);
-    expect(result.metadata?.errorDetails).toEqual({
+    expect(result.isError).toBe(true);
+    expect(result.errorDetails).toEqual({
       type: 'MissingJobResultError',
       message: `Job "${jobId}" is completed but has no result stored.`,
     });
@@ -208,9 +209,9 @@ describe('getJobResult Tool Executor', () => {
     expect(result.content[0]?.text).toBe(
       `Job "${jobId}" failed: Unknown error`
     );
-    expect(result.metadata?.isError).toBe(true);
+    expect(result.isError).toBe(true);
     expect(result.metadata?.status).toBe(JobStatus.FAILED);
-    expect(result.metadata?.errorDetails).toEqual({
+    expect(result.errorDetails).toEqual({
       type: 'JobFailedError',
       message: 'Unknown error',
     });

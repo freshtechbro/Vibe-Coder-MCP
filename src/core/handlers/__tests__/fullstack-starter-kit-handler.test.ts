@@ -60,7 +60,7 @@ describe('FullstackStarterKitHandler', () => {
 
     // Properly type the mock implementation
     (
-      requirementsAnalyzer.analyzeRequirements as unknown as jest.Mock
+      requirementsAnalyzer.analyzeRequirements as unknown as ReturnType<typeof vi.fn>
     ).mockResolvedValue(mockAnalysis);
 
     const result = await handler.handle(

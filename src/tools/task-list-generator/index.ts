@@ -9,7 +9,8 @@ import { OpenRouterConfig } from '../../types/mcp.js';
 import { StructuredTaskList } from '../../types/taskList.js';
 import { ToolDefinition, ToolResult } from '../../types/tools.js';
 import { performDirectLlmCall } from '../../utils/llmHelper.js';
-import { generateAsyncJobMessage } from '@/utils/jobMessages.js';
+import { generateAsyncJobMessage } from '../../utils/jobMessages.js';
+import { jobManager } from '../../services/job-manager/index.js';
 
 import { parseTaskListOutput } from './parser.js';
 import { hyperDecompositionTemplate } from './templates/index.js';
@@ -39,7 +40,7 @@ async function generateTaskList(
     const prdContent = input.prd;
 
     if (input.async === true) {
-      const jobId = context.jobManager.createJob();
+      const jobId = jobManager.createJob();
       // --- Use shared utility for async job message ---
       const message = generateAsyncJobMessage({
         jobId,
@@ -111,6 +112,7 @@ ${hyperDecompositionTemplate}
     }
 
     return {
+      isError: false,
       content: [
         {
           type: 'json',

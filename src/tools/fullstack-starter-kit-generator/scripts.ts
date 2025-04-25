@@ -27,6 +27,7 @@ async function generateSetupScripts(
     logger.info({ name }, 'Generating setup scripts');
 
     return {
+      isError: false,
       content: [
         {
           type: 'success',
@@ -39,7 +40,16 @@ async function generateSetupScripts(
     };
   } catch (error) {
     logger.error({ err: error }, 'Failed to generate setup scripts');
-    throw error;
+    return {
+      isError: true,
+      content: [
+        {
+          type: 'error',
+          text: `Failed to generate setup scripts: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      errorDetails: error instanceof Error ? error : new Error(String(error)),
+    };
   }
 }
 

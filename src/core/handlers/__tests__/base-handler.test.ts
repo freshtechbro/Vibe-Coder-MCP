@@ -29,6 +29,7 @@ class TestHandler extends BaseHandler {
           text: `Executed with param: ${params.testParam}`,
         },
       ],
+      isError: false
     };
   }
 }
@@ -43,7 +44,7 @@ describe('BaseHandler', () => {
     );
 
     expect(result.content[0].text).toBe('Executed with param: test');
-    expect(result.isError).toBeUndefined();
+    expect(result.isError).toBe(false);
   });
 
   it('should handle invalid input parameters', async () => {

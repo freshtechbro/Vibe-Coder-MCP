@@ -144,10 +144,16 @@ describe('Workflow Executor', () => {
             'Mock executeTool called'
           );
           if (toolName === 'toolA') {
-            return { content: [{ type: 'text', text: 'Step 1 Output' }] };
+            return { 
+              content: [{ type: 'text', text: 'Step 1 Output' }],
+              isError: false 
+            };
           }
           if (toolName === 'toolB') {
-            return { content: [{ type: 'text', text: 'Step 2 Output' }] };
+            return { 
+              content: [{ type: 'text', text: 'Step 2 Output' }],
+              isError: false 
+            };
           }
           if (toolName === 'toolFail') {
             throw new ToolExecutionError('Tool Failed Intentional Error', {

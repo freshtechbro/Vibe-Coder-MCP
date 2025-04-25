@@ -12,7 +12,8 @@ import { OpenRouterConfig } from '../../types/workflow.js';
 import { ToolExecutionError } from '../../utils/errors.js';
 import { performDirectLlmCall } from '../../utils/llmHelper.js';
 import { performResearchQuery } from '../../utils/researchHelper.js';
-import { generateAsyncJobMessage } from '@/utils/jobMessages.js';
+import { generateAsyncJobMessage } from '../../utils/jobMessages.js';
+import { jobManager } from '../../services/job-manager/index.js';
 
 // Define Input Type based on Schema
 const userStoriesInputSchemaShape = {
@@ -24,6 +25,7 @@ const userStoriesInputSchemaShape = {
     .number()
     .optional()
     .describe('Maximum number of user stories to generate (default: 10)'),
+  async: z.boolean().optional(),
 };
 
 /**
@@ -58,7 +60,7 @@ export const generateUserStoriesInternal = async (
       throw new ToolExecutionError('Research query returned no results.');
     }
 
-    const userStoriesPrompt = `Based on the following research and product description, generate a set of user stories with up to ${maxStories} stories:\n\nProduct Description:\n${productDescription}\n\nResearch Context:\n${researchResult}`;
+    const userStoriesPrompt = `Based on the following research and product description, generate a set of user stories with up to ${maxStories} stories:\\n\\nProduct Description:\\n${productDescription}\\n\\nResearch Context:\\n${researchResult}`;
 
     const userStories = await performDirectLlmCall(
       userStoriesPrompt,
@@ -107,6 +109,8 @@ export const generateUserStories = async (
       type: item.type,
       text: item.type === 'text' ? item.text : JSON.stringify(item),
     })),
+    isError: result.isError === undefined ? false : result.isError,
+    errorDetails: result.errorDetails
   };
 };
 
@@ -118,7 +122,7 @@ toolRegistry.registerTool({
   execute: async (params, config, context) => {
     // --- Use shared utility for async job message ---
     if (params.async === true) {
-      const jobId = 'jobId'; // Replace with actual job ID creation logic
+      const jobId = jobManager.createJob();
       const message = generateAsyncJobMessage({
         jobId,
         toolName: 'user-stories-generator',

@@ -37,6 +37,7 @@ ${input.productDescription}
 `;
 
     return {
+      isError: false,
       content: [
         {
           type: 'text',
@@ -46,7 +47,11 @@ ${input.productDescription}
     };
   } catch (error) {
     logger.error({ err: error }, 'Rules generation failed');
-    throw error;
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `Error generating rules: ${error instanceof Error ? error.message : String(error)}` }],
+      errorDetails: error instanceof Error ? error : new Error(String(error)),
+    };
   }
 }
 

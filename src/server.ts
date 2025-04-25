@@ -6,8 +6,8 @@ import { z } from 'zod';
 import { handlerFactory } from './core/handlers/handler-factory.js';
 import logger from './logger.js';
 import { ToolExecutionContext } from './services/routing/toolRegistry.js';
-import { jobManager } from '../../services/job-manager/index.js'; // Import jobManager for job polling
-import { sseNotifier } from '../../services/sse-notifier/index.js'; // Import SSE notifier
+import { jobManager } from './services/job-manager/index.js'; // Import jobManager for job polling
+import { sseNotifier } from './services/sse-notifier/index.js'; // Import SSE notifier
 
 const app = express();
 

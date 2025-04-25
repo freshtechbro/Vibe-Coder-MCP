@@ -27,6 +27,7 @@ async function generateGitSummary(
     );
 
     return {
+      isError: false,
       content: [
         {
           type: 'text',
@@ -36,7 +37,16 @@ async function generateGitSummary(
     };
   } catch (error) {
     logger.error({ err: error }, 'Git summary generation failed');
-    throw error;
+    return {
+      isError: true,
+      content: [
+        {
+          type: 'error',
+          text: `Git summary generation failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      errorDetails: error instanceof Error ? error : new Error(String(error)),
+    };
   }
 }
 
