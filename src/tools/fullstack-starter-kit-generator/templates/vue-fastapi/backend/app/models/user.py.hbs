@@ -1,0 +1,28 @@
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table from
+sqlalchemy.orm import relationship from sqlalchemy.sql import func from
+app.db.base_class import Base from uuid import uuid4 # Association tables
+user_roles = Table( 'user_roles', Base.metadata, Column('user_id', String,
+ForeignKey('users.id')), Column('role_id', String, ForeignKey('roles.id')) )
+role_permissions = Table( 'role_permissions', Base.metadata, Column('role_id',
+String, ForeignKey('roles.id')), Column('permission_id', String,
+ForeignKey('permissions.id')) ) class User(Base): __tablename__ = "users" id =
+Column(String, primary_key=True, default=lambda: str(uuid4())) email =
+Column(String, unique=True, index=True, nullable=False) hashed_password =
+Column(String, nullable=False) full_name = Column(String) is_active =
+Column(Boolean(), default=True) is_superuser = Column(Boolean(), default=False)
+created_at = Column(DateTime(timezone=True), server_default=func.now())
+updated_at = Column(DateTime(timezone=True), onupdate=func.now()) roles =
+relationship("Role", secondary=user_roles, back_populates="users") class
+Role(Base): __tablename__ = "roles" id = Column(String, primary_key=True,
+default=lambda: str(uuid4())) name = Column(String, unique=True, nullable=False)
+description = Column(String) created_at = Column(DateTime(timezone=True),
+server_default=func.now()) updated_at = Column(DateTime(timezone=True),
+onupdate=func.now()) users = relationship("User", secondary=user_roles,
+back_populates="roles") permissions = relationship("Permission",
+secondary=role_permissions, back_populates="roles") class Permission(Base):
+__tablename__ = "permissions" id = Column(String, primary_key=True,
+default=lambda: str(uuid4())) name = Column(String, unique=True, nullable=False)
+description = Column(String) created_at = Column(DateTime(timezone=True),
+server_default=func.now()) updated_at = Column(DateTime(timezone=True),
+onupdate=func.now()) roles = relationship("Role", secondary=role_permissions,
+back_populates="permissions")

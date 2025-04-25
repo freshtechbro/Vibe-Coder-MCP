@@ -1,0 +1,27 @@
+{ "name": "{{kebabCase name}}", "version": "{{version}}", "private": true,
+"packageManager": "pnpm@{{pnpmVersion}}",
+{{#if description}}
+  "description": "{{description}}",
+{{/if}}
+{{#if author}}
+  "author": "{{author}}",
+{{/if}}
+{{#if license}}
+  "license": "{{license}}",
+{{/if}}
+"workspaces": { "packages": [
+{{#each workspaceGlobs}}
+  "{{this}}"{{#unless @last}},{{/unless}}
+{{/each}}
+] },
+{{#if dependencies}}
+  "dependencies":
+  {{{json dependencies}}},
+{{/if}}
+{{#if devDependencies}}
+  "devDependencies":
+  {{{json devDependencies}}},
+{{/if}}
+"scripts": { "build": "turbo run build", "dev": "turbo run dev", "lint": "turbo
+run lint", "test": "turbo run test", "clean": "turbo run clean && rm -rf
+node_modules" } }

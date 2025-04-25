@@ -1,0 +1,16 @@
+<script lang='ts'>
+  import '../app.css'; import { QueryClient, QueryClientProvider } from
+  '@tanstack/svelte-query'; import Navigation from
+  '../components/Navigation.svelte'; const queryClient = new QueryClient();
+</script>
+
+<QueryClientProvider client='{queryClient}'>
+  <div class='min-h-screen bg-gray-50'>
+    <Navigation />
+    <main>
+      <div class='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
+        <slot />
+      </div>
+    </main>
+  </div>
+</QueryClientProvider>

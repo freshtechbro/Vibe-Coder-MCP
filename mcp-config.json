@@ -1,59 +1,44 @@
 {
   "tools": {
     "fullstack-starter-kit-generator": {
-      "description": "Generates full-stack project starter kits with custom tech stacks (e.g., frontend framework, backend language, database).",
-      "use_cases": ["project scaffolding", "tech stack setup", "application boilerplate", "new project", "starter kit"],
-      "input_patterns": ["create starter kit for {use_case}", "generate {type} project", "scaffold {application_type} app", "setup boilerplate for {project}"]
-    },
-    "research-manager": {
-      "description": "Performs in-depth research on technical topics, concepts, or comparisons using Perplexity Sonar.",
-      "use_cases": ["research", "comparison", "best practices", "explain concept", "technical deep dive", "learn about {topic}"],
-      "input_patterns": ["research {topic}", "compare {A} and {B}", "best practices for {domain}", "explain {concept}"]
-    },
-    "prd-generator": {
-      "description": "Creates comprehensive Product Requirements Documents (PRDs) based on a feature or product description.",
-      "use_cases": ["product requirements", "feature documentation", "prd", "feature specification", "document feature"],
-      "input_patterns": ["create prd for {product}", "document requirements for {feature}"]
-    },
-    "user-stories-generator": {
-      "description": "Generates user stories with acceptance criteria based on a feature or requirement.",
-      "use_cases": ["user stories", "workflow definition", "agile planning", "acceptance criteria", "feature breakdown"],
-      "input_patterns": ["create stories for {feature}", "define workflow for {process}", "generate user stories for {requirement}"]
-    },
-    "task-list-generator": {
-      "description": "Produces development task lists with dependencies from requirements or user stories.",
-      "use_cases": ["task breakdown", "sprint planning", "project tasks", "development plan"],
-      "input_patterns": ["plan tasks for {feature}", "break down {requirement} into tasks", "create task list for {story}"]
-    },
-    "rules-generator": {
-      "description": "Creates project-specific development rules, standards, or guidelines.",
-      "use_cases": ["coding standards", "project guidelines", "linting rules", "style guide", "development rules"],
-      "input_patterns": ["setup rules for {project}", "define standards for {language}", "create style guide for {framework}"]
-    },
-    "generate-code-stub": {
-      "description": "Generates a code stub (function, class, etc.) in a specified language based on a description. Can optionally use content from a file as context.",
-      "use_cases": ["generate code", "create function stub", "class boilerplate", "scaffold method", "code stub", "write function"],
-      "input_patterns": ["generate typescript function {name}", "create python class {name} stub", "write go function {name} based on {description}"]
-    },
-    "refactor-code": {
-      "description": "Refactors a given code snippet based on specific instructions, optionally using surrounding file context.",
-      "use_cases": ["refactor code", "improve code", "rewrite snippet", "clean up code", "optimize code", "change code"],
-      "input_patterns": ["refactor this code: {codeContent} to {refactoringInstructions}", "improve snippet {codeContent}", "rewrite {functionName} to be more efficient"]
-    },
-    "analyze-dependencies": {
-      "description": "Analyzes dependency manifest files (e.g., package.json, requirements.txt) to list project dependencies.",
-      "use_cases": ["list dependencies", "check project packages", "view dependencies", "analyze packages", "show dependencies"],
-      "input_patterns": ["analyze dependencies in {filePath}", "list packages from {filePath}", "what are the dependencies in {manifestFile}"]
-    },
-    "git-summary": {
-      "description": "Retrieves a summary of current Git changes (diff). Can show staged or unstaged changes.",
-      "use_cases": ["git diff", "show changes", "view unstaged", "check staged files", "git status summary", "what changed"],
-      "input_patterns": ["show git changes", "git summary", "show staged diff", "view unstaged changes"]
-    },
-    "run-workflow": {
-      "description": "Runs a predefined sequence of tool calls (a workflow) based on a workflow name and input parameters.",
-      "use_cases": ["run workflow", "execute plan", "start process", "automate sequence", "execute workflow", "run automation"],
-      "input_patterns": ["run workflow {workflowName}", "start {workflowName} workflow with input {workflowInput}", "execute the {workflowName} plan"]
+      "enabled": true,
+      "config": {
+        "templates": {
+          "basePath": "templates",
+          "defaultTemplate": "next-express"
+        },
+        "output": {
+          "baseDir": "generated",
+          "structure": {
+            "apps": ["frontend", "backend"],
+            "packages": ["shared", "config"]
+          }
+        },
+        "validation": {
+          "strict": true,
+          "requiredFiles": [
+            "package.json",
+            "tsconfig.json",
+            "pnpm-workspace.yaml"
+          ]
+        }
+      }
+    }
+  },
+  "workflows": {
+    "create-fullstack-project": {
+      "steps": [
+        {
+          "id": "generate",
+          "tool": "fullstack-starter-kit-generator",
+          "description": "Generate the initial project structure"
+        },
+        {
+          "id": "setup-dependencies",
+          "tool": "dependency-analyzer",
+          "description": "Analyze and install dependencies"
+        }
+      ]
     }
   }
 }

@@ -1,13 +1,17 @@
-// vitest.config.ts
 import { defineConfig } from 'vitest/config';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
+  plugins: [tsconfigPaths()],
   test: {
-    globals: true, // Optional: Use if you want Jest-like globals
-    environment: 'node', // Specify Node environment
+    globals: true,
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
     coverage: {
-      provider: 'v8', // Specify coverage provider
-      reporter: ['text', 'json', 'html'], // Coverage report formats
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.d.ts'],
     },
   },
 });

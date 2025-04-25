@@ -1,0 +1,24 @@
+import { Outlet, useLoaderData } from '@remix-run/react';
+import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { authenticator } from '~/services/auth.server';
+import { Navigation } from '~/components/Navigation';
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const user = await authenticator.isAuthenticated(request);
+  return json({ user });
+}
+
+export default function Layout() {
+  const { user } = useLoaderData<typeof loader>();
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navigation user={user} />
+      <main>
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}

@@ -1,0 +1,5 @@
+package db import ( "gorm.io/driver/postgres" "gorm.io/gorm" ) var DB *gorm.DB
+func Initialize(url string) error { db, err := gorm.Open(postgres.Open(url),
+&gorm.Config{}) if err != nil { return err } // Auto migrate models if err :=
+db.AutoMigrate( &User{}, &Role{}, &Permission{}, ); err != nil { return err } DB
+= db return nil }

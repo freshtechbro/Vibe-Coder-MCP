@@ -1,0 +1,27 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:{{snakeCase projectName}}_client/features/auth/auth_provider.dart';
+
+final apiClientProvider = Provider<Dio>((ref) {
+  final dio = Dio(BaseOptions(
+    baseUrl: 'http://localhost:8080/api',
+    contentType: 'application/json',
+  ));
+
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) {
+      final token = ref.read(authProvider).maybeWhen(
+        authenticated: (token) => token,
+        orElse: () => null,
+      );
+
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
+
+      return handler.next(options);
+    },
+  ));
+
+  return dio;
+});

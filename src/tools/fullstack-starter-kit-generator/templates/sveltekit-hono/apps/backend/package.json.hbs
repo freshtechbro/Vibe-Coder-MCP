@@ -1,0 +1,11 @@
+{ "name": "@{{kebabCase projectName}}/backend", "version": "0.1.0", "private":
+true, "type": "module", "scripts": { "dev": "wrangler dev src/index.ts",
+"deploy": "wrangler deploy src/index.ts", "test": "vitest", "lint": "eslint .",
+"format": "prettier --write .", "db:generate": "drizzle-kit generate:sqlite",
+"db:push": "drizzle-kit push:sqlite", "db:studio": "drizzle-kit studio" },
+"dependencies": { "@hono/zod-validator": "^0.1.11", "drizzle-orm": "^0.29.3",
+"hono": "^3.12.6", "jose": "^5.2.2", "zod": "^3.22.4" }, "devDependencies": {
+"@cloudflare/workers-types": "^4.20240117.0", "@types/node": "^20.11.5",
+"@typescript-eslint/eslint-plugin": "^6.19.0", "@typescript-eslint/parser":
+"^6.19.0", "drizzle-kit": "^0.20.13", "eslint": "^8.56.0", "prettier": "^3.2.4",
+"typescript": "^5.3.3", "vitest": "^1.2.1", "wrangler": "^3.25.0" } }

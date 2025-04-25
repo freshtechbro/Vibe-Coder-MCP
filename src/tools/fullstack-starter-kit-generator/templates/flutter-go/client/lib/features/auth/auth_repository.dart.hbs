@@ -1,0 +1,52 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences.dart';
+import 'package:{{snakeCase projectName}}_client/services/api_client.dart';
+
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  final client = ref.watch(apiClientProvider);
+  return AuthRepository(client);
+});
+
+class AuthRepository {
+  final Dio _client;
+  static const _tokenKey = 'auth_token';
+
+  AuthRepository(this._client);
+
+  Future<String?> getStoredToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tokenKey);
+  }
+
+  Future<void> _storeToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+  }
+
+  Future<void> clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+  }
+
+  Future<String> login(String email, String password) async {
+    final response = await _client.post('/auth/login', data: {
+      'email': email,
+      'password': password,
+    });
+    final token = response.data['token'] as String;
+    await _storeToken(token);
+    return token;
+  }
+
+  Future<String> register(String email, String password, String name) async {
+    final response = await _client.post('/auth/register', data: {
+      'email': email,
+      'password': password,
+      'name': name,
+    });
+    final token = response.data['token'] as String;
+    await _storeToken(token);
+    return token;
+  }
+}

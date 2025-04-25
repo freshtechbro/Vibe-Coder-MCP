@@ -7,18 +7,18 @@ function getTypeScriptFiles(dir) {
   console.log(`Reading directory: ${dir}`);
   const allFiles = [];
   const files = fs.readdirSync(dir);
-  
+
   for (const file of files) {
     const filePath = path.join(dir, file);
     const stat = fs.statSync(filePath);
-    
+
     if (stat.isDirectory()) {
       allFiles.push(...getTypeScriptFiles(filePath));
     } else if (file.endsWith('.ts')) {
       allFiles.push(filePath);
     }
   }
-  
+
   return allFiles;
 }
 
@@ -27,11 +27,11 @@ try {
   const srcDir = path.resolve('./src');
   const tsFiles = getTypeScriptFiles(srcDir);
   console.log(`Found ${tsFiles.length} TypeScript files`);
-  
+
   let allOutput = '';
   let errorCount = 0;
   let fileCount = 0;
-  
+
   console.log('Running ESLint on each file...');
   for (const file of tsFiles) {
     try {
@@ -55,20 +55,28 @@ try {
       fileCount++;
     }
   }
-  
-  console.log(`ESLint completed. Processed ${fileCount} files, ${errorCount} had errors.`);
-  
+
+  console.log(
+    `ESLint completed. Processed ${fileCount} files, ${errorCount} had errors.`
+  );
+
   if (allOutput) {
     fs.writeFileSync('lint-results.txt', allOutput, 'utf8');
     console.log('Results saved to lint-results.txt');
   } else {
-    fs.writeFileSync('lint-results.txt', 'No issues found in any files.', 'utf8');
+    fs.writeFileSync(
+      'lint-results.txt',
+      'No issues found in any files.',
+      'utf8'
+    );
     console.log('No linting issues found! ✅');
   }
 } catch (error) {
   console.error('Script error:', error.message);
-  fs.writeFileSync('lint-error.txt', 
-    `Script Error: ${error.message}\n\n${error.stack || '(no stack trace)'}`, 
-    'utf8');
+  fs.writeFileSync(
+    'lint-error.txt',
+    `Script Error: ${error.message}\n\n${error.stack || '(no stack trace)'}`,
+    'utf8'
+  );
   console.log('Error details saved to lint-error.txt');
 }

@@ -1,0 +1,6 @@
+package handlers import ( "github.com/gorilla/mux" ) func RegisterRoutes(r
+*mux.Router) { // Auth routes r.HandleFunc("/api/auth/register",
+Register).Methods("POST") r.HandleFunc("/api/auth/login", Login).Methods("POST")
+// User routes r.HandleFunc("/api/users/me", GetCurrentUser).Methods("GET")
+r.HandleFunc("/api/users/{id}", UpdateUser).Methods("PUT") // WebSocket route
+r.HandleFunc("/ws", HandleWebSocket) }

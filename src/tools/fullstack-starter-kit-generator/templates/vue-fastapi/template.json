@@ -1,0 +1,40 @@
+{
+  "name": "vue-fastapi",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with Vue.js frontend and FastAPI backend",
+  "metadata": {
+    "frontend": {
+      "framework": "Vue.js",
+      "language": "TypeScript",
+      "styling": "Tailwind CSS",
+      "bundler": "Vite"
+    },
+    "backend": {
+      "framework": "FastAPI",
+      "language": "Python",
+      "database": "PostgreSQL",
+      "orm": "SQLAlchemy"
+    },
+    "features": {
+      "authentication": {
+        "jwt": true,
+        "oauth": ["google", "github"],
+        "session": true,
+        "rbac": true
+      },
+      "database": {
+        "migrations": true,
+        "seeding": true,
+        "typeGeneration": true
+      },
+      "api": {
+        "rest": true,
+        "websocket": true
+      },
+      "deployment": {
+        "docker": true,
+        "ci": true
+      }
+    }
+  }
+}

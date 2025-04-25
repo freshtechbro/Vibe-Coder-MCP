@@ -1,0 +1,44 @@
+#
+{{projectName}}
+
+{{description}}
+
+## Features - 🔐 Authentication with JWT and OAuth (GitHub, Google) - 👥
+Role-Based Access Control (RBAC) - 🚀 Edge-ready with Hono backend - 📊
+Type-safe database with Drizzle ORM - 🎨 Styling with Tailwind CSS - ✨
+Type-safe API calls with tRPC - 🔄 Real-time data with TanStack Query ## Getting
+Started 1. Install dependencies: ```bash # Install all dependencies pnpm install
+``` 2. Copy the example environment file and update the values: ```bash cp
+.env.example .env ``` 3. Set up the database: ```bash # Generate database client
+pnpm db:generate # Push schema to database pnpm db:push ``` 4. Start the
+development servers: ```bash # Start all services pnpm dev ``` 5. Open
+[http://localhost:3000](http://localhost:3000) in your browser. ## Project
+Structure ``` . ├── apps/ │ ├── frontend/ # SvelteKit frontend application │ └──
+backend/ # Hono backend application └── packages/ # Shared packages (if needed)
+``` ## Available Scripts ### Root - `pnpm dev` - Start all services in
+development mode - `pnpm build` - Build all services for production - `pnpm
+lint` - Run linting - `pnpm test` - Run tests - `pnpm db:generate` - Generate
+database client - `pnpm db:push` - Push schema to database - `pnpm db:studio` -
+Open database GUI ### Frontend (SvelteKit) - `pnpm dev` - Start frontend in
+development mode - `pnpm build` - Build frontend for production - `pnpm preview`
+- Preview production build - `pnpm check` - Run type checking - `pnpm test` -
+Run tests - `pnpm lint` - Run linting - `pnpm format` - Format code ### Backend
+(Hono) - `pnpm dev` - Start backend in development mode - `pnpm deploy` - Deploy
+to Cloudflare Workers - `pnpm test` - Run tests - `pnpm lint` - Run linting -
+`pnpm format` - Format code ## Authentication This template includes both
+JWT-based authentication and OAuth providers: ### JWT Authentication - Sign
+up/login with email and password - Token-based session management - Role-based
+access control ### OAuth Providers - GitHub authentication - Google
+authentication - Automatic user profile sync ## Database This project uses
+SQLite with Drizzle ORM for development and PlanetScale/Neon for production: -
+Type-safe database operations - Automatic migrations - Connection pooling -
+Edge-ready database ## API Documentation The API documentation is available at
+[http://localhost:8787/docs](http://localhost:8787/docs) when the backend server
+is running. ## Technologies ### Frontend - SvelteKit - TypeScript - Vite -
+TanStack Query - Tailwind CSS - Auth.js ### Backend - Hono - TypeScript -
+Drizzle ORM - SQLite/PlanetScale - JWT - Zod ## Deployment ### Frontend Deploy
+to Vercel: ```bash vercel ``` ### Backend Deploy to Cloudflare Workers: ```bash
+cd apps/backend pnpm deploy ``` ## Contributing 1. Fork the repository 2. Create
+your feature branch (`git checkout -b feature/amazing-feature`) 3. Commit your
+changes (`git commit -m 'Add some amazing feature'`) 4. Push to the branch (`git
+push origin feature/amazing-feature`) 5. Open a Pull Request

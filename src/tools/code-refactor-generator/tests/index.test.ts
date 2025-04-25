@@ -1,224 +1,278 @@
-// src/tools/code-refactor-generator/tests/index.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import axios from 'axios';
-import { refactorCode } from '../index.js'; // Executor to test
-import * as fileReader from '../../../utils/fileReader.js'; // To mock readFileContent
-import { OpenRouterConfig } from '../../../types/workflow.js'; // Import OpenRouterConfig
-import logger from '../../../logger.js'; // Adjust path if needed
-import { jobManager, JobStatus } from '../../../services/job-manager/index.js'; // Import Job Manager
-import { sseNotifier } from '../../../services/sse-notifier/index.js'; // Import SSE Notifier
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'; // Import CallToolResult
+import fs from 'fs/promises';
+import path from 'path';
+import { McpError } from '@modelcontextprotocol/sdk/types.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+import { OpenRouterConfig } from '../../../types/workflow.js';
+import * as llmHelper from '../../../utils/llmHelper.js';
+import { generateRefactoring, getRefactorJobStatus } from '../index.js';
 
 // Mock dependencies
-vi.mock('../../../utils/fileReader.js');
-vi.mock('axios');
-vi.mock('../../../services/job-manager/index.js'); // Mock Job Manager
-vi.mock('../../../services/sse-notifier/index.js'); // Mock SSE Notifier
-vi.mock('../../../logger.js'); // Mock logger
+vi.mock('../../../utils/llmHelper.js');
+vi.mock('../../../logger.js');
+vi.mock('fs/promises');
 
-// Helper to advance timers and allow setImmediate to run
-const runAsyncTicks = async (count = 1) => {
-  for (let i = 0; i < count; i++) {
-    await vi.advanceTimersToNextTimerAsync(); // Allow setImmediate/promises to resolve
-  }
-};
-
-// Define a type for the expected payload structure
-interface OpenRouterChatPayload {
-  model: string;
-  messages: Array<{ role: string; content: string }>;
-  max_tokens?: number;
-  temperature?: number;
+// Shared type for async job status polling in tests
+interface JobStatus {
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: { content?: string };
+  error?: string;
 }
 
-const mockConfig: OpenRouterConfig = { baseUrl: 'http://mock.api', apiKey: 'key', geminiModel: 'gemini-test', perplexityModel: 'perp-test'};
-const mockJobId = 'mock-refactor-job-id';
-
-describe('refactorCode (Async)', () => {
-  const baseParams: Record<string, unknown> = {
-     language: 'javascript',
-     codeContent: 'function old(a,b){return a+b;}',
-     refactoringInstructions: 'Improve readability and use const',
+describe('Code Refactor Generator Tool', () => {
+  const mockConfig: OpenRouterConfig = {
+    baseUrl: 'mock-url',
+    apiKey: 'test-api-key',
+    geminiModel: 'google/gemini-2.5-pro-exp-03-25:free',
+    perplexityModel: 'perplexity/sonar-deep-research',
+    defaultModel: 'gpt-4-turbo',
+    temperature: 0.7,
+    maxTokens: 2048,
   };
-  const mockContext = { sessionId: 'test-session-refactor' };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock Job Manager methods
-    vi.mocked(jobManager.createJob).mockReturnValue(mockJobId);
-    vi.mocked(jobManager.updateJobStatus).mockReturnValue(true);
-    vi.mocked(jobManager.setJobResult).mockReturnValue(true);
-    // Enable fake timers
-    vi.useFakeTimers();
   });
 
-   afterEach(() => {
-       vi.restoreAllMocks(); // Restore all mocks after each test
-       vi.useRealTimers(); // Restore real timers
-   });
+  it('should generate refactoring suggestions successfully', async () => {
+    const mockRefactoringSuggestions =
+      '# Refactoring Suggestions\n1. Extract method\n2. Rename variable';
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValue(
+      mockRefactoringSuggestions
+    );
 
-  it('should return job ID and refactor code successfully in background', async () => {
-    const mockRefactoredCode = 'const newFunc = (a, b) => {\n  return a + b;\n};';
-    vi.mocked(axios.post).mockResolvedValueOnce({
-      data: { choices: [{ message: { content: mockRefactoredCode } }] }
-    });
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: "function foo() { console.log('test'); }",
+        refactoringInstructions: 'Improve readability',
+      },
+      mockConfig,
+      { sessionId: 'test-session' }
+    );
 
-    // --- Initial Call ---
-    const initialResult = await refactorCode(baseParams, mockConfig, mockContext);
-    expect(initialResult.isError).toBe(false);
-    expect(initialResult.content[0]?.text).toContain(`Code refactoring job started. Job ID: ${mockJobId}`);
-    expect(jobManager.createJob).toHaveBeenCalledWith('code-refactor-generator', baseParams);
-
-    // Verify underlying logic not called yet
-    expect(axios.post).not.toHaveBeenCalled();
-    expect(jobManager.setJobResult).not.toHaveBeenCalled();
-
-    // --- Advance Timers ---
-    await runAsyncTicks(1);
-
-    // --- Verify Async Operations ---
-    expect(axios.post).toHaveBeenCalledTimes(1);
-    const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-    expect(requestData.messages[1].content).toContain('Refactor the following javascript code snippet:');
-    expect(requestData.messages[1].content).toContain(baseParams.codeContent);
-    expect(requestData.messages[1].content).toContain(`Refactoring Instructions: ${baseParams.refactoringInstructions}`);
-    expect(fileReader.readFileContent).not.toHaveBeenCalled(); // No context file requested
-
-    // Verify final job result was set
-    expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-    const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-    expect(finalResultArgs[0]).toBe(mockJobId);
-    expect(finalResultArgs[1].isError).toBe(false);
-    expect(finalResultArgs[1].content[0]?.text).toBe(mockRefactoredCode);
-
-    // Verify SSE calls
-    expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.RUNNING, expect.stringContaining('Starting code refactoring...'));
-    expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.RUNNING, expect.stringContaining('Generating refactored code via LLM...'));
-    // Final status notification might be implicit via jobManager or explicit
+    expect(result.isError).toBe(false);
+    expect(result.content?.[0]?.text).toBe(mockRefactoringSuggestions);
+    expect(llmHelper.performDirectLlmCall).toHaveBeenCalledWith(
+      expect.stringContaining('function foo()'),
+      expect.stringMatching(/refactor.*improve readability/i),
+      mockConfig,
+      'code_refactoring',
+      0.3
+    );
   });
 
-  it('should include context from file in the prompt (async)', async () => {
-     const contextFilePath = 'src/context.js';
-     const mockFileContent = '// Surrounding context code';
-     vi.mocked(fileReader.readFileContent).mockResolvedValue(mockFileContent); // Mock successful read
-     const paramsWithContext = { ...baseParams, contextFilePath };
-     const mockRefactoredCode = '// refactored code';
-     vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockRefactoredCode } }] } });
+  it('should handle empty code snippet', async () => {
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: '',
+        refactoringInstructions: 'Improve readability',
+      },
+      mockConfig,
+      { sessionId: 'test-session' }
+    );
 
-     // --- Initial Call ---
-     await refactorCode(paramsWithContext, mockConfig, mockContext);
-     expect(jobManager.createJob).toHaveBeenCalledWith('code-refactor-generator', paramsWithContext);
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain('Code snippet cannot be empty');
+    const errorDetails = result.errorDetails as McpError;
+    expect(errorDetails?.message).toContain('Code snippet cannot be empty');
+  });
 
-     // --- Advance Timers ---
-     await runAsyncTicks(1);
+  it('should handle LLM generation failure', async () => {
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValue('');
 
-     // --- Verify Async Operations ---
-     expect(fileReader.readFileContent).toHaveBeenCalledTimes(1);
-     expect(fileReader.readFileContent).toHaveBeenCalledWith(contextFilePath);
-     expect(axios.post).toHaveBeenCalledTimes(1);
-     const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-     expect(requestData.messages[1].content).toContain('Consider the following surrounding code context:');
-     expect(requestData.messages[1].content).toContain(mockFileContent);
-     expect(jobManager.setJobResult).toHaveBeenCalledTimes(1); // Should still complete
-     expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].isError).toBe(false);
-   });
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: 'function foo() {}',
+        refactoringInstructions: 'Improve readability',
+      },
+      mockConfig,
+      { sessionId: 'test-session' }
+    );
 
-   it('should proceed without context if file reading fails (async)', async () => {
-       const contextFilePath = 'src/bad_context.js';
-       const readError = new Error('File not found');
-       vi.mocked(fileReader.readFileContent).mockRejectedValue(readError); // Mock failed read
-       const paramsWithContext = { ...baseParams, contextFilePath };
-       const mockRefactoredCode = '// refactored code without context';
-       vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockRefactoredCode } }] } });
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain(
+      'Refactoring generation failed'
+    );
+    const errorDetails = result.errorDetails as McpError;
+    expect(errorDetails?.message).toContain('Refactoring generation failed');
+  });
 
-       // --- Initial Call ---
-       await refactorCode(paramsWithContext, mockConfig, mockContext);
-       expect(jobManager.createJob).toHaveBeenCalled();
+  it('should handle LLM call errors', async () => {
+    vi.mocked(llmHelper.performDirectLlmCall).mockRejectedValue(
+      new Error('LLM failed')
+    );
 
-       // --- Advance Timers ---
-       await runAsyncTicks(1);
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: 'function foo() {}',
+        refactoringInstructions: 'Improve readability',
+      },
+      mockConfig,
+      { sessionId: 'test-session' }
+    );
 
-       // --- Verify Async Operations ---
-       expect(fileReader.readFileContent).toHaveBeenCalledTimes(1);
-       expect(fileReader.readFileContent).toHaveBeenCalledWith(contextFilePath);
-       expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({ jobId: mockJobId, err: readError }), expect.stringContaining('Could not read context file'));
-       expect(axios.post).toHaveBeenCalledTimes(1);
-       const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-       expect(requestData.messages[1].content).toContain(`[Warning: Failed to read context file '${contextFilePath}'`);
-       expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-       expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].isError).toBe(false); // Still completes successfully
-       expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].content[0]?.text).toBe(mockRefactoredCode);
-       // Verify SSE warning was sent
-       expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.RUNNING, expect.stringContaining('Warning: Could not read context file'));
-   });
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain('LLM failed');
+    const errorDetails = result.errorDetails as McpError;
+    expect(errorDetails?.message).toContain('LLM failed');
+  });
 
-   it('should clean markdown fences from the output (async)', async () => {
-        const mockCodeWithFences = '```javascript\nconst newFunc = (a, b) => {\n  return a + b;\n};\n```';
-        const expectedCleanCode = 'const newFunc = (a, b) => {\n  return a + b;\n};';
-        vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockCodeWithFences } }] } });
+  it('should write LLM output to outputFilePath if provided', async () => {
+    const mockRefactoringSuggestions = 'Refactored code here';
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValue(
+      mockRefactoringSuggestions
+    );
+    const mockWriteFile = vi.mocked(fs.writeFile);
+    mockWriteFile.mockResolvedValueOnce();
 
-        // --- Initial Call ---
-        await refactorCode(baseParams, mockConfig, mockContext);
-        // --- Advance Timers ---
-        await runAsyncTicks(1);
-        // --- Verify Async Operations ---
-        expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-        const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-        expect(finalResultArgs[1].isError).toBe(false);
-        expect(finalResultArgs[1].content[0]?.text).toBe(expectedCleanCode);
-    });
+    const result = await generateRefactoring(
+      {
+        language: 'typescript',
+        codeContent: 'let a = 1;',
+        refactoringInstructions: 'Use const',
+        outputFilePath: 'mock/path/refactored.ts',
+      },
+      mockConfig,
+      { sessionId: 'test-session' }
+    );
 
-   it('should set job to FAILED on API failure (async)', async () => {
-       const apiError = { isAxiosError: true, response: { status: 400 }, message: 'Bad request' };
-       vi.mocked(axios.post).mockRejectedValueOnce(apiError);
+    expect(result.isError).toBe(false);
+    expect(result.content?.[0]?.text).toBe(mockRefactoringSuggestions);
+    const [filePath] = mockWriteFile.mock.calls[0];
+    expect(path.basename(filePath as string)).toBe('refactored.ts');
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.any(String),
+      mockRefactoringSuggestions,
+      'utf-8'
+    );
+  });
 
-       // --- Initial Call ---
-       await refactorCode(baseParams, mockConfig, mockContext);
-       // --- Advance Timers ---
-       await runAsyncTicks(1);
-       // --- Verify Async Operations ---
-       expect(axios.post).toHaveBeenCalledTimes(1);
-       expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-       const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-       expect(finalResultArgs[0]).toBe(mockJobId);
-       expect(finalResultArgs[1].isError).toBe(true);
-       expect(finalResultArgs[1].content[0]?.text).toContain('Error during background job');
-       const errorDetailsApi = finalResultArgs[1].errorDetails as any; // Cast to any
-       expect(errorDetailsApi?.message).toContain('Code refactoring API Error: Status 400');
-       expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.FAILED, expect.stringContaining('Job failed:'));
-   });
+  it('should return error if writing to outputFilePath fails', async () => {
+    const mockRefactoringSuggestions = 'Refactored code here';
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValue(
+      mockRefactoringSuggestions
+    );
+    const mockWriteFile = vi.mocked(fs.writeFile);
+    mockWriteFile.mockRejectedValueOnce(new Error('Disk full'));
 
-    it('should set job to FAILED if LLM returns empty content after cleanup (async)', async () => {
-        vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: '```\n\n```' } }] } });
+    const result = await generateRefactoring(
+      {
+        language: 'typescript',
+        codeContent: 'let a = 1;',
+        refactoringInstructions: 'Use const',
+        outputFilePath: 'mock/path/refactored.ts',
+      },
+      mockConfig,
+      { sessionId: 'test-session' }
+    );
 
-        // --- Initial Call ---
-        await refactorCode(baseParams, mockConfig, mockContext);
-        // --- Advance Timers ---
-        await runAsyncTicks(1);
-        // --- Verify Async Operations ---
-        expect(axios.post).toHaveBeenCalledTimes(1);
-        expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-        const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-        expect(finalResultArgs[1].isError).toBe(true); // Should now correctly be an error
-        expect(finalResultArgs[1].content[0]?.text).toContain('Error during background job');
-        const errorDetailsEmpty = finalResultArgs[1].errorDetails as any; // Cast to any
-        expect(errorDetailsEmpty?.message).toContain('LLM returned empty code content after cleanup');
-    });
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain(
+      'Failed to write refactored code to outputFilePath'
+    );
+    const [filePath] = mockWriteFile.mock.calls[0];
+    expect(path.basename(filePath as string)).toBe('refactored.ts');
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.any(String),
+      mockRefactoringSuggestions,
+      'utf-8'
+    );
+  });
 
-    it('should set job to FAILED if LLM response is not structured as expected (async)', async () => {
-        vi.mocked(axios.post).mockResolvedValueOnce({ data: { message: 'Wrong format' } }); // Invalid structure
+  // --- ASYNC EXECUTION TESTS ---
+  it('should submit an async job and complete successfully', async () => {
+    const mockRefactoringSuggestions =
+      'async refactored code';
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValueOnce(
+      mockRefactoringSuggestions
+    );
 
-        // --- Initial Call ---
-        await refactorCode(baseParams, mockConfig, mockContext);
-        // --- Advance Timers ---
-        await runAsyncTicks(1);
-        // --- Verify Async Operations ---
-        expect(axios.post).toHaveBeenCalledTimes(1);
-        expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-        const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-        expect(finalResultArgs[1].isError).toBe(true);
-        expect(finalResultArgs[1].content[0]?.text).toContain('Error during background job');
-        const errorDetailsStruct = finalResultArgs[1].errorDetails as any; // Cast to any
-        expect(errorDetailsStruct?.message).toContain('No valid content received from LLM');
-    });
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: 'function foo() { return 1; }',
+        refactoringInstructions: 'Make it async',
+        async: true,
+      },
+      mockConfig,
+      { sessionId: 'async-session' }
+    );
+
+    expect(result.isError).toBe(false);
+    expect(result.jobId).toBeDefined();
+    expect(result.content?.[0]?.text).toContain('Your request has been received and is being processed as an async job.');
+    expect(result.content?.[0]?.text).toContain('Job ID:');
+    expect(result.content?.[0]?.text).toContain('Please wait a moment for the task to complete before attempting to retrieve the job result.');
+    expect(result.content?.[0]?.text).toContain('To check the status or result of this job, send the following prompt:');
+    expect(result.content?.[0]?.text).toContain('code-refactor-job-result');
+
+    let status: JobStatus | undefined = undefined;
+    for (let i = 0; i < 10; i++) {
+      status = getRefactorJobStatus(result.jobId!) as JobStatus;
+      if (status && status.status === 'completed') break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(status && status.status).toBe('completed');
+    expect(status && status.result && status.result.content).toBe(
+      mockRefactoringSuggestions
+    );
+  });
+
+  it('should set job to failed if LLM returns empty in async mode', async () => {
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValueOnce('');
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: 'function fail() {}',
+        refactoringInstructions: 'Do nothing',
+        async: true,
+      },
+      mockConfig,
+      { sessionId: 'async-session' }
+    );
+    expect(result.isError).toBe(false);
+    expect(result.jobId).toBeDefined();
+    let status: JobStatus | undefined = undefined;
+    for (let i = 0; i < 10; i++) {
+      status = getRefactorJobStatus(result.jobId!) as JobStatus;
+      if (status && status.status === 'failed') break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(status && status.status).toBe('failed');
+    expect(status && status.error).toMatch(/empty or invalid output/i);
+  });
+
+  it('should set job to failed if writing to outputFilePath fails in async mode', async () => {
+    const mockRefactoringSuggestions =
+      'async write fail';
+    vi.mocked(llmHelper.performDirectLlmCall).mockResolvedValueOnce(
+      mockRefactoringSuggestions
+    );
+    vi.mocked(fs.writeFile).mockRejectedValueOnce(new Error('disk full'));
+    const result = await generateRefactoring(
+      {
+        language: 'javascript',
+        codeContent: 'function writeFail() {}',
+        refactoringInstructions: 'Write to disk',
+        outputFilePath: './fail.txt',
+        async: true,
+      },
+      mockConfig,
+      { sessionId: 'async-session' }
+    );
+    expect(result.isError).toBe(false);
+    expect(result.jobId).toBeDefined();
+    let status: JobStatus | undefined = undefined;
+    for (let i = 0; i < 10; i++) {
+      status = getRefactorJobStatus(result.jobId!) as JobStatus;
+      if (status && status.status === 'failed') break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(status && status.status).toBe('failed');
+    expect(status && status.error).toMatch(/failed to write output file/i);
+  });
 });

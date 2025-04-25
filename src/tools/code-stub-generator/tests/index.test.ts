@@ -1,241 +1,296 @@
-// src/tools/code-stub-generator/tests/index.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import axios from 'axios';
-import { generateCodeStub } from '../index.js'; // Executor to test
-import { OpenRouterConfig } from '../../../types/workflow.js'; // Import OpenRouterConfig
-import * as fileReader from '../../../utils/fileReader.js'; // Import the module to mock
-import { AppError } from '../../../utils/errors.js'; // Import AppError for testing error cases
-import logger from '../../../logger.js';
-import { jobManager, JobStatus } from '../../../services/job-manager/index.js'; // Import Job Manager
-import { sseNotifier } from '../../../services/sse-notifier/index.js'; // Import SSE Notifier
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'; // Import CallToolResult
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 
-// Mock dependencies
-vi.mock('axios');
-vi.mock('../../../utils/fileReader.js');
-vi.mock('../../../services/job-manager/index.js'); // Mock Job Manager
-vi.mock('../../../services/sse-notifier/index.js'); // Mock SSE Notifier
-vi.mock('../../../logger.js'); // Mock logger
+import { ToolExecutionContext } from '../../../services/routing/toolRegistry.js';
+import { generateCodeStub, processJob, CodeStubInput } from '../index.js';
+import type { McpConfig } from '../../../types/config.js';
+import * as jobStoreModule from '../services/jobStore.js'; // Import the actual module
+const { JobStatus } = jobStoreModule; // Extract JobStatus enum
 
-// Helper to advance timers and allow setImmediate to run
-const runAsyncTicks = async (count = 1) => {
-  for (let i = 0; i < count; i++) {
-    await vi.advanceTimersToNextTimerAsync(); // Allow setImmediate/promises to resolve
-  }
-};
+vi.mock('../../../logger.js', () => ({
+  default: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
-const mockConfig: OpenRouterConfig = { baseUrl: 'http://mock.api', apiKey: 'key', geminiModel: 'gemini-test', perplexityModel: 'perp-test'};
-const mockJobId = 'mock-stub-job-id';
-
-// Define a type for the expected payload structure
-interface OpenRouterChatPayload {
-  model: string;
-  messages: Array<{ role: string; content: string }>;
-  max_tokens?: number;
-  temperature?: number;
-}
-
-describe('generateCodeStub (Async)', () => {
-  const baseParams: Record<string, unknown> = {
-     language: 'typescript',
-     stubType: 'function',
-     name: 'myFunction',
-     description: 'Does a thing.',
+vi.mock('../services/jobStore.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof jobStoreModule>();
+  return {
+    ...actual, // Keep actual JobStatus enum
+    createJob: vi.fn(() => 'mock-job-id'),
+    updateJobStatus: vi.fn(() => true), // Mock updateJobStatus, default to success
+    getJobResult: vi.fn(), // Mock getJobResult if needed later
   };
-  const mockContext = { sessionId: 'test-session-stub' };
+});
+
+vi.mock('../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn(),
+}));
+
+import { performDirectLlmCall } from '../../../utils/llmHelper.js';
+import { updateJobStatus, createJob } from '../services/jobStore.js'; // Import the mocked functions
+
+// --- Tests for generateCodeStub ---
+describe('generateCodeStub', () => {
+  const mockContext: ToolExecutionContext = {
+    sessionId: 'test-session-stub',
+  };
+  const mockConfig = { env: {} };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock Job Manager methods
-    vi.mocked(jobManager.createJob).mockReturnValue(mockJobId);
-    vi.mocked(jobManager.updateJobStatus).mockReturnValue(true);
-    vi.mocked(jobManager.setJobResult).mockReturnValue(true);
-    // Enable fake timers
-    vi.useFakeTimers();
   });
 
-  afterEach(() => {
-     vi.restoreAllMocks(); // Ensure mocks are clean after each test
-     vi.useRealTimers(); // Restore real timers
+  it('should create a job and return success with jobId', async () => {
+    const input = {
+      name: 'myFunction',
+      description: 'A function that adds two numbers',
+      language: 'typescript',
+      stubType: 'function' as const,
+    };
+
+    const result = await generateCodeStub(input, mockConfig, mockContext);
+
+    expect(result.success).toBe(true);
+    expect(result.jobId).toBe('mock-job-id');
+    expect(result.message).toBe('Code stub generation job created.');
+    expect(result.content).toHaveLength(1);
+    expect(result.content?.[0].type).toBe('text');
+    expect(result.content?.[0].text).toContain('mock-job-id');
+    expect(createJob).toHaveBeenCalledWith(input); // Use the imported mock function
   });
 
-  it('should return job ID and generate stub successfully in background', async () => {
-    const mockCode = `function myFunction() {\n  // TODO: Implement logic\n}`;
-    vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockCode } }] } });
+  it('should handle different stub types', async () => {
+    const input = {
+      name: 'MyClass',
+      description: 'A simple class',
+      language: 'typescript',
+      stubType: 'class' as const,
+    };
 
-    // --- Initial Call ---
-    const initialResult = await generateCodeStub(baseParams, mockConfig, mockContext);
-    expect(initialResult.isError).toBe(false);
-    expect(initialResult.content[0]?.text).toContain(`Code stub generation started. Job ID: ${mockJobId}`);
-    expect(jobManager.createJob).toHaveBeenCalledWith('generate-code-stub', baseParams);
+    const result = await generateCodeStub(input, mockConfig, mockContext);
 
-    // Verify underlying logic not called yet
-    expect(axios.post).not.toHaveBeenCalled();
-    expect(jobManager.setJobResult).not.toHaveBeenCalled();
-
-    // --- Advance Timers ---
-    await runAsyncTicks(1);
-
-    // --- Verify Async Operations ---
-    expect(axios.post).toHaveBeenCalledTimes(1);
-    const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-    expect(requestData.messages[1].content).toContain('- Language: typescript');
-    expect(requestData.messages[1].content).toContain('- Name: myFunction');
-    expect(fileReader.readFileContent).not.toHaveBeenCalled();
-
-    // Verify final job result was set
-    expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-    const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-    expect(finalResultArgs[0]).toBe(mockJobId);
-    expect(finalResultArgs[1].isError).toBe(false);
-    expect(finalResultArgs[1].content[0]?.text).toBe(mockCode);
-
-    // Verify SSE calls
-    expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.RUNNING, expect.stringContaining('Starting code stub generation...'));
-    expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.RUNNING, expect.stringContaining('Calling LLM'));
+    expect(result.success).toBe(true);
+    expect(result.jobId).toBe('mock-job-id');
+    expect(createJob).toHaveBeenCalledWith(input); // Use the imported mock function
   });
 
-  it('should clean markdown fences from the output (async)', async () => {
-    const mockCodeWithFences = '```typescript\nfunction myFunction() {\n  // TODO: Implement logic\n}\n```';
-    const expectedCleanCode = `function myFunction() {\n  // TODO: Implement logic\n}`;
-    vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockCodeWithFences } }] } });
+  it('should throw a Zod validation error for missing required fields', async () => {
+    const invalidInput = {
+      language: 'typescript',
+      // name and description are missing
+      stubType: 'function' as const,
+    };
 
-    // --- Initial Call ---
-    await generateCodeStub(baseParams, mockConfig, mockContext);
-    // --- Advance Timers ---
-    await runAsyncTicks(1);
-    // --- Verify Async Operations ---
-    expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-    const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-    expect(finalResultArgs[1].isError).toBe(false);
-    expect(finalResultArgs[1].content[0]?.text).toBe(expectedCleanCode);
+    await expect(
+      generateCodeStub(invalidInput, mockConfig, mockContext)
+    ).rejects.toThrow(z.ZodError);
   });
 
-   it('should handle complex parameters in prompt (async)', async () => {
-       const complexParams: Record<string, unknown> = {
-           ...baseParams,
-           stubType: 'class',
-           name: 'MyClass',
-           description: 'A complex class.',
-           classProperties: [{name: 'prop1', type: 'string'}],
-           methods: [{name: 'method1'}],
-       };
-       const mockCode = `class MyClass { prop1: string; method1() {} }`;
-       vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockCode } }] } });
+  it('should throw a Zod validation error for invalid stub type', async () => {
+    const invalidInput = {
+      name: 'test',
+      description: 'test',
+      language: 'typescript',
+      stubType: 'invalid-type', // Not in the enum
+    };
 
-       // --- Initial Call ---
-       await generateCodeStub(complexParams, mockConfig, mockContext);
-       expect(jobManager.createJob).toHaveBeenCalledWith('generate-code-stub', complexParams);
-       // --- Advance Timers ---
-       await runAsyncTicks(1);
-       // --- Verify Async Operations ---
-       expect(axios.post).toHaveBeenCalledTimes(1);
-       const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-       expect(requestData.messages[1].content).toContain('- Type: class');
-       expect(requestData.messages[1].content).toContain('- Properties (for class):');
-       expect(requestData.messages[1].content).toContain('- Methods (for class/interface):');
-       expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-       expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].isError).toBe(false);
-       expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].content[0]?.text).toBe(mockCode);
-   });
+    await expect(
+      generateCodeStub(invalidInput, mockConfig, mockContext)
+    ).rejects.toThrow(z.ZodError);
+  });
 
-   it('should include context from file in prompt (async)', async () => {
-        const contextFilePath = 'src/context.txt';
-        const fileContent = 'This is the context from the file.';
-        const paramsWithContext = { ...baseParams, contextFilePath };
-        const mockCode = `function myFunction() {\n  // TODO: Implement logic based on context\n}`;
-        vi.mocked(fileReader.readFileContent).mockResolvedValue(fileContent);
-        vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockCode } }] } });
+  it('should accept optional parameters', async () => {
+    const input = {
+      name: 'complexFunction',
+      description: 'A function with parameters',
+      language: 'typescript',
+      stubType: 'function' as const,
+      parameters: [
+        { name: 'param1', type: 'string', description: 'First parameter' },
+      ],
+      returnType: 'void',
+    };
 
-        // --- Initial Call ---
-        await generateCodeStub(paramsWithContext, mockConfig, mockContext);
-        // --- Advance Timers ---
-        await runAsyncTicks(1);
-        // --- Verify Async Operations ---
-        expect(fileReader.readFileContent).toHaveBeenCalledWith(contextFilePath);
-        expect(axios.post).toHaveBeenCalledTimes(1);
-        const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-        expect(requestData.messages[1].content).toContain('Consider the following file content as additional context:');
-        expect(requestData.messages[1].content).toContain(fileContent);
-        expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].isError).toBe(false);
-   });
+    const result = await generateCodeStub(input, mockConfig, mockContext);
 
-    it('should include warning in prompt when context file read fails (async)', async () => {
-        const contextFilePath = 'src/nonexistent.txt';
-        const readErrorMessage = 'File not found';
-        const paramsWithContext = { ...baseParams, contextFilePath };
-        const mockCode = `function myFunction() {\n  // TODO: Implement logic\n}`;
-        vi.mocked(fileReader.readFileContent).mockRejectedValue(new AppError(readErrorMessage));
-        vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: mockCode } }] } });
+    expect(result.success).toBe(true);
+    expect(result.jobId).toBe('mock-job-id');
+    expect(createJob).toHaveBeenCalledWith(input); // Use the imported mock function
+  });
+});
 
-        // --- Initial Call ---
-        await generateCodeStub(paramsWithContext, mockConfig, mockContext);
-        // --- Advance Timers ---
-        await runAsyncTicks(1);
-        // --- Verify Async Operations ---
-        expect(fileReader.readFileContent).toHaveBeenCalledWith(contextFilePath);
-        expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({ jobId: mockJobId }), expect.stringContaining('Could not read context file'));
-        expect(axios.post).toHaveBeenCalledTimes(1);
-        const requestData = vi.mocked(axios.post).mock.calls[0][1] as OpenRouterChatPayload;
-        expect(requestData.messages[1].content).toContain(`[Warning: Failed to read context file '${contextFilePath}'. Error: ${readErrorMessage}]`);
-        expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(jobManager.setJobResult).mock.calls[0][1].isError).toBe(false); // Still completes successfully
-        expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.RUNNING, expect.stringContaining('Warning: Could not read context file'));
+// --- Tests for processJob ---
+describe('processJob', () => {
+  const mockJobId = 'test-job-123';
+  const mockInput: CodeStubInput = {
+    name: 'testFunction',
+    description: 'A test function',
+    language: 'javascript',
+    stubType: 'function',
+  };
+
+  const mockMcpConfig: McpConfig = {
+    env: {
+      OPENROUTER_API_KEY: 'fake-api-key',
+      OPENROUTER_BASE_URL: 'https://fake.openrouter.ai/api/v1',
+    },
+    llm: {
+      defaultModel: 'test-model',
+      defaultTemperature: 0.5,
+      maxTokens: 500,
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Ensure mocks return expected values for setup
+    vi.mocked(updateJobStatus).mockReturnValue(true);
+    // Mock config loader to prevent file system access
+    vi.mock('../../../utils/configLoader.js', () => ({
+      loadLlmConfigMapping: vi.fn(() => ({})), // Return empty mapping
+    }));
+    // Mock context handler to prevent file system access in unrelated tests
+    vi.mock('../utils/contextHandler.js', () => ({
+      readContextFile: vi.fn().mockResolvedValue(null), // Default to no context
+    }));
+  });
+
+  it('should update status to PROCESSING, call LLM, and update to COMPLETED on success', async () => {
+    const mockLlmResult = '/* Mocked successful code stub */';
+    vi.mocked(performDirectLlmCall).mockResolvedValue(mockLlmResult);
+
+    await processJob(mockJobId, mockInput, mockMcpConfig);
+
+    // Check status updates
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.PROCESSING
+    );
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.COMPLETED,
+      mockLlmResult
+    );
+    expect(updateJobStatus).toHaveBeenCalledTimes(2); // PROCESSING then COMPLETED
+
+    // Check LLM call
+    expect(performDirectLlmCall).toHaveBeenCalledTimes(1);
+    // Example: More specific check for LLM call arguments
+    expect(performDirectLlmCall).toHaveBeenCalledWith(
+      expect.any(String), // userPrompt
+      expect.any(String), // systemPrompt
+      expect.objectContaining({ apiKey: 'fake-api-key' }), // openRouterConfig
+      'code-stub-generation' // purpose
+    );
+  });
+
+  it('should update status to PROCESSING, call LLM, and update to FAILED on LLM error', async () => {
+    const mockError = new Error('LLM API Error');
+    vi.mocked(performDirectLlmCall).mockRejectedValue(mockError);
+
+    await processJob(mockJobId, mockInput, mockMcpConfig);
+
+    // Check status updates
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.PROCESSING
+    );
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.FAILED,
+      null, // result should be null on failure
+      mockError.message // error message should be passed
+    );
+    expect(updateJobStatus).toHaveBeenCalledTimes(2); // PROCESSING then FAILED
+
+    // Check LLM call
+    expect(performDirectLlmCall).toHaveBeenCalledTimes(1);
+  });
+
+  it('should update status to FAILED if initial PROCESSING update fails', async () => {
+    // Simulate failure during the first status update
+    vi.mocked(updateJobStatus).mockImplementation((_jobId, status) => {
+      if (status === JobStatus.PROCESSING) {
+        return false; // Simulate failure for the PROCESSING update
+      }
+      return true; // Allow other updates (though they shouldn't happen)
     });
 
+    await processJob(mockJobId, mockInput, mockMcpConfig);
 
-   it('should set job to FAILED on API failure (async)', async () => {
-       const apiError = { isAxiosError: true, response: { status: 500 }, message: 'Server Error' };
-       vi.mocked(axios.post).mockRejectedValueOnce(apiError);
+    // Verify only the PROCESSING update was attempted (and failed)
+    expect(updateJobStatus).toHaveBeenCalledTimes(1);
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.PROCESSING
+    );
 
-       // --- Initial Call ---
-       await generateCodeStub(baseParams, mockConfig, mockContext);
-       // --- Advance Timers ---
-       await runAsyncTicks(1);
-       // --- Verify Async Operations ---
-       expect(axios.post).toHaveBeenCalledTimes(1);
-       expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-       const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-       expect(finalResultArgs[0]).toBe(mockJobId);
-       expect(finalResultArgs[1].isError).toBe(true);
-       expect(finalResultArgs[1].content[0]?.text).toContain('Error during background job');
-       const errorDetails = finalResultArgs[1].errorDetails as any;
-       expect(errorDetails?.message).toContain('Code stub generation API Error: Status 500');
-       expect(sseNotifier.sendProgress).toHaveBeenCalledWith(mockContext.sessionId, mockJobId, JobStatus.FAILED, expect.stringContaining('Job failed:'));
-   });
+    // Verify LLM call was NOT made
+    expect(performDirectLlmCall).not.toHaveBeenCalled();
+  });
 
-   it('should set job to FAILED if LLM returns empty content after cleanup (async)', async () => {
-       vi.mocked(axios.post).mockResolvedValueOnce({ data: { choices: [{ message: { content: '```\n\n```' } }] } });
+  it('should update status to FAILED if context file reading fails', async () => {
+    const inputWithContext: CodeStubInput = {
+      ...mockInput,
+      contextFilePath: 'nonexistent/path/to/context.txt',
+    };
+    const mockReadError = new Error(
+      'Failed to read context file: nonexistent/path/to/context.txt'
+    );
 
-       // --- Initial Call ---
-       await generateCodeStub(baseParams, mockConfig, mockContext);
-       // --- Advance Timers ---
-       await runAsyncTicks(1);
-       // --- Verify Async Operations ---
-       expect(axios.post).toHaveBeenCalledTimes(1);
-       expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-       const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-       expect(finalResultArgs[1].isError).toBe(true);
-       expect(finalResultArgs[1].content[0]?.text).toContain('Error during background job');
-       const errorDetails = finalResultArgs[1].errorDetails as any;
-       expect(errorDetails?.message).toContain('LLM returned empty code content after cleanup');
-   });
+    // Mock contextHandler specifically for this test to throw an error
+    const contextHandler = await import('../utils/contextHandler.js');
+    vi.mocked(contextHandler.readContextFile).mockRejectedValue(mockReadError);
 
-    it('should set job to FAILED if LLM response is not structured as expected (async)', async () => {
-         vi.mocked(axios.post).mockResolvedValueOnce({ data: { message: 'Wrong format' } }); // Invalid structure
+    await processJob(mockJobId, inputWithContext, mockMcpConfig);
 
-        // --- Initial Call ---
-        await generateCodeStub(baseParams, mockConfig, mockContext);
-        // --- Advance Timers ---
-        await runAsyncTicks(1);
-        // --- Verify Async Operations ---
-        expect(axios.post).toHaveBeenCalledTimes(1);
-        expect(jobManager.setJobResult).toHaveBeenCalledTimes(1);
-        const finalResultArgs = vi.mocked(jobManager.setJobResult).mock.calls[0];
-        expect(finalResultArgs[1].isError).toBe(true);
-        expect(finalResultArgs[1].content[0]?.text).toContain('Error during background job');
-        const errorDetails = finalResultArgs[1].errorDetails as any;
-        expect(errorDetails?.message).toContain('No valid content received from LLM');
-    });
+    // Check status updates
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.PROCESSING
+    );
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.FAILED,
+      null,
+      mockReadError.message // Expect the specific file reading error
+    );
+    expect(updateJobStatus).toHaveBeenCalledTimes(2); // PROCESSING then FAILED
+
+    // Verify LLM call was NOT made
+    expect(performDirectLlmCall).not.toHaveBeenCalled();
+  });
+
+  it('should update status to FAILED if required config (API key) is missing', async () => {
+    const configWithoutApiKey = {
+      ...mockMcpConfig,
+      env: {
+        // OPENROUTER_API_KEY is missing
+        OPENROUTER_BASE_URL: 'https://fake.openrouter.ai/api/v1',
+      },
+    };
+    const expectedErrorMsg =
+      'Missing required environment variable: OPENROUTER_API_KEY';
+
+    await processJob(mockJobId, mockInput, configWithoutApiKey as McpConfig);
+
+    // Check status updates
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.PROCESSING
+    );
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      mockJobId,
+      JobStatus.FAILED,
+      null,
+      expectedErrorMsg
+    );
+    expect(updateJobStatus).toHaveBeenCalledTimes(2); // PROCESSING then FAILED
+
+    // Verify LLM call was NOT made
+    expect(performDirectLlmCall).not.toHaveBeenCalled();
+  });
 });

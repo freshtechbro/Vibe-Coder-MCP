@@ -1,0 +1,23 @@
+#
+{{projectName}}
+
+{{description}}
+
+## Getting Started 1. Install dependencies: ```bash pnpm install ``` 2. Copy the
+example environment file and update the values: ```bash cp .env.example .env ```
+3. Start the development servers: ```bash pnpm dev ``` 4. Open
+[http://localhost:3000](http://localhost:3000) in your browser. ## Project
+Structure ``` . ├── apps/ │ ├── frontend/ # React frontend application │ └──
+backend/ # NestJS backend application └── packages/ # Shared packages (if
+needed) ``` ## Available Scripts - `pnpm dev` - Start all applications in
+development mode - `pnpm build` - Build all applications - `pnpm lint` - Run
+linting for all applications - `pnpm test` - Run tests for all applications ##
+Database This project uses PostgreSQL with Prisma as the ORM. To set up the
+database: 1. Start your PostgreSQL server 2. Update the `DATABASE_URL` in `.env`
+3. Run database migrations: ```bash cd apps/backend pnpm db:push ``` ## API
+Documentation The API documentation is available at
+[http://localhost:3001/api/docs](http://localhost:3001/api/docs) when the
+backend server is running. ## Technologies ### Frontend - React 18 - TypeScript
+- Vite - React Router - React Query - Tailwind CSS - Axios ### Backend - NestJS
+- TypeScript - PostgreSQL - Prisma - Swagger/OpenAPI - Class Validator - Pino
+Logger

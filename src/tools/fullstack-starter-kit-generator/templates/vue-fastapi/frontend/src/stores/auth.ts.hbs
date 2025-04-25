@@ -1,0 +1,85 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import axios from 'axios'
+
+interface User {
+  id: string
+  email: string
+  full_name: string
+}
+
+interface LoginCredentials {
+  email: string
+  password: string
+}
+
+interface RegisterData extends LoginCredentials {
+  full_name: string
+}
+
+export const useAuthStore = defineStore('auth', () => {
+  const router = useRouter()
+  const user = ref<User | null>(null)
+  const token = ref<string | null>(null)
+
+  const isAuthenticated = computed(() => !!token.value)
+
+  async function login(credentials: LoginCredentials) {
+    try {
+      const response = await axios.post('/auth/token', {
+        username: credentials.email,
+        password: credentials.password,
+      })
+      token.value = response.data.access_token
+      await fetchUser()
+      router.push('/')
+    } catch (error) {
+      console.error('Login failed:', error)
+      throw error
+    }
+  }
+
+  async function register(data: RegisterData) {
+    try {
+      await axios.post('/auth/register', data)
+      await login({
+        email: data.email,
+        password: data.password,
+      })
+    } catch (error) {
+      console.error('Registration failed:', error)
+      throw error
+    }
+  }
+
+  async function fetchUser() {
+    try {
+      const response = await axios.get('/api/v1/users/me', {
+        headers: {
+          Authorization: `Bearer ${token.value}`,
+        },
+      })
+      user.value = response.data
+    } catch (error) {
+      console.error('Failed to fetch user:', error)
+      throw error
+    }
+  }
+
+  function logout() {
+    user.value = null
+    token.value = null
+    router.push('/auth')
+  }
+
+  return {
+    user,
+    token,
+    isAuthenticated,
+    login,
+    register,
+    logout,
+    fetchUser,
+  }
+})

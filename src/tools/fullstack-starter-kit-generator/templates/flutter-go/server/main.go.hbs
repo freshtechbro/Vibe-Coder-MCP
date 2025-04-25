@@ -1,0 +1,16 @@
+package main import ( "log" "net/http" "os" "{{kebabCase
+  projectName
+}}/server/config" "{{kebabCase projectName}}/server/db" "{{kebabCase
+  projectName
+}}/server/handlers" "{{kebabCase projectName}}/server/middleware"
+"github.com/gorilla/mux" "github.com/rs/cors" ) func main() { // Load
+configuration cfg := config.Load() // Initialize database if err :=
+db.Initialize(cfg.DatabaseURL); err != nil { log.Fatalf("Failed to initialize
+database: %v", err) } // Create router r := mux.NewRouter() // Apply middleware
+r.Use(middleware.Logger) r.Use(middleware.Auth) // Register routes
+handlers.RegisterRoutes(r) // Configure CORS c := cors.New(cors.Options{
+AllowedOrigins: []string{"*"}, AllowedMethods: []string{"GET", "POST", "PUT",
+"DELETE", "OPTIONS"}, AllowedHeaders: []string{"Authorization", "Content-Type"},
+AllowCredentials: true, }) // Start server port := os.Getenv("PORT") if port ==
+"" { port = "8080" } log.Printf("Server starting on port %s...", port) if err :=
+http.ListenAndServe(":"+port, c.Handler(r)); err != nil { log.Fatal(err) } }

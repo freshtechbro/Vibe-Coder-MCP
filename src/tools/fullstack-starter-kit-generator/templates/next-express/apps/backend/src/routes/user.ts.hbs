@@ -1,0 +1,12 @@
+import { Router } from 'express'; import { z } from 'zod'; import { prisma }
+from '../lib/prisma'; import asyncHandler from 'express-async-handler'; export
+const userRouter = Router(); const createUserSchema = z.object({ email:
+z.string().email(), name: z.string().optional(), }); userRouter.post('/',
+asyncHandler(async (req, res) => { const data =
+createUserSchema.parse(req.body); const user = await prisma.user.create({ data,
+}); res.status(201).json(user); })); userRouter.get('/', asyncHandler(async
+(req, res) => { const users = await prisma.user.findMany(); res.json(users);
+})); userRouter.get('/:id', asyncHandler(async (req, res) => { const user =
+await prisma.user.findUnique({ where: { id: req.params.id }, }); if (!user) {
+res.status(404).json({ error: 'User not found' }); return; } res.json(user);
+}));

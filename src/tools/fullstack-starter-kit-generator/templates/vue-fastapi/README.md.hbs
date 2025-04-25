@@ -1,0 +1,28 @@
+#
+{{projectName}}
+
+{{description}}
+
+## Getting Started 1. Install dependencies: ```bash # Install frontend
+dependencies pnpm install # Install backend dependencies cd apps/backend poetry
+install ``` 2. Copy the example environment file and update the values: ```bash
+cp .env.example .env ``` 3. Start the development servers: ```bash # Start
+frontend pnpm dev # Start backend (in a new terminal) cd apps/backend poetry run
+uvicorn src.main:app --reload ``` 4. Open
+[http://localhost:3000](http://localhost:3000) in your browser. ## Project
+Structure ``` . ├── apps/ │ ├── frontend/ # Vue.js frontend application │ └──
+backend/ # FastAPI backend application └── packages/ # Shared packages (if
+needed) ``` ## Available Scripts ### Frontend - `pnpm dev` - Start frontend in
+development mode - `pnpm build` - Build frontend for production - `pnpm lint` -
+Run linting - `pnpm test` - Run tests ### Backend - `poetry run uvicorn
+src.main:app --reload` - Start backend in development mode - `poetry run pytest`
+- Run tests - `poetry run black .` - Format code - `poetry run isort .` - Sort
+imports - `poetry run mypy .` - Type check - `poetry run ruff .` - Lint code ##
+Database This project uses PostgreSQL with SQLAlchemy as the ORM. To set up the
+database: 1. Start your PostgreSQL server 2. Update the database settings in
+`.env` 3. Run database migrations: ```bash cd apps/backend poetry run alembic
+upgrade head ``` ## API Documentation The API documentation is available at
+[http://localhost:8000/docs](http://localhost:8000/docs) when the backend server
+is running. ## Technologies ### Frontend - Vue 3 - TypeScript - Vite - Vue
+Router - Vue Query - Pinia - Tailwind CSS - Axios ### Backend - FastAPI - Python
+- PostgreSQL - SQLAlchemy - Alembic - Pydantic

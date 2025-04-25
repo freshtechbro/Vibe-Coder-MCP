@@ -1,105 +1,122 @@
-# Code Refactor Generator Tool (`refactor-code`)
+# Code Refactor Generator Tool (`code-refactor-generator`)
 
 ## Overview
 
-This tool takes an existing code snippet and refactoring instructions, then uses an LLM to generate the improved code. It can optionally use the content of the surrounding file as context to perform more accurate refactoring.
+This tool suggests improvements for existing code by calling an LLM.
+**Note:** This implementation calls an LLM to generate refactoring suggestions and returns a dynamic text message based on the LLM response.
 
 ## Inputs
 
-| Parameter               | Type     | Description                                                                                                                               | Required |
-| :---------------------- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------- | :------- |
-| `language`              | `string` | The programming language of the code snippet (e.g., 'typescript', 'python', 'javascript').                                                | Yes      |
-| `codeContent`           | `string` | The actual code snippet to be refactored.                                                                                                 | Yes      |
-| `refactoringInstructions` | `string` | Specific instructions on how the code should be refactored (e.g., 'extract loop', 'improve variable names', 'add error handling', 'use async/await'). | Yes      |
-| `contextFilePath`       | `string` | Optional. Relative path to a file whose content provides broader context for the refactoring task.                                        | No       |
+| Parameter                | Type     | Description                                                              | Required |
+| :----------------------- | :------- | :----------------------------------------------------------------------- | :------- |
+| `language`               | `string` | The programming language of the code (e.g., 'typescript', 'python').     | Yes      |
+| `codeContent`            | `string` | The actual code snippet to be refactored.                                 | Yes      |
+| `refactoringInstructions`| `string` | Instructions on how to refactor the code snippet.                         | Yes      |
+| `contextFilePath`        | `string` | (Optional) Path to a file for additional context.                         | No       |
+| `outputFilePath`         | `string` | (Optional) Path to write the refactored code output.                      | No       |
 
 ## Outputs
 
-*   **Primary Output:** The refactored code snippet as a string within the `CallToolResult.content` array (type `text`).
-*   **File Storage:** This tool does not save any files to the `workflow-agent-files` directory. The refactored code is returned directly in the MCP response.
+**Fields:**
+- `isError`: `boolean` indicating if an error occurred.
+- `content`: `Array<{ type: 'text'; text: string }>` containing suggestions or error messages.
+- `errorDetails`: Detailed error information (present when `isError` is `true`).
+- If `outputFilePath` is provided and writing fails, `isError` will be `true` and `errorDetails` will describe the file error.
 
 ## Asynchronous Execution
 
-This tool executes asynchronously due to the potential time required for LLM processing.
-1.  When you call this tool, it will immediately return a **Job ID**.
-2.  The refactoring process runs in the background.
-3.  Use the `get-job-result` tool with the received Job ID to retrieve the final refactored code once the job is complete.
+This tool currently executes **synchronously** and returns the result directly.
+
+## Async Job Submission
+
+When you submit a code refactor job with `async: true`, you will receive a response like this:
+
+```json
+Your request has been received and is being processed as an async job.
+
+Job ID: 123e4567-e89b-12d3-a456-426614174000
+
+Please wait a moment for the task to complete before attempting to retrieve the job result.
+
+To check the status or result of this job, send the following prompt:
+```json
+{
+  "tool_name": "code-refactor-job-result",
+  "arguments": {
+    "jobId": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+You can use this prompt in the assistant, API, or Studio to retrieve your job's status or result.
+
+- **Note:** Always wait a moment before polling for the result to ensure the job has time to complete.
 
 ## Workflow
 
 ```mermaid
 flowchart TD
-    A[Start refactor-code] --> B{Validate Input Schema};
+    A[Start code-refactor-generator] --> B{Validate Input Schema (codeContent, refactoringInstructions, language)};
     B --> |Invalid| Z[Return Error];
-    B --> |Valid| C{Context File Path Provided?};
-    C --> |Yes| D[Read Context File Content];
-    D --> E[Build LLM Prompt];
-    C --> |No| E;
-    E --> F[Call LLM (e.g., Gemini) via OpenRouter];
-    F --> G{LLM Call Successful?};
-    G --> |No| Z;
-    G --> |Yes| H[Extract Refactored Code from LLM Response];
-    H --> I[Format Code (e.g., trim whitespace, remove markdown)];
-    I --> J[Return Success with Refactored Code String];
-    J --> X[End];
+    B --> |Valid| C[Log Input Parameters];
+    C --> D[Call LLM for Refactoring Suggestions];
+    D --> E{Write to outputFilePath?};
+    E --> |Yes| F[Write output to file];
+    E --> |No| G[Return Dynamic Text Message];
+    F --> X[End];
+    G --> X[End];
     Z --> X;
 ```
 
-1.  **Validate Input:** The incoming parameters are validated against the `codeRefactorInputSchema`. If validation fails, an error is returned.
-2.  **Read Context (Optional):** If `contextFilePath` is provided, the tool attempts to read the content of the specified file using the `fileReader` utility.
-3.  **Build Prompt:** A detailed prompt is constructed for the LLM, including:
-    *   The original `codeContent`.
-    *   The specific `refactoringInstructions`.
-    *   The `language` of the code.
-    *   The content read from `contextFilePath` (if provided), indicating it's context for the snippet.
-    *   Instructions asking the LLM to return *only* the refactored code based on the instructions.
-4.  **Call LLM:** The constructed prompt is sent to the configured LLM (e.g., Gemini via OpenRouter).
-5.  **Process Response:** The refactored code generated by the LLM is extracted from the response. Formatting (like trimming whitespace and removing potential markdown code fences) is applied.
-6.  **Return Result:** A successful `CallToolResult` containing the refactored code string is returned.
+1. **Validate Input:** The incoming parameters (`codeContent`, `refactoringInstructions`, `language`) are validated.
+2. **Log Input:** The validated parameters are logged.
+3. **Call LLM:** The LLM is called with the validated parameters to generate refactoring suggestions.
+4. **Write to File (Optional):** If `outputFilePath` is provided, the tool attempts to write the refactored code output to the specified file.
+5. **Return Result:** A dynamic text message is returned based on the LLM response.
 
-## Usage Example
+## Usage
 
-```json
+To use the Code Refactor Generator, provide the following parameters:
+
+ 
+- `language`: The programming language of the code snippet (e.g., 'typescript', 'python').
+- `codeContent`: The code to be refactored.
+- `refactoringInstructions`: Instructions for the refactor.
+- `contextFilePath` (optional): Path to a file providing additional context.
+- `outputFilePath` (optional): Path to write the refactored code.
+- `async` (optional): Set to `true` to run the refactor as an async job.
+
+ 
+### Example
+
+```typescript
 {
-  "tool_name": "refactor-code",
-  "arguments": {
-    "language": "javascript",
-    "codeContent": "function process(data) { var result = []; for(var i=0; i<data.length; i++) { if(data[i].value > 10) result.push(data[i].id); } return result; }",
-    "refactoringInstructions": "Use modern JavaScript (ES6+). Use filter and map instead of a for loop. Use const/let instead of var."
-  }
+  "language": "typescript",
+  "codeContent": "function foo() { return 1; }",
+  "refactoringInstructions": "Convert to arrow function"
 }
 ```
 
-Invoked via AI Assistant:
-`"Refactor this JS code to use filter/map and const/let: function process(data) { var result = []; for(var i=0; i<data.length; i++) { if(data[i].value > 10) result.push(data[i].id); } return result; }"`
 
-## System Prompt (Conceptual Excerpt)
+## Async Job Submission
+
+You can submit a refactor job asynchronously by setting the `async` parameter to `true`.
+
+When you submit an async job, you will receive a message like:
+
 
 ```text
-You are an expert code refactoring assistant. Refactor the following code snippet based *only* on the provided instructions. Return ONLY the refactored code, without any explanations, comments (unless the refactoring requires them), or markdown formatting.
+Your request has been received and is being processed as an async job.
+Please wait a moment for the task to complete before attempting to retrieve the job result.
+To check the status or result of this job, send the following prompt:
 
-Language: {{language}}
-
-Refactoring Instructions: {{refactoringInstructions}}
-
-Original Code Snippet:
-```{{language}}
-{{codeContent}}
+code-refactor-job-result {"jobId": "<your-job-id>"}
 ```
 
-{{#if contextFileContent}}
-Additional Context from file {{contextFilePath}}:
----
-{{contextFileContent}}
----
-{{/if}}
 
-Refactored Code:
-```
+## System Prompt
+
+N/A - The current implementation does not provide a system prompt.
 
 ## Error Handling
 
-*   **Input Validation Errors:** Returns an error if required inputs are missing or invalid according to the schema.
-*   **File Read Errors:** Returns an error if `contextFilePath` is provided but the file cannot be read.
-*   **LLM API Errors:** Returns an error if the call to the OpenRouter API fails.
-*   **LLM Response Parsing Errors:** Returns an error if the LLM response is malformed or the refactored code cannot be extracted.
+- **Input Validation Errors:** Returns an error if required inputs (`codeContent`, `refactoringInstructions`, `language`) are missing or invalid according to the schema used in `index.ts`.

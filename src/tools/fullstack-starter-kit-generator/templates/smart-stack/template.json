@@ -1,0 +1,40 @@
+{
+  "name": "smart-stack",
+  "version": "1.0.0",
+  "description": "AI-driven full-stack starter kit with autonomous tech stack selection",
+  "metadata": {
+    "type": "dynamic",
+    "features": {
+      "authentication": {
+        "jwt": true,
+        "oauth": ["google", "github"],
+        "session": true,
+        "rbac": true,
+        "mfa": true
+      },
+      "database": {
+        "type": "PostgreSQL",
+        "orm": "dynamic",
+        "migrations": true,
+        "seeding": true,
+        "typeGeneration": true
+      },
+      "api": {
+        "rest": true,
+        "websocket": true,
+        "documentation": true
+      },
+      "frontend": {
+        "framework": "dynamic",
+        "styling": "dynamic",
+        "stateManagement": "dynamic",
+        "routing": true
+      },
+      "deployment": {
+        "docker": true,
+        "ci": true,
+        "monitoring": true
+      }
+    }
+  }
+}

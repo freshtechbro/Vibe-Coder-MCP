@@ -1,97 +1,194 @@
 // src/tools/dependency-analyzer/tests/index.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as fileReader from '../../../utils/fileReader.js'; // To mock
-import { analyzeDependencies } from '../index.js'; // Executor to test
-import { AppError } from '../../../utils/errors.js'; // Only import what's used
-import { OpenRouterConfig } from '../../../types/workflow.js'; // Adjust path if necessary
-import logger from '../../../logger.js'; // Adjust path if necessary
+import path from 'path'; // Import path for resolving
 
-// Mock fileReader
-const readFileMock = vi.spyOn(fileReader, 'readFileContent');
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 
-// Mock logger
+import logger from '@/logger.js'; // Use specific path alias
+
+import { ToolExecutionContext } from '../../../services/routing/toolRegistry.js';
+import { readFileContent } from '../../../utils/fileReader.js'; // Import the function to be mocked
+import { dependencyAnalyzerTool } from '../index.js'; // Import the ToolDefinition
+
+// Mock the module containing readFileContent
+vi.mock('../../../utils/fileReader.js');
+
+// Mock logger - keep these as they are likely correct
 vi.spyOn(logger, 'info').mockImplementation(() => {});
-vi.spyOn(logger, 'warn').mockImplementation(() => {});
 vi.spyOn(logger, 'error').mockImplementation(() => {});
 
-const mockConfig: OpenRouterConfig = { baseUrl: '', apiKey: '', geminiModel: '', perplexityModel: '' };
+// Cast the imported function to Mock type for controlling its behavior
+const mockReadFileContent = readFileContent as Mock<[string], Promise<string>>;
 
-describe('analyzeDependencies Tool', () => {
-    const mockPackageJsonContent = JSON.stringify({
-        name: "test-package",
-        version: "1.0.0",
-        dependencies: { "express": "^4.18.0" },
-        devDependencies: { "vitest": "^3.0.0" }
+const mockConfig = {
+  baseUrl: '',
+  apiKey: '',
+  geminiModel: '',
+  perplexityModel: '',
+  defaultModel: 'gpt-4-turbo',
+  temperature: 0.7,
+  maxTokens: 2048,
+};
+
+describe('dependencyAnalyzerTool Tool', () => {
+  const mockContext: ToolExecutionContext = {
+    sessionId: 'test-session-123',
+    workflowId: 'test-workflow', // Add dummy workflowId
+    stepId: 'test-step', // Add dummy stepId
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Re-assign mock implementation before each test if needed, or rely on per-test setups
+  });
+
+  it('should return error for invalid input parameters', async () => {
+    const invalidParams = { projectPath: 123 }; // Invalid type for projectPath
+    const result = await dependencyAnalyzerTool.execute(
+      invalidParams,
+      mockConfig,
+      mockContext
+    ); // Use execute method
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Invalid input parameters');
+  });
+
+  it('should return error for unsupported file types', async () => {
+    const params = {
+      projectPath: '.',
+      filePath: 'requirements.txt',
+    };
+    // No need to mock readFileContent here as error happens before file read
+
+    const result = await dependencyAnalyzerTool.execute(
+      params,
+      mockConfig,
+      mockContext
+    ); // Use execute method
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain(
+      "Unsupported file type 'requirements.txt'"
+    );
+  });
+
+  it('should return error if JSON parsing fails', async () => {
+    const params = {
+      projectPath: '.',
+      filePath: 'package.json',
+    };
+    mockReadFileContent.mockResolvedValue('{ invalid json'); // Invalid JSON content
+
+    const result = await dependencyAnalyzerTool.execute(
+      params,
+      mockConfig,
+      mockContext
+    ); // Use execute method
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain(
+      'Invalid JSON in file: package.json'
+    );
+  });
+
+  it('should analyze package.json successfully', async () => {
+    const params = {
+      projectPath: '.',
+      filePath: 'package.json',
+    };
+    const packageJsonContent = JSON.stringify({
+      name: 'test-package',
+      version: '1.0.0',
+      dependencies: { express: '^4.18.0' },
+      devDependencies: { jest: '^29.0.0' },
     });
-     const mockPackageJsonNoDevDeps = JSON.stringify({
-         name: "test-package-no-dev",
-         dependencies: { "axios": "1.0.0" }
-     });
-     const mockPackageJsonNoDeps = JSON.stringify({
-         name: "test-package-no-deps",
-         devDependencies: { "eslint": "8.0.0" }
-     });
-    const invalidJsonContent = "{ name: test";
+    mockReadFileContent.mockResolvedValue(packageJsonContent);
 
-    beforeEach(() => {
-        vi.clearAllMocks();
+    const result = await dependencyAnalyzerTool.execute(
+      params,
+      mockConfig,
+      mockContext
+    ); // Use execute method
+
+    expect(result.isError).toBe(false);
+    expect(result.content[0].text).toContain(
+      '## Dependency Analysis for: package.json'
+    );
+    expect(result.content[0].text).toContain('### Dependencies (1):');
+    expect(result.content[0].text).toContain('- express: ^4.18.0');
+    expect(result.content[0].text).toContain('### Dev Dependencies (1):');
+    expect(result.content[0].text).toContain('- jest: ^29.0.0');
+  });
+
+  it('should handle package.json with missing devDependencies', async () => {
+    const params = {
+      projectPath: '.',
+      filePath: 'package.json',
+    };
+    const mockPackageJsonNoDevDeps = JSON.stringify({
+      name: 'test-package',
+      version: '1.0.0',
+      dependencies: { axios: '1.0.0' },
     });
+    mockReadFileContent.mockResolvedValue(mockPackageJsonNoDevDeps);
 
-    it('should analyze package.json successfully', async () => {
-        readFileMock.mockResolvedValue(mockPackageJsonContent);
-        const result = await analyzeDependencies({ filePath: 'package.json' }, mockConfig);
+    const result = await dependencyAnalyzerTool.execute(
+      params,
+      mockConfig,
+      mockContext
+    ); // Use execute method
 
-        expect(result.isError).toBe(false);
-        expect(result.content[0].text).toContain('## Dependency Analysis for: package.json');
-        expect(result.content[0].text).toContain('### Dependencies (1):');
-        expect(result.content[0].text).toContain('- express: ^4.18.0');
-        expect(result.content[0].text).toContain('### Dev Dependencies (1):');
-        expect(result.content[0].text).toContain('- vitest: ^3.0.0');
-        expect(readFileMock).toHaveBeenCalledWith('package.json');
+    expect(result.isError).toBe(false);
+    expect(result.content[0].text).toContain('### Dependencies (1):');
+    expect(result.content[0].text).toContain('- axios: 1.0.0');
+    expect(result.content[0].text).toContain(
+      '### Dev Dependencies:\n - None found.'
+    );
+  });
+
+  it('should handle package.json with missing dependencies', async () => {
+    const params = {
+      projectPath: '.',
+      filePath: 'package.json',
+    };
+    const mockPackageJsonNoDeps = JSON.stringify({
+      name: 'test-package',
+      version: '1.0.0',
+      devDependencies: { vitest: '^3.0.0' },
     });
+    mockReadFileContent.mockResolvedValue(mockPackageJsonNoDeps);
 
-    it('should handle package.json with missing devDependencies', async () => {
-         readFileMock.mockResolvedValue(mockPackageJsonNoDevDeps);
-         const result = await analyzeDependencies({ filePath: 'package.json' }, mockConfig);
-         expect(result.isError).toBe(false);
-         expect(result.content[0].text).toContain('### Dependencies (1):');
-         expect(result.content[0].text).toContain('- axios: 1.0.0');
-         expect(result.content[0].text).toContain('### Dev Dependencies:\n - None found.');
-    });
+    const result = await dependencyAnalyzerTool.execute(
+      params,
+      mockConfig,
+      mockContext
+    ); // Use execute method
 
-    it('should handle package.json with missing dependencies', async () => {
-        readFileMock.mockResolvedValue(mockPackageJsonNoDeps);
-        const result = await analyzeDependencies({ filePath: 'package.json' }, mockConfig);
-        expect(result.isError).toBe(false);
-        expect(result.content[0].text).toContain('### Dependencies:\n - None found.');
-        expect(result.content[0].text).toContain('### Dev Dependencies (1):');
-        expect(result.content[0].text).toContain('- eslint: 8.0.0');
-   });
+    expect(result.isError).toBe(false);
+    expect(result.content[0].text).toContain(
+      '### Dependencies:\n - None found.'
+    );
+    expect(result.content[0].text).toContain('### Dev Dependencies (1):');
+    expect(result.content[0].text).toContain('- vitest: ^3.0.0');
+  });
 
-    it('should return error if file reading fails', async () => {
-        const error = new AppError('File not found');
-        readFileMock.mockRejectedValue(error);
-        const result = await analyzeDependencies({ filePath: 'nonexistent.json' }, mockConfig);
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain(`Error analyzing dependencies: ${error.message}`);
-         expect((result.errorDetails as { type: string })?.type).toBe(error.name);
-    });
+  it('should return error if file reading fails', async () => {
+    const params = {
+      projectPath: '.',
+      filePath: 'nonexistent.json',
+    };
+    const readError = new Error('File not found');
+    mockReadFileContent.mockRejectedValue(readError);
 
-    it('should return error if JSON parsing fails', async () => {
-        readFileMock.mockResolvedValue(invalidJsonContent);
-        const result = await analyzeDependencies({ filePath: 'package.json' }, mockConfig);
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Error analyzing dependencies: Invalid JSON in file: package.json');
-        expect((result.errorDetails as { type: string })?.type).toBe('ParsingError');
-    });
+    const result = await dependencyAnalyzerTool.execute(
+      params,
+      mockConfig,
+      mockContext
+    ); // Use execute method
 
-    it('should return error for unsupported file types', async () => {
-         const filePath = 'requirements.txt';
-         readFileMock.mockResolvedValue('flask==2.0'); // Valid content, but type unsupported
-         const result = await analyzeDependencies({ filePath }, mockConfig);
-         expect(result.isError).toBe(true);
-         expect(result.content[0].text).toContain(`Error: Unsupported file type 'requirements.txt'. Currently only 'package.json' is supported.`);
-         expect((result.errorDetails as { type: string })?.type).toBe('UnsupportedFileTypeError');
-         expect(readFileMock).toHaveBeenCalledWith(filePath); // Ensure it tried to read
-    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain(
+      `Error analyzing dependencies: ${readError.message}`
+    );
+  });
 });

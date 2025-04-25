@@ -1,0 +1,48 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:{{snakeCase projectName}}_client/features/auth/auth_repository.dart';
+import 'package:{{snakeCase projectName}}_client/features/auth/auth_state.dart';
+
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+  final repository = ref.watch(authRepositoryProvider);
+  return AuthNotifier(repository);
+});
+
+class AuthNotifier extends StateNotifier<AuthState> {
+  final AuthRepository _repository;
+
+  AuthNotifier(this._repository) : super(const AuthState.unauthenticated()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    final token = await _repository.getStoredToken();
+    if (token != null) {
+      state = AuthState.authenticated(token);
+    }
+  }
+
+  Future<void> login(String email, String password) async {
+    state = const AuthState.loading();
+    try {
+      final token = await _repository.login(email, password);
+      state = AuthState.authenticated(token);
+    } catch (e) {
+      state = AuthState.error(e.toString());
+    }
+  }
+
+  Future<void> register(String email, String password, String name) async {
+    state = const AuthState.loading();
+    try {
+      final token = await _repository.register(email, password, name);
+      state = AuthState.authenticated(token);
+    } catch (e) {
+      state = AuthState.error(e.toString());
+    }
+  }
+
+  Future<void> logout() async {
+    await _repository.clearToken();
+    state = const AuthState.unauthenticated();
+  }
+}

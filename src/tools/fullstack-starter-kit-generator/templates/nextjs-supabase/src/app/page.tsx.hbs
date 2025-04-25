@@ -1,0 +1,28 @@
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers' import { redirect } from
+'next/navigation' import AuthButton from '@/components/AuthButton' export
+default async function Index() { const supabase = createServerComponentClient({
+cookies }) const { data: { session }, } = await supabase.auth.getSession() if
+(!session) { redirect('/auth') } return (
+<div className='w-full flex flex-col items-center'>
+  <nav
+    className='w-full flex justify-center border-b border-b-foreground/10 h-16'
+  >
+    <div
+      className='w-full max-w-4xl flex justify-between items-center p-3 text-sm'
+    >
+      <div />
+      <AuthButton />
+    </div>
+  </nav>
+
+  <div
+    className='animate-in flex flex-col gap-14 opacity-0 max-w-4xl px-3 py-16 lg:py-24 text-foreground'
+  >
+    <div className='flex flex-col items-center mb-4 lg:mb-12'>
+      <h1 className='text-4xl font-bold mb-4'>Welcome to {{projectName}}</h1>
+      <p className='text-lg text-foreground/60'>{{description}}</p>
+    </div>
+  </div>
+</div>
+) }

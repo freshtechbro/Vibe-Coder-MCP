@@ -1,23 +1,29 @@
-// src/tools/index.ts
-// This file imports all tool modules to ensure their registration logic runs.
+// Import all tool modules to ensure their registration logic runs
+import logger from '../logger.js';
 
+// Research tools
 import './research-manager/index.js';
+
+// Generation tools
 import './rules-generator/index.js';
 import './prd-generator/index.js';
-import './user-stories-generator/index.js';
 import './task-list-generator/index.js';
-import './fullstack-starter-kit-generator/index.js';
+
+// Code tools
 import './code-stub-generator/index.js';
 import './code-refactor-generator/index.js';
 import './git-summary-generator/index.js';
-import './dependency-analyzer/index.js'; // Added import for the dependency analyzer tool
-import './workflow-runner/index.js'; // Add this line
+import './dependency-analyzer/index.js';
 
-// Note: process-request is currently registered in src/services/request-processor/index.ts
-// If it were moved to src/tools/, its import would go here too.
-// import './process-request/index.js';
+// Workflow tools
+import './workflow-runner/index.js';
 
-// Import other tools here as they are created and migrated...
+logger.info('All tool modules imported for registration.');
 
-import logger from '../logger.js';
-logger.debug('All tool modules imported for registration.');
+// This file ensures all tools are registered when imported
+import { HandlerFactory } from '../core/handlers/handler-factory.js';
+import { FullstackStarterKitHandler } from '../core/handlers/fullstack-starter-kit-handler.js';
+
+// Register all handlers
+const handlerFactory = HandlerFactory.getInstance();
+handlerFactory.registerHandler(new FullstackStarterKitHandler());

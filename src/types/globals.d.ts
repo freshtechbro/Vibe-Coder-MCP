@@ -24,3 +24,7 @@ declare namespace Express {
 }
 
 // Add any global type declarations here
+
+declare module 'ws';
+declare module '@socket.io/redis-adapter';
+declare module 'prom-client';

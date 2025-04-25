@@ -1,0 +1,74 @@
+-- Create a table for public profiles create table profiles ( id uuid references
+auth.users not null primary key, updated_at timestamp with time zone, username
+text unique, full_name text, avatar_url text, website text, constraint
+username_length check (char_length(username) >= 3) ); -- Set up Row Level
+Security (RLS) alter table profiles enable row level security; create policy
+"Public profiles are viewable by everyone." on profiles for select using (true);
+create policy "Users can insert their own profile." on profiles for insert with
+check ((select auth.uid()) = id); create policy "Users can update own profile."
+on profiles for update using ((select auth.uid()) = id); -- Create a table for
+roles create table roles ( id uuid default gen_random_uuid() primary key, name
+text unique not null, description text, created_at timestamp with time zone
+default now(), updated_at timestamp with time zone default now() ); -- Create a
+table for permissions create table permissions ( id uuid default
+gen_random_uuid() primary key, action text not null, entity text not null,
+access text not null, description text, created_at timestamp with time zone
+default now(), updated_at timestamp with time zone default now(), constraint
+unique_permission unique (action, entity, access) ); -- Create a table for role
+permissions create table role_permissions ( role_id uuid references roles(id) on
+delete cascade, permission_id uuid references permissions(id) on delete cascade,
+created_at timestamp with time zone default now(), primary key (role_id,
+permission_id) ); -- Create a table for user roles create table user_roles (
+user_id uuid references auth.users(id) on delete cascade, role_id uuid
+references roles(id) on delete cascade, created_at timestamp with time zone
+default now(), primary key (user_id, role_id) ); -- Enable RLS on all tables
+alter table roles enable row level security; alter table permissions enable row
+level security; alter table role_permissions enable row level security; alter
+table user_roles enable row level security; -- Set up RLS policies create policy
+"Roles are viewable by authenticated users." on roles for select using
+(auth.role() = 'authenticated'); create policy "Permissions are viewable by
+authenticated users." on permissions for select using (auth.role() =
+'authenticated'); create policy "Role permissions are viewable by authenticated
+users." on role_permissions for select using (auth.role() = 'authenticated');
+create policy "User roles are viewable by authenticated users." on user_roles
+for select using (auth.role() = 'authenticated'); -- Create a function to handle
+new user signups create function public.handle_new_user() returns trigger as $$
+begin insert into public.profiles (id, full_name, avatar_url) values (new.id,
+new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url');
+return new; end; $$ language plpgsql security definer; -- Create a trigger to
+handle new user signups create trigger on_auth_user_created after insert on
+auth.users for each row execute procedure public.handle_new_user(); -- Set up
+Storage insert into storage.buckets (id, name) values ('avatars', 'avatars'); --
+Set up storage policies create policy "Avatar images are publicly accessible."
+on storage.objects for select using (bucket_id = 'avatars'); create policy
+"Anyone can upload an avatar." on storage.objects for insert with check
+(bucket_id = 'avatars'); create policy "Anyone can update their own avatar." on
+storage.objects for update using (auth.uid() = owner) with check (bucket_id =
+'avatars'); -- Create a function to get user roles with JWT create or replace
+function public.get_user_roles(user_id uuid) returns setof roles language sql
+security definer set search_path = public stable as $$ select r.* from roles r
+inner join user_roles ur on ur.role_id = r.id where ur.user_id = user_id; $$; --
+Create a function to get user permissions with JWT create or replace function
+public.get_user_permissions(user_id uuid) returns setof permissions language sql
+security definer set search_path = public stable as $$ select distinct p.* from
+permissions p inner join role_permissions rp on rp.permission_id = p.id inner
+join user_roles ur on ur.role_id = rp.role_id where ur.user_id = user_id; $$; --
+Create a function to check if a user has a specific permission create or replace
+function public.has_permission( user_id uuid, required_action text,
+required_entity text, required_access text ) returns boolean language sql
+security definer set search_path = public stable as $$ select exists ( select 1
+from permissions p inner join role_permissions rp on rp.permission_id = p.id
+inner join user_roles ur on ur.role_id = rp.role_id where ur.user_id = user_id
+and p.action = required_action and p.entity = required_entity and p.access =
+required_access ); $$; -- Create a function to customize JWT claims create or
+replace function public.custom_access_token_hook(event jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$ declare
+user_roles jsonb; user_permissions jsonb; begin -- Get user roles select
+json_agg(r.name)::jsonb into user_roles from
+get_user_roles((event->>'user_id')::uuid) r; -- Get user permissions select
+json_agg(json_build_object( 'action', p.action, 'entity', p.entity, 'access',
+p.access ))::jsonb into user_permissions from
+get_user_permissions((event->>'user_id')::uuid) p; -- Add roles and permissions
+to JWT claims return jsonb_set( jsonb_set( event, '{claims,roles}',
+coalesce(user_roles, '[]'::jsonb) ), '{claims,permissions}',
+coalesce(user_permissions, '[]'::jsonb) ); end; $$;

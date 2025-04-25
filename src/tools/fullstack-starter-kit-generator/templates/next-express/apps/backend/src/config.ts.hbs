@@ -1,0 +1,7 @@
+import dotenv from 'dotenv'; import { z } from 'zod'; dotenv.config(); const
+configSchema = z.object({ port: z.coerce.number().default(3001), nodeEnv:
+z.enum(['development', 'test', 'production']).default('development'),
+databaseUrl: z.string().url(), corsOrigin:
+z.string().url().default('http://localhost:3000'), }); export const config =
+configSchema.parse({ port: process.env.PORT, nodeEnv: process.env.NODE_ENV,
+databaseUrl: process.env.DATABASE_URL, corsOrigin: process.env.CORS_ORIGIN, });

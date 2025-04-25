@@ -1,0 +1,41 @@
+import { jwtVerify, SignJWT } from 'jose';
+import { dev } from '$app/environment';
+
+const JWT_SECRET = new TextEncoder().encode(
+  import.meta.env.VITE_JWT_SECRET || 'your-secret-key'
+);
+
+export interface JWTPayload {
+  sub: string;
+  email: string;
+  roles: string[];
+  permissions: string[];
+  iat?: number;
+  exp?: number;
+}
+
+export async function createToken(payload: Omit<JWTPayload, 'iat' | 'exp'>) {
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(JWT_SECRET);
+}
+
+export async function verifyToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as JWTPayload;
+  } catch (error) {
+    if (dev) console.error('Token verification failed:', error);
+    return null;
+  }
+}
+
+export function hasPermission(user: JWTPayload | null, permission: string) {
+  return user?.permissions?.includes(permission) ?? false;
+}
+
+export function hasRole(user: JWTPayload | null, role: string) {
+  return user?.roles?.includes(role) ?? false;
+}

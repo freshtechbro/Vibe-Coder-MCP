@@ -1,0 +1,23 @@
+import axios from 'axios';
+
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const userApi = {
+  list: () => api.get<User[]>('/users').then(res => res.data),
+  get: (id: string) => api.get<User>(`/users/${id}`).then(res => res.data),
+  create: (data: { email: string; name?: string }) => 
+    api.post<User>('/users', data).then(res => res.data),
+};

@@ -1,6 +1,6 @@
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
 import { fileURLToPath } from 'url'; // Import necessary modules
 
 // Get the directory name using ES module approach
@@ -13,12 +13,12 @@ const testData = JSON.parse(fs.readFileSync(testDataPath, 'utf8'));
 
 // Format the message for the MCP server
 const message = {
-  id: "test-" + Date.now(),
-  type: "request",
+  id: 'test-' + Date.now(),
+  type: 'request',
   request: {
     name: testData.name,
-    params: testData.params
-  }
+    params: testData.params,
+  },
 };
 
 // Define paths relative to the project root (one level up from __dirname)
@@ -39,10 +39,7 @@ fs.writeFileSync(messageFilePath, JSON.stringify(message, null, 2));
 
 // Use PowerShell to cat the message.json file (from root) and pipe it to npm start (run from root)
 const psCommand = `Get-Content '${messageFilePath}' | npm start`;
-const ps = spawn('powershell', [
-  '-Command',
-  psCommand
-], { cwd: projectRoot }); // Ensure spawn runs from project root
+const ps = spawn('powershell', ['-Command', psCommand], { cwd: projectRoot }); // Ensure spawn runs from project root
 
 ps.stdout.on('data', (data) => {
   outputFile.write(data);

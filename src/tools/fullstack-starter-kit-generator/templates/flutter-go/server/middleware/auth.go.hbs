@@ -1,0 +1,18 @@
+package middleware import ( "context" "net/http" "strings" "{{kebabCase
+  projectName
+}}/server/db" "{{kebabCase projectName}}/server/utils" ) type contextKey string
+const UserKey contextKey = "user" func Auth(next http.Handler) http.Handler {
+return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { // Skip
+auth for public routes if isPublicRoute(r.URL.Path) { next.ServeHTTP(w, r)
+return } // Get token from header authHeader := r.Header.Get("Authorization") if
+authHeader == "" { http.Error(w, "Missing authorization header",
+http.StatusUnauthorized) return } tokenString := strings.Replace(authHeader,
+"Bearer ", "", 1) userID, err := utils.ValidateToken(tokenString) if err != nil
+{ http.Error(w, "Invalid token", http.StatusUnauthorized) return } // Get user
+from database var user db.User if err := db.DB.First(&user, userID).Error; err
+!= nil { http.Error(w, "User not found", http.StatusUnauthorized) return } //
+Add user to context ctx := context.WithValue(r.Context(), UserKey, &user)
+next.ServeHTTP(w, r.WithContext(ctx)) }) } func isPublicRoute(path string) bool
+{ publicRoutes := []string{ "/api/auth/register", "/api/auth/login", } for _,
+route := range publicRoutes { if strings.HasPrefix(path, route) { return true }
+} return false }

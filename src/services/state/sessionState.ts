@@ -1,6 +1,5 @@
-// src/services/state/sessionState.ts
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import logger from '../../logger.js'; // Adjust path if necessary
+import logger from '../../logger.js';
+import { CallToolResult } from '../../types/mcp.js';
 
 /**
  * Defines the structure for storing a single interaction within a session's history.
@@ -11,7 +10,7 @@ export interface InteractionHistory {
     /** The name of the tool that was called. */
     name: string;
     /** The parameters passed to the tool. */
-    params: Record<string, unknown>; // Use unknown instead of any for better type safety
+    params: Record<string, unknown>;
     /** Timestamp (ms since epoch) when the tool call was initiated. */
     timestamp: number;
   };
@@ -37,7 +36,10 @@ const MAX_HISTORY_LENGTH = 10; // Keep the last N interactions per session
  * @param sessionId The unique identifier for the session. Must be a non-empty string.
  * @param historyEntry The interaction details (tool call and response) to add.
  */
-export function addInteraction(sessionId: string, historyEntry: InteractionHistory): void {
+export function addInteraction(
+  sessionId: string,
+  historyEntry: InteractionHistory
+): void {
   if (!sessionId || typeof sessionId !== 'string') {
     logger.warn('Attempted to add interaction without a valid session ID.');
     return;
@@ -47,18 +49,20 @@ export function addInteraction(sessionId: string, historyEntry: InteractionHisto
     sessionHistories.set(sessionId, []);
   }
 
-  const history = sessionHistories.get(sessionId)!; // Should exist now due to the check above
+  const history = sessionHistories.get(sessionId)!;
   history.push(historyEntry);
 
   // Enforce history limit - remove oldest entry if over limit
   if (history.length > MAX_HISTORY_LENGTH) {
-    history.shift(); // Remove the first (oldest) element
-    logger.debug(`History limit reached for session ${sessionId}. Removed oldest entry.`);
+    history.shift();
+    logger.debug(
+      `History limit reached for session ${sessionId}. Removed oldest entry.`
+    );
   }
 
-  // Update the map (though modifying the array in place might be sufficient for Maps)
-  // sessionHistories.set(sessionId, history); // This line might be redundant if array modification is reflected
-  logger.debug(`Added interaction to history for session ${sessionId}. History length: ${history.length}`);
+  logger.debug(
+    `Added interaction to history for session ${sessionId}. History length: ${history.length}`
+  );
 }
 
 /**
@@ -67,14 +71,18 @@ export function addInteraction(sessionId: string, historyEntry: InteractionHisto
  * @param sessionId The unique identifier for the session.
  * @returns The last InteractionHistory entry, or undefined if the session ID is invalid or no history exists.
  */
-export function getLastInteraction(sessionId: string): InteractionHistory | undefined {
+export function getLastInteraction(
+  sessionId: string
+): InteractionHistory | undefined {
   if (!sessionId || typeof sessionId !== 'string') return undefined;
 
   const history = sessionHistories.get(sessionId);
   if (history && history.length > 0) {
-    return history[history.length - 1]; // Return the last element
+    return history[history.length - 1];
   }
-  logger.debug(`No history found for session ${sessionId} when getting last interaction.`);
+  logger.debug(
+    `No history found for session ${sessionId} when getting last interaction.`
+  );
   return undefined;
 }
 
@@ -85,7 +93,7 @@ export function getLastInteraction(sessionId: string): InteractionHistory | unde
  * @returns An array of InteractionHistory entries, or an empty array if the session ID is invalid or no history exists.
  */
 export function getSessionHistory(sessionId: string): InteractionHistory[] {
-   if (!sessionId || typeof sessionId !== 'string') return [];
+  if (!sessionId || typeof sessionId !== 'string') return [];
   return sessionHistories.get(sessionId) || [];
 }
 
@@ -95,19 +103,21 @@ export function getSessionHistory(sessionId: string): InteractionHistory[] {
  * @param sessionId The unique identifier for the session whose history should be cleared.
  */
 export function clearSessionHistory(sessionId: string): void {
-   if (!sessionId || typeof sessionId !== 'string') return;
-   if (sessionHistories.has(sessionId)) {
-       sessionHistories.delete(sessionId);
-       logger.info(`Cleared history for session ${sessionId}.`);
-   } else {
-       logger.debug(`Attempted to clear history for non-existent session ${sessionId}.`);
-   }
+  if (!sessionId || typeof sessionId !== 'string') return;
+  if (sessionHistories.has(sessionId)) {
+    sessionHistories.delete(sessionId);
+    logger.info(`Cleared history for session ${sessionId}.`);
+  } else {
+    logger.debug(
+      `Attempted to clear history for non-existent session ${sessionId}.`
+    );
+  }
 }
 
 /**
  * Clears all stored session histories. Useful for server restarts or specific reset commands.
  */
 export function clearAllHistories(): void {
-    sessionHistories.clear();
-    logger.info('Cleared all session histories.');
+  sessionHistories.clear();
+  logger.info('Cleared all session histories.');
 }

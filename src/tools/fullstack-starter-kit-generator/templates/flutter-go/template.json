@@ -1,0 +1,38 @@
+{
+  "name": "flutter-go",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with Flutter and Go",
+  "metadata": {
+    "frontend": {
+      "framework": "Flutter",
+      "language": "Dart"
+    },
+    "backend": {
+      "framework": "Go",
+      "language": "Go"
+    },
+    "features": {
+      "authentication": {
+        "jwt": true,
+        "oauth": ["google", "github"],
+        "session": true,
+        "rbac": true
+      },
+      "database": {
+        "type": "PostgreSQL",
+        "migrations": true,
+        "seeding": true,
+        "typeGeneration": true
+      },
+      "api": {
+        "rest": true,
+        "websocket": true,
+        "grpc": true
+      },
+      "deployment": {
+        "docker": true,
+        "ci": true
+      }
+    }
+  }
+}

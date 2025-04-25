@@ -7,24 +7,39 @@ const techStackItemSchema = z.object({
   rationale: z.string(),
 });
 
-const fileStructureItemSchema: z.ZodTypeAny = z.lazy(() => // Use z.lazy for recursive types
-  z.object({
-    path: z.string(),
-    type: z.enum(['file', 'directory']),
-    content: z.string().nullable(), // Allow null for generationPrompt
-    generationPrompt: z.string().nullable().optional(), // Allow null for content
-    children: z.array(fileStructureItemSchema).optional(), // Recursive part
-  }).refine(data => data.type === 'directory' || data.children === undefined, {
-    message: "Files cannot have children", path: ["children"]
-  }).refine(data => {
-    // If content is provided, generationPrompt should not be provided (or be null)
-    if (data.content !== null && data.content !== undefined) {
-      return data.generationPrompt === null || data.generationPrompt === undefined;
-    }
-    return true;
-  }, {
-  message: "Cannot have both content and generationPrompt", path: ["content"]
-  })
+const fileStructureItemSchema: z.ZodTypeAny = z.lazy(() =>
+  // Use z.lazy for recursive types
+  z
+    .object({
+      path: z.string(),
+      type: z.enum(['file', 'directory']),
+      content: z.string().nullable(), // Allow null for generationPrompt
+      generationPrompt: z.string().nullable().optional(), // Allow null for content
+      children: z.array(fileStructureItemSchema).optional(), // Recursive part
+    })
+    .refine(
+      (data) => data.type === 'directory' || data.children === undefined,
+      {
+        message: 'Files cannot have children',
+        path: ['children'],
+      }
+    )
+    .refine(
+      (data) => {
+        // If content is provided, generationPrompt should not be provided (or be null)
+        if (data.content !== null && data.content !== undefined) {
+          return (
+            data.generationPrompt === null ||
+            data.generationPrompt === undefined
+          );
+        }
+        return true;
+      },
+      {
+        message: 'Cannot have both content and generationPrompt',
+        path: ['content'],
+      }
+    )
 );
 
 // Export the recursive schema type as well
@@ -38,16 +53,23 @@ export const starterKitDefinitionSchema = z.object({
   directoryStructure: z.array(fileStructureItemSchema),
   dependencies: z.object({
     // Making npm optional, add others like yarn if needed
-    npm: z.object({
-      root: z.object({
-        dependencies: z.record(z.string()).optional(),
-        devDependencies: z.record(z.string()).optional(),
-      }).optional(),
-      // Allow arbitrary keys for sub-directories like 'client'
-    }).catchall(z.object({
-      dependencies: z.record(z.string()).optional(),
-      devDependencies: z.record(z.string()).optional(),
-    })).optional(),
+    npm: z
+      .object({
+        root: z
+          .object({
+            dependencies: z.record(z.string()).optional(),
+            devDependencies: z.record(z.string()).optional(),
+          })
+          .optional(),
+        // Allow arbitrary keys for sub-directories like 'client'
+      })
+      .catchall(
+        z.object({
+          dependencies: z.record(z.string()).optional(),
+          devDependencies: z.record(z.string()).optional(),
+        })
+      )
+      .optional(),
   }),
   setupCommands: z.array(z.string()),
   nextSteps: z.array(z.string()),

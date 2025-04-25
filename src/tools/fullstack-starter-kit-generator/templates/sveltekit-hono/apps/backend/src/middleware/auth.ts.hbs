@@ -1,0 +1,98 @@
+import { Context, MiddlewareHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { jwtVerify, SignJWT } from 'jose';
+import { db } from '../db';
+import { users, userRoles, rolePermissions } from '../db/schema';
+import { eq, and } from 'drizzle-orm';
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'your-secret-key'
+);
+
+export interface JWTPayload {
+  sub: string;
+  email: string;
+  roles: string[];
+  permissions: string[];
+  iat?: number;
+  exp?: number;
+}
+
+export async function createToken(payload: Omit<JWTPayload, 'iat' | 'exp'>) {
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(JWT_SECRET);
+}
+
+export async function verifyToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as JWTPayload;
+  } catch (error) {
+    return null;
+  }
+}
+
+export const requireAuth = (): MiddlewareHandler => {
+  return async (c: Context, next) => {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new HTTPException(401, { message: 'Unauthorized' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const payload = await verifyToken(token);
+    if (!payload) {
+      throw new HTTPException(401, { message: 'Invalid token' });
+    }
+
+    c.set('user', payload);
+    await next();
+  };
+};
+
+export const requirePermission = (permission: string): MiddlewareHandler => {
+  return async (c: Context, next) => {
+    const user = c.get('user') as JWTPayload;
+    if (!user?.permissions?.includes(permission)) {
+      throw new HTTPException(403, { message: 'Forbidden' });
+    }
+    await next();
+  };
+};
+
+export const requireRole = (role: string): MiddlewareHandler => {
+  return async (c: Context, next) => {
+    const user = c.get('user') as JWTPayload;
+    if (!user?.roles?.includes(role)) {
+      throw new HTTPException(403, { message: 'Forbidden' });
+    }
+    await next();
+  };
+};
+
+export async function getUserPermissions(userId: string) {
+  const userRolesResult = await db
+    .select({
+      roleId: userRoles.roleId,
+    })
+    .from(userRoles)
+    .where(eq(userRoles.userId, userId));
+
+  const roleIds = userRolesResult.map(r => r.roleId);
+
+  const permissions = await db
+    .select({
+      action: rolePermissions.action,
+      entity: rolePermissions.entity,
+      access: rolePermissions.access,
+    })
+    .from(rolePermissions)
+    .where(
+      rolePermissions.roleId.in(roleIds)
+    );
+
+  return permissions.map(p => `${p.action}:${p.entity}:${p.access}`);
+}

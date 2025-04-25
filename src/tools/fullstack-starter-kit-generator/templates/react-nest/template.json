@@ -1,0 +1,19 @@
+{
+  "name": "react-nest",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with React frontend and NestJS backend",
+  "metadata": {
+    "frontend": {
+      "framework": "React",
+      "language": "TypeScript",
+      "styling": "Tailwind CSS",
+      "bundler": "Vite"
+    },
+    "backend": {
+      "framework": "NestJS",
+      "language": "TypeScript",
+      "database": "PostgreSQL",
+      "orm": "Prisma"
+    }
+  }
+}

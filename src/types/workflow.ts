@@ -2,107 +2,47 @@
  * Configuration options for using OpenRouter API
  */
 export interface OpenRouterConfig {
-  baseUrl: string;
   apiKey: string;
-  geminiModel: string;
-  perplexityModel: string;
-  llm_mapping?: Record<string, string>; // Optional: Mapping of logical task names to model strings
-}
-
-
-/**
- * Message object for LLM requests
- */
-export interface Message {
-  role: string;
-  content: string;
-}
-
-/**
- * Request format for LLM API calls
- */
-export interface LLMRequest {
-  messages: Message[];
-  model: string;
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-  stop?: string[];
-}
-
-/**
- * Response format from LLM API calls
- */
-export interface LLMResponse {
-  id: string;
-  choices: {
-    message: {
-      role: string;
-      content: string;
+  baseUrl: string;
+  defaultModel: string;
+  temperature: number;
+  maxTokens: number;
+  llm_mapping?: Record<string, string>;
+  api_config?: {
+    provider?: string;
+    base_url?: string;
+    timeout?: number;
+    max_retries?: number;
+    retry_delay?: number;
+    web_search?: {
+      enabled: boolean;
+      max_results?: number;
+      search_prompt?: string;
     };
-    finish_reason: string;
-  }[];
-  model: string;
+  };
+  [key: string]: unknown;
 }
 
-/**
- * Result type for the PRD Generator tool
- */
-export interface PrdGeneratorResult {
-  content: {
-    type: "text";
-    text: string;
-  }[];
+export interface WorkflowStep {
+  id: string;
+  name: string;
+  tool: string;
+  params: Record<string, unknown>;
+  next?: string[];
+  onError?: string[];
 }
 
-/**
- * Result type for the User Stories Generator tool
- */
-export interface UserStoriesGeneratorResult {
-  content: {
-    type: "text";
-    text: string;
-  }[];
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  steps: WorkflowStep[];
+  startAt: string;
 }
 
-/**
- * Result type for the Task List Generator tool
- */
-export interface TaskListGeneratorResult {
-  content: {
-    type: "text";
-    text: string;
-  }[];
-}
-
-/**
- * Result type for the Research Manager tool
- */
-export interface ResearchManagerResult {
-  content: {
-    type: "text";
-    text: string;
-  }[];
-}
-
-/**
- * Result type for the Rules Generator tool
- */
-export interface RulesGeneratorResult {
-  content: {
-    type: "text";
-    text: string;
-  }[];
-}
-
-
-/**
- * Standard response format for all tools
- */
-export interface ToolResponse {
-  content: {
-    type: "text";
-    text: string;
-  }[];
-  isError?: boolean;
+export interface WorkflowExecutionContext {
+  workflowId: string;
+  stepId: string;
+  sessionId: string;
+  metadata?: Record<string, unknown>;
 }

@@ -1,0 +1,29 @@
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'; import {
+relations } from 'drizzle-orm'; import { createId } from '@paralleldrive/cuid2';
+export const users = sqliteTable('users', { id:
+text('id').primaryKey().$defaultFn(() => createId()), email:
+text('email').notNull().unique(), name: text('name'), hashedPassword:
+text('hashed_password'), createdAt: integer('created_at', { mode: 'timestamp'
+}).$defaultFn(() => new Date()), updatedAt: integer('updated_at', { mode:
+'timestamp' }).$defaultFn(() => new Date()), }); export const roles =
+sqliteTable('roles', { id: text('id').primaryKey().$defaultFn(() => createId()),
+name: text('name').notNull().unique(), description: text('description'), });
+export const userRoles = sqliteTable('user_roles', { userId:
+text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+roleId: text('role_id').notNull().references(() => roles.id, { onDelete:
+'cascade' }), }); export const permissions = sqliteTable('permissions', { id:
+text('id').primaryKey().$defaultFn(() => createId()), action:
+text('action').notNull(), entity: text('entity').notNull(), access:
+text('access').notNull(), description: text('description'), }); export const
+rolePermissions = sqliteTable('role_permissions', { roleId:
+text('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+permissionId: text('permission_id').notNull().references(() => permissions.id, {
+onDelete: 'cascade' }), }); export const sessions = sqliteTable('sessions', {
+id: text('id').primaryKey().$defaultFn(() => createId()), userId:
+text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(), }); //
+Relations export const usersRelations = relations(users, ({ many }) => ({ roles:
+many(userRoles), sessions: many(sessions), })); export const rolesRelations =
+relations(roles, ({ many }) => ({ users: many(userRoles), permissions:
+many(rolePermissions), })); export const permissionsRelations =
+relations(permissions, ({ many }) => ({ roles: many(rolePermissions), }));

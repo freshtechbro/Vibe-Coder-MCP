@@ -54,11 +54,6 @@ if [ $? -ne 0 ]; then
 fi
 echo "TypeScript project built successfully."
 
-# Ensure the built file is executable
-echo "Setting executable permissions for build/index.js..."
-chmod +x build/index.js
-echo "Executable permissions set."
-
 # Check if .env file exists, copy from .env.example if not
 echo "Checking for .env file..."
 if [ ! -f .env ]; then

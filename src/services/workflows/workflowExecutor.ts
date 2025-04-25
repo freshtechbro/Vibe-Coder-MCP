@@ -1,428 +1,353 @@
-// src/services/workflows/workflowExecutor.ts
 import fs from 'fs-extra';
-import path from 'path';
-import { fileURLToPath } from 'url'; // Need this for relative pathing in ES Modules
-import { CallToolResult, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js'; // Import McpError, ErrorCode
-import { executeTool, ToolExecutionContext } from '../routing/toolRegistry.js'; // Import ToolExecutionContext
-import { OpenRouterConfig } from '../../types/workflow.js';
+
 import logger from '../../logger.js';
-import { AppError, ToolExecutionError, ConfigurationError, ParsingError } from '../../utils/errors.js';
-import { jobManager, Job, JobStatus } from '../job-manager/index.js'; // Import Job Manager
-import { sseNotifier } from '../sse-notifier/index.js'; // Import SSE Notifier
+import { ToolResult } from '../../types/tools.js';
+import {
+  ConfigurationError,
+  AppError,
+  ToolExecutionError,
+  ValidationError,
+} from '../../utils/errors.js';
+import { toolRegistry, ToolExecutionContext } from '../routing/toolRegistry.js';
 
-// --- Constants for Job Polling ---
-const POLLING_INTERVAL_MS = 2000; // Check job status every 2 seconds
-const MAX_POLLING_ATTEMPTS = 150; // Max ~5 minutes (150 * 2s)
-
-// --- Interfaces ---
-
-/** Defines a single step within a workflow template. */
-interface WorkflowStep {
-  /** Unique identifier for this step within the workflow. */
-  id: string;
-  /** The name of the tool to execute for this step. */
-  toolName: string;
-  /** Parameters for the tool, where values can be static or template strings. */
-  params: Record<string, string>; // Values are templates like "{workflow.input.xyz}" or "{steps.id.output...}"
-}
-
-/** Defines the structure of a workflow template. */
-interface WorkflowDefinition {
-  /** A description of what the workflow achieves. */
+export interface WorkflowDefinition {
   description: string;
-  /** Optional schema defining expected inputs for the entire workflow. */
-  inputSchema?: Record<string, string>; // Simple type check for now
-  /** Ordered array of steps to execute. */
+  inputSchema?: Record<string, string>;
   steps: WorkflowStep[];
-  /** Optional template defining the structure of the final workflow output. */
   output?: Record<string, string>;
 }
 
-/** Defines the expected structure of the workflows JSON file. */
-interface WorkflowFileFormat {
-  /** A map where keys are workflow names and values are WorkflowDefinition objects. */
-  workflows: Record<string, WorkflowDefinition>;
+export interface WorkflowStep {
+  id: string;
+  toolName: string;
+  params: Record<string, string>;
 }
 
-/** Defines the result structure returned by executeWorkflow. */
 export interface WorkflowResult {
-  /** Indicates if the workflow completed all steps successfully. */
   success: boolean;
-  /** A summary message indicating the outcome. */
   message: string;
-  /** Optional: The processed final output based on the workflow's output template. */
   outputs?: Record<string, unknown>;
-  /** Optional: Raw results of each executed step, keyed by step ID. */
-  stepResults?: Map<string, CallToolResult>;
-  /** Optional: Details about the error if the workflow failed. */
   error?: {
-    /** The ID of the step where the error occurred. */
     stepId?: string;
-    /** The name of the tool that failed. */
     toolName?: string;
-    /** The error message. */
     message: string;
-    /** Additional error details, if available. */
-    details?: Record<string, unknown>;
+    details?: unknown;
+    type?: string;
   };
+  stepResults?: Map<string, ToolResult>;
 }
 
-// --- Store for loaded definitions ---
-let loadedWorkflows = new Map<string, WorkflowDefinition>();
+let workflows = new Map<string, WorkflowDefinition>();
 
-// --- Calculate default path relative to this file ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Go up three levels (src/services/workflows -> src/services -> src -> project root)
-const defaultWorkflowPath = path.resolve(__dirname, '../../../workflows.json');
-
-/**
- * Loads and performs basic validation on workflow definitions from a JSON file.
- * Clears existing loaded workflows before attempting to load.
- * Logs warnings or errors but does not throw if loading fails, allowing the server to start.
- * @param filePath Path to the workflows JSON file. Defaults to 'workflows.json' in the project root.
- */
-export function loadWorkflowDefinitions(filePath: string = defaultWorkflowPath): void {
-  logger.info(`Attempting to load workflow definitions from: ${filePath}`);
-  loadedWorkflows = new Map(); // Clear previous definitions first
-
+export function loadWorkflowDefinitions(path: string): void {
   try {
-    if (!fs.existsSync(filePath)) {
-      logger.warn(`Workflow definition file not found: ${filePath}. No workflows loaded.`);
+    if (!fs.existsSync(path)) {
+      logger.warn(`Workflow definition file not found at: ${path}`);
       return;
     }
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const workflowData: WorkflowFileFormat = JSON.parse(fileContent);
 
-    // Basic structural validation
-    if (!workflowData || typeof workflowData.workflows !== 'object' || workflowData.workflows === null) {
-      throw new ConfigurationError('Invalid workflow file format: Root "workflows" object missing or invalid.');
+    const content = fs.readFileSync(path, 'utf-8');
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (err) {
+      logger.error({ err }, 'Failed to parse workflow definitions file');
+      return;
     }
 
-    // TODO: Add more robust validation using Zod for the WorkflowFileFormat structure
-    //       This would involve defining Zod schemas for WorkflowDefinition, WorkflowStep etc.
-    //       and parsing workflowData against that schema.
+    if (!parsed || typeof parsed !== 'object' || !('workflows' in parsed)) {
+      logger.error(
+        {
+          err: new ConfigurationError(
+            '"workflows" object missing from definitions file'
+          ),
+        },
+        'Invalid workflow definitions file structure'
+      );
+      return;
+    }
 
-    loadedWorkflows = new Map(Object.entries(workflowData.workflows));
-    logger.info(`Successfully loaded ${loadedWorkflows.size} workflow definitions.`);
+    const newWorkflows = new Map<string, WorkflowDefinition>();
+    for (const [name, def] of Object.entries(parsed.workflows)) {
+      newWorkflows.set(name, def as WorkflowDefinition);
+    }
+    workflows = newWorkflows;
 
+    logger.info(`Successfully loaded ${workflows.size} workflow definitions.`);
   } catch (error) {
-    logger.error({ err: error, filePath }, 'Failed to load or parse workflow definitions. Workflows will be unavailable.');
-    // Clear workflows again in case of partial loading before error
-    loadedWorkflows = new Map();
-    // Consider re-throwing if workflow loading is critical:
-    // if (error instanceof Error) {
-    //     throw new ConfigurationError(`Failed to load workflows from ${filePath}: ${error.message}`, undefined, error);
-    // } else {
-    //     throw new ConfigurationError(`Failed to load workflows from ${filePath}: Unknown error.`);
-    // }
+    logger.error({ err: error }, 'Failed to load workflow definitions');
   }
 }
 
-/**
- * Resolves a parameter value template string against workflow inputs and step outputs.
- * Handles simple path traversal for step outputs (e.g., `content[0].text`).
- *
- * @param valueTemplate Template string (e.g., "{workflow.input.xyz}", "{steps.id.output.content[0].text}") or a literal value.
- * @param workflowInput The initial input object provided to the workflow.
- * @param stepOutputs A Map containing results (CallToolResult) from previously executed steps, keyed by step ID.
- * @returns The resolved value.
- * @throws {ParsingError} if the template syntax is invalid or the referenced data cannot be found.
- */
 function resolveParamValue(
-  valueTemplate: unknown,
-  workflowInput: Record<string, unknown>,
-  stepOutputs: Map<string, CallToolResult>
+  param: string,
+  context: Record<string, unknown>
 ): unknown {
-  if (typeof valueTemplate !== 'string') {
-    return valueTemplate; // Return non-strings (like numbers, booleans, objects from template) directly
-  }
+  const resolvePath = (
+    path: string,
+    currentContext: Record<string, unknown>
+  ): unknown => {
+    const parts = path.split('.');
+    let value: unknown = currentContext;
+    const arrayIndexRegex = /(.+)\[(\d+)\]$/; // Regex to match key[index]
 
-  const match = valueTemplate.match(/^{(workflow\.input\.([\w-]+))|(steps\.([\w-]+)\.output\.(.+))}$/);
-  if (!match) {
-    return valueTemplate; // Not a template, return as literal string
-  }
-
-  try {
-      if (match[1]) { // workflow.input match (e.g., {workflow.input.productDescription})
-          const inputKey = match[2];
-          if (workflowInput && typeof workflowInput === 'object' && inputKey in workflowInput) {
-              logger.debug(`Resolved template '${valueTemplate}' from workflow input key '${inputKey}'.`);
-              // Use type assertion to tell TypeScript that this access is valid
-              // We've already checked that inputKey exists in workflowInput
-              return workflowInput[inputKey as keyof typeof workflowInput];
-          }
-          throw new ParsingError(`Workflow input key "${inputKey}" not found for template '${valueTemplate}'.`);
-      } else if (match[3]) { // steps match (e.g., {steps.step1_id.output.content[0].text})
-          const stepId = match[4];
-          const outputPath = match[5]; // e.g., 'content[0].text' or 'errorDetails.message'
-          const stepResult = stepOutputs.get(stepId);
-
-          if (!stepResult) {
-              throw new ParsingError(`Output from step "${stepId}" not found (required for template '${valueTemplate}'). Ensure step IDs match and the step executed.`);
-          }
-
-          // Basic path traversal - handle potential errors gracefully
-          let currentValue: unknown = stepResult;
-          // Split by '.' or array access like '[0]'
-          const pathParts = outputPath.match(/([^[.\]]+)|\[(\d+)\]/g);
-          if (!pathParts) {
-              throw new ParsingError(`Invalid output path format '${outputPath}' in template '${valueTemplate}'.`);
-          }
-
-          for (const part of pathParts) {
-              if (currentValue === null || currentValue === undefined) {
-                   throw new ParsingError(`Cannot access path part '${part}' in '${outputPath}' from step '${stepId}' output because parent value is null or undefined. Template: '${valueTemplate}'.`);
-              }
-              const arrayMatch = part.match(/^\[(\d+)\]$/);
-              if (arrayMatch) { // Array index like '[0]'
-                  const index = parseInt(arrayMatch[1], 10);
-                  if (!Array.isArray(currentValue) || index >= currentValue.length) {
-                      throw new ParsingError(`Index ${index} out of bounds for array in path '${outputPath}' from step '${stepId}'. Template: '${valueTemplate}'.`);
-                  }
-                  currentValue = currentValue[index];
-              } else { // Object key
-                  if (typeof currentValue !== 'object' || currentValue === null || !(part in currentValue)) {
-                       throw new ParsingError(`Key '${part}' not found in object path '${outputPath}' from step '${stepId}'. Template: '${valueTemplate}'.`);
-                  }
-                  // Use a type assertion to access the property after we've verified it exists
-                  currentValue = (currentValue as Record<string, unknown>)[part];
-              }
-          }
-
-          if (currentValue === undefined) {
-             // It's possible for a valid path to resolve to undefined. Log and return it.
-             logger.warn(`Resolved path '${outputPath}' resulted in undefined for step '${stepId}'. Template: '${valueTemplate}'`);
-          }
-          logger.debug(`Resolved template '${valueTemplate}' from step '${stepId}' output path '${outputPath}'.`);
-          return currentValue;
+    for (const part of parts) {
+      if (value === null || value === undefined) {
+        throw new Error(
+          `Path "${path}" resolution failed: encountered null or undefined at segment processing "${part}".`
+        );
       }
-  } catch (error) {
-      if (error instanceof ParsingError) throw error; // Re-throw known parsing errors
-      logger.error({ err: error, template: valueTemplate }, `Error resolving parameter template`);
-      // Wrap unexpected errors
-      throw new ParsingError(`Unexpected error resolving template "${valueTemplate}": ${error instanceof Error ? error.message : String(error)}`);
+
+      const indexMatch = part.match(arrayIndexRegex);
+
+      if (indexMatch) {
+        const key = indexMatch[1];
+        const index = parseInt(indexMatch[2], 10);
+
+        // Access the object property first
+        if (typeof value === 'object' && key in value) {
+          value = (value as Record<string, unknown>)[key];
+        } else {
+          throw new Error(
+            `Path "${path}" resolution failed: Key "${key}" not found.`
+          );
+        }
+
+        // Now access the array element
+        if (Array.isArray(value)) {
+          if (index >= 0 && index < value.length) {
+            value = value[index];
+          } else {
+            throw new Error(
+              `Path "${path}" resolution failed: Index ${index} out of bounds for array "${key}".`
+            );
+          }
+        } else {
+          throw new Error(
+            `Path "${path}" resolution failed: Expected an array for key "${key}" but got ${typeof value}.`
+          );
+        }
+      } else {
+        // Handle regular property access
+        if (typeof value === 'object' && part in value) {
+          value = (value as Record<string, unknown>)[part];
+        } else {
+          throw new Error(
+            `Path "${path}" resolution failed: Part "${part}" not found.`
+          );
+        }
+      }
+    }
+    return value;
+  };
+
+  const singleVarMatch = param.match(/^\{([^}]+)\}$/);
+  if (singleVarMatch) {
+    const path = singleVarMatch[1];
+    try {
+      return resolvePath(path, context);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to resolve parameter: ${message}`);
+    }
+  } else {
+    // Handle embedded variables in a string
+    return param.replace(/\{([^}]+)\}/g, (_, path) => {
+      try {
+        const resolvedValue = resolvePath(path, context);
+        if (typeof resolvedValue === 'string') {
+          return resolvedValue;
+        } else if (
+          typeof resolvedValue === 'number' ||
+          typeof resolvedValue === 'boolean'
+        ) {
+          return String(resolvedValue);
+        } else {
+          logger.warn(
+            { path, value: resolvedValue },
+            'Attempted to embed non-primitive value in string template, using placeholder.'
+          );
+          return `[Object]`; // Or JSON.stringify(resolvedValue) if appropriate
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(
+          { path, error },
+          `Could not resolve embedded path "${path}": ${message}`
+        );
+        // Decide how to handle unresolved embedded paths: throw, return placeholder, etc.
+        // Throwing aligns with the single variable case behavior.
+        throw new Error(`Failed to resolve embedded parameter: ${message}`);
+        // Or return a placeholder like `[Unresolved: ${path}]`;
+      }
+    });
   }
-
-  // Should not be reached if regex matches correctly
-  logger.warn(`Template '${valueTemplate}' matched regex but failed to resolve logic.`);
-  return valueTemplate; // Fallback to literal
 }
 
-/**
- * Checks if a CallToolResult indicates a background job was started.
- * @param result The CallToolResult from executeTool.
- * @returns The Job ID if found, otherwise null.
- */
-function getJobIdFromResult(result: CallToolResult): string | null {
-    if (result.isError || !result.content || result.content.length === 0) {
-        return null;
-    }
-    const textContent = result.content[0]?.text;
-    if (typeof textContent === 'string') {
-        const match = textContent.match(/Job ID: (\S+)/);
-        if (match && match[1]) {
-            return match[1];
-        }
-    }
-    return null;
-}
-
-/**
- * Waits for a background job to complete by polling the JobManager.
- * Sends progress updates via SSE.
- * @param jobId The ID of the job to wait for.
- * @param stepId The ID of the workflow step associated with this job.
- * @param sessionId The session ID for SSE notifications.
- * @returns The final CallToolResult from the completed or failed job.
- * @throws {ToolExecutionError} if the job is not found, polling times out, or the job fails unexpectedly.
- */
-async function waitForJobCompletion(jobId: string, stepId: string, sessionId: string): Promise<CallToolResult> {
-    logger.info({ jobId, stepId, sessionId }, `Waiting for background job to complete...`);
-    let attempts = 0;
-
-    while (attempts < MAX_POLLING_ATTEMPTS) {
-        await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
-        attempts++;
-
-        const job = jobManager.getJob(jobId);
-
-        if (!job) {
-            logger.error({ jobId, stepId, sessionId }, `Job not found during polling.`);
-            throw new ToolExecutionError(`Background job ${jobId} for step ${stepId} was not found.`);
-        }
-
-        if (job.status === JobStatus.COMPLETED || job.status === JobStatus.FAILED) {
-            logger.info({ jobId, stepId, sessionId, status: job.status }, `Job finished with status: ${job.status}.`);
-            if (!job.result) {
-                 logger.error({ jobId, stepId, sessionId, status: job.status }, `Job finished but has no result stored.`);
-                 throw new ToolExecutionError(`Background job ${jobId} for step ${stepId} finished with status ${job.status} but has no result.`);
-            }
-            // Send final SSE update before returning
-            sseNotifier.sendProgress(sessionId, jobId, job.status, `Job ${job.status.toLowerCase()}.`);
-            return job.result;
-        }
-
-        // Still running or pending
-        logger.debug({ jobId, stepId, sessionId, status: job.status, attempt: attempts }, `Polling job status: ${job.status}`);
-        // Send intermediate progress update via SSE - Use status as message base
-        const progressMessage = `Job status: ${job.status}... (Polling attempt ${attempts}/${MAX_POLLING_ATTEMPTS})`;
-        sseNotifier.sendProgress(sessionId, jobId, job.status, progressMessage);
-
-    }
-
-    // If loop finishes, it means timeout
-    logger.error({ jobId, stepId, sessionId, attempts }, `Polling timed out for job.`);
-    throw new ToolExecutionError(`Timed out waiting for background job ${jobId} for step ${stepId} to complete after ${attempts} attempts.`);
-}
-
-
-/**
- * Executes a predefined workflow by its name.
- * Iterates through the steps, resolves parameters, executes tools, handles potential background jobs, and manages errors.
- *
- * @param workflowName The name of the workflow (must be loaded).
- * @param workflowInput Input data for the workflow, matching its inputSchema.
- * @param config OpenRouter configuration passed to tools.
- * @param context Optional ToolExecutionContext containing sessionId for SSE.
- * @returns A promise resolving to the WorkflowResult.
- */
 export async function executeWorkflow(
   workflowName: string,
   workflowInput: Record<string, unknown>,
-  config: OpenRouterConfig,
-  context?: ToolExecutionContext // Accept context
+  config: Record<string, unknown>,
+  sessionId: string
 ): Promise<WorkflowResult> {
-  const workflow = loadedWorkflows.get(workflowName);
-  const sessionId = context?.sessionId || `no-session-${Math.random().toString(36).substring(2)}`; // Get sessionId or generate placeholder
-
+  const workflow = workflows.get(workflowName);
   if (!workflow) {
-    logger.error(`Workflow "${workflowName}" not found.`);
-    return { success: false, message: `Workflow "${workflowName}" not found.`, error: { message: `Workflow "${workflowName}" not found.`} };
+    return {
+      success: false,
+      message: `Workflow "${workflowName}" not found.`,
+      error: {
+        message: `Workflow "${workflowName}" not found.`,
+        type: 'WorkflowNotFound',
+      },
+    };
   }
 
-  logger.info({ workflowName, sessionId }, `Starting workflow execution.`);
-  // Use Map for step outputs as it preserves insertion order if needed, and allows any string key
-  const stepOutputs = new Map<string, CallToolResult>();
-  let currentStepIndex = 0;
-  let currentStep: WorkflowStep | undefined;
+  const stepResults = new Map<string, ToolResult>();
+  const context = {
+    workflow: { input: workflowInput },
+    steps: {} as Record<string, { output: ToolResult }>,
+  };
+
+  let currentStep: WorkflowStep | null = null;
 
   try {
-     // TODO: Optional: Validate workflowInput against workflow.inputSchema here if defined
+    for (let i = 0; i < workflow.steps.length; i++) {
+      const step = workflow.steps[i];
+      currentStep = step;
+      const stepNumber = i + 1;
+      logger.info(
+        {
+          workflowName,
+          stepId: step.id,
+          stepNumber,
+          toolName: step.toolName,
+          sessionId,
+        },
+        `Executing workflow step ${stepNumber}`
+      );
 
-    for (const step of workflow.steps) {
-      currentStep = step; // Keep track of the current step for error reporting
-      currentStepIndex++;
-      const stepLogContext = { workflowName, sessionId, stepId: step.id, toolName: step.toolName, stepNum: currentStepIndex };
-      logger.info(stepLogContext, `Executing workflow step ${currentStepIndex}/${workflow.steps.length}`);
-      // Use sendProgress for step start notification - use step.id as identifier since jobId isn't known yet
-      sseNotifier.sendProgress(sessionId, step.id, JobStatus.RUNNING, `Workflow '${workflowName}': Starting step ${currentStepIndex} ('${step.id}' - ${step.toolName}).`);
-
-      // Resolve parameters for this step
       const resolvedParams: Record<string, unknown> = {};
-      for (const [key, template] of Object.entries(step.params)) {
-         try {
-            resolvedParams[key] = resolveParamValue(template, workflowInput, stepOutputs);
-            logger.debug(`Resolved param '${key}' for step '${step.id}'`);
-         } catch (resolveError) {
-             // If a parameter cannot be resolved, fail the workflow immediately
-              logger.error({ err: resolveError, ...stepLogContext, paramKey: key, template }, `Failed to resolve parameter`);
-              throw new AppError(`Failed to resolve parameter '${key}' for step '${step.id}': ${(resolveError as Error).message}`, { stepId: step.id, paramKey: key }, resolveError instanceof Error ? resolveError : undefined);
-         }
+      try {
+        for (const [key, valueTemplate] of Object.entries(step.params)) {
+          resolvedParams[key] = resolveParamValue(valueTemplate, context);
+        }
+        logger.debug(
+          { workflowName, stepId: step.id, resolvedParams },
+          'Resolved step parameters'
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger.warn(
+          { workflowName, stepId: step.id, error },
+          `Parameter resolution failed for step ${step.id}`
+        );
+        return {
+          success: false,
+          message: `Workflow "${workflowName}" failed at step ${stepNumber} (${step.toolName}): Failed to resolve parameter: ${errorMessage}`,
+          error: {
+            stepId: step.id,
+            toolName: step.toolName,
+            message: `Failed to resolve parameter: ${errorMessage}`,
+            type: 'ParameterResolutionError',
+          },
+          stepResults,
+        };
       }
 
-      // Execute the tool for this step, passing the context
-      let stepResult = await executeTool(step.toolName, resolvedParams, config, context);
+      const executionContext: ToolExecutionContext = {
+        sessionId,
+        workflowId: workflowName,
+        stepId: step.id,
+      };
 
-      // --- Handle potential background job ---
-      const jobId = getJobIdFromResult(stepResult);
-      if (jobId) {
-          logger.info({ ...stepLogContext, jobId }, `Tool returned a background job ID. Waiting for completion...`);
-          // Use sendProgress for step update notification
-          sseNotifier.sendProgress(sessionId, jobId, JobStatus.RUNNING, `Workflow '${workflowName}' step '${step.id}': Waiting for background job ${jobId}...`);
-          try {
-              // Wait for the job and get its final result
-              stepResult = await waitForJobCompletion(jobId, step.id, sessionId);
-              logger.info({ ...stepLogContext, jobId, finalStatus: stepResult.isError ? 'FAILED' : 'COMPLETED' }, `Background job finished.`);
-          } catch (jobError) {
-               logger.error({ err: jobError, ...stepLogContext, jobId }, `Error waiting for background job.`);
-               // Propagate the job waiting error, adding workflow context
-               throw new ToolExecutionError(`Step '${step.id}' failed while waiting for background job ${jobId}: ${jobError instanceof Error ? jobError.message : String(jobError)}`, { stepId: step.id, toolName: step.toolName, jobId });
-          }
-      }
-      // --- End Job Handling ---
+      const result = await toolRegistry.executeTool(
+        step.toolName,
+        resolvedParams,
+        config,
+        executionContext
+      );
 
-      // Store the final result (either immediate or from the job), keyed by step ID
-      stepOutputs.set(step.id, stepResult);
-
-      // Check for errors from the final tool execution result
-      if (stepResult.isError) {
-        const stepErrorMessage = stepResult.content[0]?.text || 'Unknown tool error';
-        logger.error({ ...stepLogContext, errorResult: stepResult }, `Workflow step failed.`);
-        // Use sendProgress for step failure notification
-        sseNotifier.sendProgress(sessionId, jobId || step.id, JobStatus.FAILED, `Workflow '${workflowName}' step '${step.id}' failed: ${stepErrorMessage}`);
-         // Propagate the error, adding workflow context
-         throw new ToolExecutionError(`Step '${step.id}' (Tool: ${step.toolName}) failed: ${stepErrorMessage}`, { stepId: step.id, toolName: step.toolName, toolResult: stepResult });
-      }
-
-      logger.debug(stepLogContext, `Workflow step completed successfully.`);
-      // Use sendProgress for step success notification
-      sseNotifier.sendProgress(sessionId, jobId || step.id, JobStatus.COMPLETED, `Workflow '${workflowName}' step '${step.id}' completed successfully.`);
-    } // End loop through steps
-
-    // Process final output if defined
-    let finalOutputData: Record<string, unknown> | undefined;
-    let finalMessage = `Workflow "${workflowName}" completed successfully.`;
-    if (workflow.output) {
-       finalOutputData = {};
-       logger.debug(`Processing final workflow output template for ${workflowName}`);
-       for (const [key, template] of Object.entries(workflow.output)) {
-            try {
-                 finalOutputData[key] = resolveParamValue(template, workflowInput, stepOutputs);
-                 if (key === 'summary' && typeof finalOutputData[key] === 'string') {
-                    finalMessage = finalOutputData[key] as string; // Use template summary if available
-                 }
-            } catch (resolveError) {
-                 logger.warn({ err: resolveError, key, template }, `Could not resolve output template key '${key}' for workflow ${workflowName}. Skipping.`);
-                 // Include error in the output for visibility
-                 finalOutputData[key] = `Error: Failed to resolve output template - ${(resolveError as Error).message}`;
-            }
-       }
+      stepResults.set(step.id, result);
+      context.steps[step.id] = { output: result };
+      logger.debug(
+        { workflowName, stepId: step.id, toolResult: result },
+        `Step ${step.id} completed`
+      );
     }
 
+    const outputs: Record<string, unknown> = {};
+    if (workflow.output) {
+      logger.debug(
+        { workflowName, outputTemplates: workflow.output },
+        'Resolving workflow outputs'
+      );
+      for (const [key, template] of Object.entries(workflow.output)) {
+        try {
+          outputs[key] = resolveParamValue(template, context);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          logger.warn(
+            { workflowName, outputKey: key, error },
+            `Could not resolve output template key '${key}': ${errorMessage}`
+          );
+          outputs[key] =
+            `Error: Failed to resolve output template: ${errorMessage}`;
+        }
+      }
+      logger.info(
+        { workflowName, finalOutputs: outputs },
+        'Workflow outputs resolved'
+      );
+    }
 
-    logger.info({ workflowName, sessionId }, `Workflow execution finished successfully.`);
+    logger.info(
+      { workflowName, sessionId },
+      `Workflow "${workflowName}" completed successfully.`
+    );
     return {
       success: true,
-      message: finalMessage,
-      outputs: finalOutputData,
-      stepResults: stepOutputs, // Include raw results for debugging/auditing
+      message: `Workflow "${workflowName}" completed successfully.`,
+      outputs,
+      stepResults,
     };
-
   } catch (error) {
-     // Catch errors from parameter resolution or tool execution/job waiting
-     logger.error({ err: error, workflowName, sessionId, failedStepId: currentStep?.id, failedToolName: currentStep?.toolName }, `Workflow execution failed.`);
-     const errDetails = {
-        stepId: currentStep?.id,
-        toolName: currentStep?.toolName,
-        message: error instanceof Error ? error.message : 'Unknown workflow execution error',
-        details: error instanceof AppError ? error.context : undefined,
-     };
-     // Ensure SSE notification for the failed step if it wasn't sent already (using sendProgress)
-     if (currentStep) {
-        sseNotifier.sendProgress(sessionId, currentStep.id, JobStatus.FAILED, `Workflow '${workflowName}' failed at step '${currentStep.id}': ${errDetails.message}`);
-     }
+    const stepId = currentStep?.id;
+    const toolName = currentStep?.toolName;
+    const stepNumber = currentStep
+      ? workflow.steps.findIndex((s) => s.id === stepId) + 1
+      : undefined;
 
-     return {
-       success: false,
-       message: `Workflow "${workflowName}" failed at step ${currentStepIndex} (${currentStep?.toolName || 'N/A'}): ${errDetails.message}`,
-       stepResults: stepOutputs, // Include results up to the point of failure
-       error: errDetails,
-     };
+    logger.error(
+      { err: error, workflowName, stepId, toolName, stepNumber, sessionId },
+      `Workflow "${workflowName}" failed${stepId ? ` at step ${stepNumber} (${toolName})` : ''}`
+    );
+
+    let errorMessage =
+      'An unexpected error occurred during workflow execution.';
+    let errorType = 'WorkflowExecutionError';
+    let errorDetails: unknown = error;
+
+    if (error instanceof AppError) {
+      errorMessage = error.message;
+      errorType = error.name;
+      errorDetails = error.context;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return {
+      success: false,
+      message: `Workflow "${workflowName}" failed${stepId ? ` at step ${stepNumber} (${toolName})` : ''}: ${errorMessage}`,
+      error: {
+        stepId,
+        toolName,
+        message: errorMessage,
+        type: errorType,
+        details: errorDetails,
+      },
+      stepResults,
+    };
   }
 }
-
-// --- Load definitions on server startup ---
-// Ensures workflows are ready when the server starts.
-// Consider making this async if validation becomes complex or involves I/O.
-loadWorkflowDefinitions();

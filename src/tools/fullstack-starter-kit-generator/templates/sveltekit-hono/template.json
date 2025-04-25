@@ -1,0 +1,37 @@
+{
+  "name": "sveltekit-hono",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with SvelteKit frontend and Hono edge backend",
+  "metadata": {
+    "frontend": {
+      "framework": "SvelteKit",
+      "language": "TypeScript",
+      "styling": "Tailwind CSS",
+      "bundler": "Vite"
+    },
+    "backend": {
+      "framework": "Hono",
+      "language": "TypeScript",
+      "database": "PlanetScale/Neon",
+      "orm": "Drizzle"
+    },
+    "features": {
+      "authentication": {
+        "jwt": true,
+        "oauth": ["google", "github"],
+        "session": true,
+        "rbac": true
+      },
+      "database": {
+        "migrations": true,
+        "seeding": true,
+        "typeGeneration": true
+      },
+      "deployment": {
+        "edge": true,
+        "docker": true,
+        "ci": true
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "remix-prisma",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with Remix and Prisma",
+  "metadata": {
+    "framework": "Remix",
+    "language": "TypeScript",
+    "styling": "Tailwind CSS",
+    "database": "PostgreSQL",
+    "orm": "Prisma",
+    "features": {
+      "authentication": {
+        "jwt": true,
+        "oauth": ["google", "github"],
+        "session": true,
+        "rbac": true
+      },
+      "database": {
+        "migrations": true,
+        "seeding": true,
+        "typeGeneration": true
+      },
+      "deployment": {
+        "docker": true,
+        "ci": true
+      }
+    }
+  }
+}

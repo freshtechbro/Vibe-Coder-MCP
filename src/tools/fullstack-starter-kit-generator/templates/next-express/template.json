@@ -1,0 +1,18 @@
+{
+  "name": "next-express",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with Next.js frontend and Express.js backend",
+  "metadata": {
+    "frontend": {
+      "framework": "Next.js",
+      "language": "TypeScript",
+      "styling": "Tailwind CSS"
+    },
+    "backend": {
+      "framework": "Express.js",
+      "language": "TypeScript",
+      "database": "PostgreSQL",
+      "orm": "Prisma"
+    }
+  }
+}

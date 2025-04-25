@@ -1,0 +1,9 @@
+{ "compilerOptions": { "target": "ES2020", "module": "CommonJS", "outDir":
+"./dist", "rootDir": "./src", "strict": true, "esModuleInterop": true,
+"skipLibCheck": true, "forceConsistentCasingInFileNames": true{{#if
+  compilerOptions
+}}{{#each compilerOptions}}, "{{@key}}": {{json this}}{{/each}}{{/if}}
+}, "include": ["src/**/*"], "exclude": ["node_modules", "dist"]{{#if include}},
+  "include":
+  {{{json include}}}{{/if}}{{#if exclude}}, "exclude": {{{json exclude}}}{{/if}}
+}

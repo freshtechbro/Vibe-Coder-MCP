@@ -1,0 +1,50 @@
+{
+  "name": "Root Package Configuration",
+  "description": "Root package.json template for monorepo setup",
+  "requiredFields": ["name", "version", "pnpmVersion", "workspaceGlobs"],
+  "optionalFields": [
+    "description",
+    "author",
+    "license",
+    "dependencies",
+    "devDependencies"
+  ],
+  "validationRules": [
+    {
+      "field": "name",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "required": true
+    },
+    {
+      "field": "version",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[\\w.-]+)?(?:\\+[\\w.-]+)?$",
+      "required": true
+    },
+    {
+      "field": "pnpmVersion",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[\\w.-]+)?(?:\\+[\\w.-]+)?$",
+      "required": true
+    },
+    {
+      "field": "workspaceGlobs",
+      "type": "array",
+      "required": true
+    },
+    {
+      "field": "description",
+      "type": "string"
+    },
+    {
+      "field": "author",
+      "type": "string"
+    },
+    {
+      "field": "license",
+      "type": "string",
+      "pattern": "^[\\w.-]+$"
+    }
+  ]
+}

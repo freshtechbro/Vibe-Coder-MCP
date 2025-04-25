@@ -50,36 +50,29 @@ export class ApiError extends AppError {
    * @param context Optional additional context.
    * @param originalError Optional original error (e.g., the AxiosError).
    */
-  constructor(message: string, statusCode?: number, context?: ErrorContext, originalError?: Error) {
+  constructor(
+    message: string,
+    statusCode?: number,
+    context?: ErrorContext,
+    originalError?: Error
+  ) {
     super(message, context, originalError);
     this.name = 'ApiError';
     this.statusCode = statusCode;
   }
-  // Removed extra closing brace here
 }
-
-// Removed the custom ValidationIssue interface again as we'll use ZodIssue directly
 
 /**
  * Represents an error related to input validation, typically using Zod.
  * Can include the specific validation issues found.
  */
-export class ValidationError extends AppError {
-  /** Array of validation issues (using Zod's own type). */
-  public readonly validationIssues?: ZodIssue[];
-
-  /**
-   * Creates an instance of ValidationError.
-   * @param message The error message (often from Zod's error.message).
-   * @param validationIssues Optional array of Zod validation issues.
-   * @param context Optional additional context.
-   */
-  constructor(message: string, validationIssues?: ZodIssue[], context?: ErrorContext) {
-    // Include validation issues in the base context for logging/debugging
-    const errorContext = { ...(context || {}), validationIssues };
-    super(message, errorContext);
+export class ValidationError extends Error {
+  constructor(
+    message: string,
+    public details?: Record<string, unknown>
+  ) {
+    super(message);
     this.name = 'ValidationError';
-    this.validationIssues = validationIssues;
   }
 }
 
@@ -121,16 +114,16 @@ export class ConfigurationError extends AppError {
  * or other structured data sources.
  */
 export class ParsingError extends AppError {
-    /**
-     * Creates an instance of ParsingError.
-     * @param message The error message describing the parsing failure.
-     * @param context Optional additional context (e.g., raw data snippet).
-     * @param originalError Optional original parsing error (e.g., from JSON.parse).
-     */
-    constructor(message: string, context?: ErrorContext, originalError?: Error) {
-        super(message, context, originalError);
-        this.name = 'ParsingError';
-    }
+  /**
+   * Creates an instance of ParsingError.
+   * @param message The error message describing the parsing failure.
+   * @param context Optional additional context (e.g., raw data snippet).
+   * @param originalError Optional original parsing error (e.g., from JSON.parse).
+   */
+  constructor(message: string, context?: ErrorContext, originalError?: Error) {
+    super(message, context, originalError);
+    this.name = 'ParsingError';
+  }
 }
 
 /**

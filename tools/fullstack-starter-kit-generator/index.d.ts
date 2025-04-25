@@ -3,18 +3,18 @@ import { ToolExecutor } from '../../services/routing/toolRegistry.js';
  * Input schema for the Fullstack Starter Kit Generator tool
  */
 export interface FullstackStarterKitInput {
-    use_case: string;
-    tech_stack_preferences?: {
-        frontend?: string;
-        backend?: string;
-        database?: string;
-        orm?: string;
-        authentication?: string;
-        deployment?: string;
-        [key: string]: string | undefined;
-    };
-    request_recommendation?: boolean;
-    include_optional_features?: string[];
+  use_case: string;
+  tech_stack_preferences?: {
+    frontend?: string;
+    backend?: string;
+    database?: string;
+    orm?: string;
+    authentication?: string;
+    deployment?: string;
+    [key: string]: string | undefined;
+  };
+  request_recommendation?: boolean;
+  include_optional_features?: string[];
 }
 export declare function initDirectories(): Promise<void>;
 /**

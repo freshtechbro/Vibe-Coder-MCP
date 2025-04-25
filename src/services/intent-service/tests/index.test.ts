@@ -6,20 +6,22 @@ import { describe, it, expect, vi } from 'vitest'; // Removed beforeEach
 // Mock fs.readFileSync before importing the module being tested
 vi.mock('fs', () => {
   return {
-    readFileSync: vi.fn(() => JSON.stringify({
-      tools: {
-        'research-manager': {
-          description: 'Performs research about technical topics',
-          use_cases: ['research', 'comparison'],
-          input_patterns: ['research {topic}']
+    readFileSync: vi.fn(() =>
+      JSON.stringify({
+        tools: {
+          'research-manager': {
+            description: 'Performs research about technical topics',
+            use_cases: ['research', 'comparison'],
+            input_patterns: ['research {topic}'],
+          },
+          'rules-generator': {
+            description: 'Creates project guidelines and coding standards',
+            use_cases: ['coding standards', 'project guidelines'],
+            input_patterns: ['setup rules for {project}'],
+          },
         },
-        'rules-generator': {
-          description: 'Creates project guidelines and coding standards',
-          use_cases: ['coding standards', 'project guidelines'],
-          input_patterns: ['setup rules for {project}']
-        }
-      }
-    }))
+      })
+    ),
   };
 });
 
@@ -70,28 +72,32 @@ describe('detectIntent', () => {
 
 describe('extractContextParameters', () => {
   it('should extract "for" target', () => {
-    const params = extractContextParameters('create rules for my react project');
+    const params = extractContextParameters(
+      'create rules for my react project'
+    );
     expect(params).toHaveProperty('target', 'my react project');
   });
 
   it('should extract "about" topic', () => {
-     const params = extractContextParameters('do research about javascript frameworks');
-     expect(params).toHaveProperty('topic', 'javascript frameworks');
+    const params = extractContextParameters(
+      'do research about javascript frameworks'
+    );
+    expect(params).toHaveProperty('topic', 'javascript frameworks');
   });
 
   it('should extract simple proper noun entity', () => {
-     const params = extractContextParameters('generate stories about React');
-     expect(params).toHaveProperty('entity', 'React');
+    const params = extractContextParameters('generate stories about React');
+    expect(params).toHaveProperty('entity', 'React');
   });
 
-   it('should extract multi-word proper noun entity', () => {
-     const params = extractContextParameters('plan tasks for Project Phoenix');
-     expect(params).toHaveProperty('entity', 'Project Phoenix');
-   });
+  it('should extract multi-word proper noun entity', () => {
+    const params = extractContextParameters('plan tasks for Project Phoenix');
+    expect(params).toHaveProperty('entity', 'Project Phoenix');
+  });
 
   it('should handle requests with no clear parameters', () => {
-     const params = extractContextParameters('generate a task list');
-     expect(params).toEqual({});
+    const params = extractContextParameters('generate a task list');
+    expect(params).toEqual({});
   });
 
   // Add tests for mixed cases, punctuation, etc.

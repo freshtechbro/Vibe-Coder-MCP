@@ -3,19 +3,26 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    // "esModuleInterop": true, // Removed as it can sometimes conflict with NodeNext resolution
-    "outDir": "./build",
-    "rootDir": "./src",
-    // Removed baseUrl and paths to rely on standard NodeNext resolution
     "strict": true,
-    "declaration": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "types": ["node", "vitest/globals"], // Corrected from "jest" to "vitest/globals"
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@/types/*": ["types/*"],
+      "@/services/*": ["services/*"],
+      "@/logger": ["logger.js"],
+      "@/logger.js": ["logger.js"]
+    },
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": false, // Explicitly disallow .ts extensions in imports
-    "noEmit": false, // Explicitly ensure files are emitted (default is false anyway)
-    "types": ["vitest/globals"]
+    "declaration": true,
+    "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "build"]
+  "exclude": ["node_modules", "dist"]
 }

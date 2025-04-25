@@ -1,0 +1,24 @@
+import { Hono } from 'hono'; import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod'; import { db } from '../db'; import { users } from
+'../db/schema'; import { eq } from 'drizzle-orm'; import { createToken,
+getUserPermissions } from '../middleware/auth'; import { hashPassword,
+verifyPassword } from '../utils/password'; const router = new Hono(); const
+signupSchema = z.object({ email: z.string().email(), password:
+z.string().min(8), name: z.string().optional(), }); router.post('/signup',
+zValidator('json', signupSchema), async (c) => { const { email, password, name }
+= c.req.valid('json'); const existingUser = await db .select() .from(users)
+.where(eq(users.email, email)) .get(); if (existingUser) { return c.json({
+error: 'User already exists' }, 400); } const hashedPassword = await
+hashPassword(password); const [user] = await db .insert(users) .values({ email,
+hashedPassword, name, }) .returning(); const token = await createToken({ sub:
+user.id, email: user.email, roles: [], permissions: [], }); return c.json({
+token }); }); const loginSchema = z.object({ email: z.string().email(),
+password: z.string(), }); router.post('/login', zValidator('json', loginSchema),
+async (c) => { const { email, password } = c.req.valid('json'); const user =
+await db .select() .from(users) .where(eq(users.email, email)) .get(); if (!user
+|| !user.hashedPassword) { return c.json({ error: 'Invalid credentials' }, 401);
+} const isValid = await verifyPassword(password, user.hashedPassword); if
+(!isValid) { return c.json({ error: 'Invalid credentials' }, 401); } const
+permissions = await getUserPermissions(user.id); const token = await
+createToken({ sub: user.id, email: user.email, roles: [], permissions, });
+return c.json({ token }); }); export { router };

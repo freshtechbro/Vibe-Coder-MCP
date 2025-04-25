@@ -1,8 +1,9 @@
 // src/utils/gitHelper.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getGitDiffSummary } from './gitHelper.js'; // Function to test
-import { AppError } from './errors.js'; // Adjust path if necessary
-import logger from '../logger.js'; // Adjust path if necessary
+
+import logger from '@/logger.js';
+import { AppError } from '@/utils/errors.js';
+import { getGitDiffSummary } from '@/utils/gitHelper.js';
 
 // Mock the simple-git library
 // Declare mocks *inside* the factory to avoid hoisting issues
@@ -45,7 +46,7 @@ describe('getGitDiffSummary', () => {
     const gitMock = await import('simple-git');
     // @ts-expect-error - Accessing internal mock properties for testing
     mockCheckIsRepo = gitMock._mockCheckIsRepo;
-     // @ts-expect-error - Accessing internal mock properties for testing
+    // @ts-expect-error - Accessing internal mock properties for testing
     mockDiff = gitMock._mockDiff;
 
     vi.clearAllMocks(); // Clear calls between tests
@@ -59,58 +60,67 @@ describe('getGitDiffSummary', () => {
   });
 
   it('should call checkIsRepo', async () => {
-    await getGitDiffSummary();
+    await getGitDiffSummary('/test/repo/path');
     expect(mockCheckIsRepo).toHaveBeenCalledTimes(1);
   });
 
   it('should throw AppError if not a git repo', async () => {
     mockCheckIsRepo.mockResolvedValue(false);
     // Using await expect().rejects pattern for async errors
-    await expect(getGitDiffSummary()).rejects.toThrow(new AppError('Not a Git repository or git command not found.'));
+    await expect(getGitDiffSummary('/test/repo/path')).rejects.toThrow(
+      new AppError('Not a Git repository or git command not found.')
+    );
   });
 
   it('should call git.diff with default options (empty array) for unstaged changes', async () => {
-    await getGitDiffSummary();
+    await getGitDiffSummary('/test/repo/path');
     expect(mockDiff).toHaveBeenCalledTimes(1);
     // simple-git diff takes an array of string options. Empty array means default (unstaged).
     expect(mockDiff).toHaveBeenCalledWith([]);
   });
 
   it('should call git.diff with --staged option if specified', async () => {
-    await getGitDiffSummary({ staged: true });
+    await getGitDiffSummary('/test/repo/path', ['--staged']);
     expect(mockDiff).toHaveBeenCalledTimes(1);
     expect(mockDiff).toHaveBeenCalledWith(['--staged']);
   });
 
   it('should return diff output on success', async () => {
-    const result = await getGitDiffSummary();
+    const result = await getGitDiffSummary('/test/repo/path');
     expect(result).toBe('mock diff output');
   });
 
-  it('should return specific message if diff is empty/null for unstaged', async () => {
-     mockDiff.mockResolvedValue(''); // Simulate no changes
-     const result = await getGitDiffSummary({ staged: false });
-     expect(result).toBe('No unstaged changes found.');
+  it('should return appropriate message for no unstaged changes', async () => {
+    mockDiff.mockResolvedValue(''); // Simulate no changes
+    const result = await getGitDiffSummary('/test/repo/path'); // Unstaged by default
+    expect(result).toBe('No unstaged changes found.');
   });
 
-   it('should return specific message if diff is empty/null for staged', async () => {
-      mockDiff.mockResolvedValue(''); // Simulate no changes
-      const result = await getGitDiffSummary({ staged: true });
-      expect(result).toBe('No staged changes found.');
-   });
+  it('should return appropriate message for no staged changes', async () => {
+    mockDiff.mockResolvedValue(''); // Simulate no changes
+    const result = await getGitDiffSummary('/test/repo/path', ['--staged']);
+    expect(result).toBe('No staged changes found.');
+  });
 
   it('should throw AppError if git.diff fails', async () => {
     const gitError = new Error('git command failed');
     mockDiff.mockRejectedValue(gitError);
     // Check the error message specifically, not the whole instance
-    await expect(getGitDiffSummary()).rejects.toHaveProperty('message', `Failed to get Git diff. Reason: ${gitError.message}`);
+    await expect(getGitDiffSummary('/test/repo/path')).rejects.toHaveProperty(
+      'message',
+      `Failed to get Git diff. Reason: ${gitError.message}`
+    );
     // Optionally, also check the instance type
-    await expect(getGitDiffSummary()).rejects.toBeInstanceOf(AppError);
+    await expect(getGitDiffSummary('/test/repo/path')).rejects.toBeInstanceOf(
+      AppError
+    );
   });
 
   it('should throw original AppError if checkIsRepo throws AppError', async () => {
     const checkError = new AppError('Specific check error');
     mockCheckIsRepo.mockRejectedValue(checkError);
-    await expect(getGitDiffSummary()).rejects.toThrow(checkError);
+    await expect(getGitDiffSummary('/test/repo/path')).rejects.toThrow(
+      checkError
+    );
   });
 });

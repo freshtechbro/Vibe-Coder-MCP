@@ -1,0 +1,11 @@
+{ "name": "{{packageName}}", "version": "0.1.0", "private": true, "main":
+"index.js", "scripts": { "test": "echo \"Error: no test specified\" && exit 1"{{#if
+  scripts
+}}{{#each scripts}}, "{{@key}}": "{{this}}"{{/each}}{{/if}}
+}, "dependencies": {
+{{#if dependencies}}{{#each dependencies}}
+    "{{@key}}": "{{this}}"{{#unless @last}},{{/unless}}{{/each}}{{/if}}
+}, "devDependencies": {
+{{#if devDependencies}}{{#each devDependencies}}
+    "{{@key}}": "{{this}}"{{#unless @last}},{{/unless}}{{/each}}{{/if}}
+} }

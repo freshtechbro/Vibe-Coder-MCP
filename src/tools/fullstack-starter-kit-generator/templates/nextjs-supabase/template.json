@@ -1,0 +1,36 @@
+{
+  "name": "nextjs-supabase",
+  "version": "1.0.0",
+  "description": "Full-stack starter kit with Next.js and Supabase",
+  "metadata": {
+    "framework": "Next.js",
+    "language": "TypeScript",
+    "styling": "Tailwind CSS",
+    "database": "PostgreSQL",
+    "orm": "Supabase",
+    "features": {
+      "authentication": {
+        "jwt": true,
+        "oauth": ["google", "github"],
+        "session": true,
+        "rbac": true,
+        "mfa": true
+      },
+      "database": {
+        "migrations": true,
+        "seeding": true,
+        "rls": true,
+        "realtime": true
+      },
+      "storage": {
+        "enabled": true,
+        "rls": true
+      },
+      "deployment": {
+        "vercel": true,
+        "docker": true,
+        "ci": true
+      }
+    }
+  }
+}

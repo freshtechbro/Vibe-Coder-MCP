@@ -1,0 +1,9 @@
+import logging import sys from typing import Any from app.core.config import
+settings # Create logger logger = logging.getLogger(settings.PROJECT_NAME)
+logger.setLevel(logging.INFO) # Create console handler console_handler =
+logging.StreamHandler(sys.stdout) console_handler.setLevel(logging.INFO) #
+Create formatter formatter = logging.Formatter( "%(asctime)s - %(name)s -
+%(levelname)s - %(message)s" ) console_handler.setFormatter(formatter) # Add
+console handler to logger logger.addHandler(console_handler) def
+log_error(error: Any) -> None: """Log error with traceback."""
+logger.exception(error)

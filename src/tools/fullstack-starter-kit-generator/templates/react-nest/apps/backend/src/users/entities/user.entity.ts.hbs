@@ -1,0 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger'; export class UserEntity {
+@ApiProperty({ example: 'cl7d8j9x90000qw1g4x5h6y7z' }) id: string;
+@ApiProperty({ example: 'john@example.com' }) email: string; @ApiProperty({
+example: 'John Doe', required: false }) name?: string; @ApiProperty() createdAt:
+Date; @ApiProperty() updatedAt: Date; }

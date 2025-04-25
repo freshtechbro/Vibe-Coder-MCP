@@ -1,0 +1,151 @@
+import { Authenticator } from 'remix-auth';
+import { GitHubStrategy } from 'remix-auth-github';
+import { GoogleStrategy } from 'remix-auth-google';
+import { FormStrategy } from 'remix-auth-form';
+import { sessionStorage } from './session.server';
+import { prisma } from './db.server';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
+
+export type User = {
+  id: string;
+  email: string;
+  name?: string | null;
+};
+
+export const authenticator = new Authenticator<User>(sessionStorage);
+
+// GitHub Strategy
+authenticator.use(
+  new GitHubStrategy(
+    {
+      clientID: process.env.GITHUB_CLIENT_ID || '',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+      callbackURL: '/auth/github/callback',
+    },
+    async ({ profile }) => {
+      const email = profile.emails?.[0]?.value;
+      if (!email) throw new Error('GitHub email not found');
+
+      const user = await prisma.user.upsert({
+        where: { email },
+        create: {
+          email,
+          name: profile.displayName,
+          accounts: {
+            create: {
+              provider: 'github',
+              providerAccountId: profile.id,
+              type: 'oauth',
+            },
+          },
+        },
+        update: {
+          name: profile.displayName,
+        },
+      });
+
+      return { id: user.id, email: user.email, name: user.name };
+    }
+  )
+);
+
+// Google Strategy
+authenticator.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      callbackURL: '/auth/google/callback',
+    },
+    async ({ profile }) => {
+      const email = profile.emails?.[0]?.value;
+      if (!email) throw new Error('Google email not found');
+
+      const user = await prisma.user.upsert({
+        where: { email },
+        create: {
+          email,
+          name: profile.displayName,
+          accounts: {
+            create: {
+              provider: 'google',
+              providerAccountId: profile.id,
+              type: 'oauth',
+            },
+          },
+        },
+        update: {
+          name: profile.displayName,
+        },
+      });
+
+      return { id: user.id, email: user.email, name: user.name };
+    }
+  )
+);
+
+// Form Strategy (Email/Password)
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+authenticator.use(
+  new FormStrategy(async ({ form }) => {
+    const result = loginSchema.safeParse(Object.fromEntries(form));
+    if (!result.success) {
+      throw new Error('Invalid form data');
+    }
+
+    const { email, password } = result.data;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user?.hashedPassword) {
+      throw new Error('Invalid credentials');
+    }
+
+    const isValid = await bcrypt.compare(password, user.hashedPassword);
+    if (!isValid) {
+      throw new Error('Invalid credentials');
+    }
+
+    return { id: user.id, email: user.email, name: user.name };
+  })
+);
+
+export async function getUserPermissions(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      roles: {
+        include: {
+          permissions: true,
+        },
+      },
+    },
+  });
+
+  if (!user) return [];
+
+  const permissions = user.roles.flatMap(role =>
+    role.permissions.map(p => `${p.action}:${p.entity}:${p.access}`)
+  );
+
+  return [...new Set(permissions)];
+}
+
+export async function hasPermission(userId: string, permission: string) {
+  const permissions = await getUserPermissions(userId);
+  return permissions.includes(permission);
+}
+
+export async function hasRole(userId: string, roleName: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      roles: true,
+    },
+  });
+
+  return user?.roles.some(role => role.name === roleName) ?? false;
+}

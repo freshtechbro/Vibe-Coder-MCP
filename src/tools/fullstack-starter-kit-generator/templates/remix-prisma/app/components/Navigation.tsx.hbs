@@ -1,0 +1,33 @@
+import { Form, Link } from '@remix-run/react'; import type { User } from
+'~/services/auth.server'; interface NavigationProps { user: User | null; }
+export function Navigation({ user }: NavigationProps) { return (
+<nav className='bg-white border-b'>
+  <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
+    <div className='flex justify-between h-16'>
+      <div className='flex'>
+        <div className='flex-shrink-0 flex items-center'>
+          <Link to='/' className='text-xl font-bold text-gray-900'>
+            {{projectName}}
+          </Link>
+        </div>
+      </div>
+      <div className='flex items-center'>
+        {user ? (
+        <div className='flex items-center space-x-4'>
+          <span className='text-gray-700'>{user.email}</span>
+          <Form action='/auth/logout' method='post'>
+            <button type='submit' className='text-gray-700 hover:text-gray-900'>
+              Sign Out
+            </button>
+          </Form>
+        </div>
+        ) : (
+        <Link to='/auth' className='text-gray-700 hover:text-gray-900'>
+          Sign In
+        </Link>
+        )}
+      </div>
+    </div>
+  </div>
+</nav>
+); }

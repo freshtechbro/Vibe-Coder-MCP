@@ -6,20 +6,22 @@ import { describe, it, expect, vi } from 'vitest'; // Removed beforeEach
 // Mock fs.readFileSync before importing the module being tested
 vi.mock('fs', () => {
   return {
-    readFileSync: vi.fn(() => JSON.stringify({
-      tools: {
-        'research-manager': {
-          description: 'Performs research',
-          use_cases: ['research', 'find info'],
-          input_patterns: ['research {topic}', 'find info about {subject}']
+    readFileSync: vi.fn(() =>
+      JSON.stringify({
+        tools: {
+          'research-manager': {
+            description: 'Performs research',
+            use_cases: ['research', 'find info'],
+            input_patterns: ['research {topic}', 'find info about {subject}'],
+          },
+          'prd-generator': {
+            description: 'Creates PRDs',
+            use_cases: ['product requirements'],
+            input_patterns: ['create prd for {product}'],
+          },
         },
-        'prd-generator': {
-          description: 'Creates PRDs',
-          use_cases: ['product requirements'],
-          input_patterns: ['create prd for {product}']
-        }
-      }
-    }))
+      })
+    ),
   };
 });
 
@@ -50,7 +52,7 @@ describe('matchRequest', () => {
     expect(result).toEqual({
       toolName: 'research-manager',
       confidence: 0.9,
-      matchedPattern: 'research {topic}'
+      matchedPattern: 'research {topic}',
     });
   });
 
@@ -59,7 +61,7 @@ describe('matchRequest', () => {
     expect(result).toEqual({
       toolName: 'prd-generator',
       confidence: 0.9,
-      matchedPattern: 'create prd for {product}'
+      matchedPattern: 'create prd for {product}',
     });
   });
 
@@ -68,16 +70,16 @@ describe('matchRequest', () => {
     expect(result).toEqual({
       toolName: 'prd-generator',
       confidence: 0.7,
-      matchedPattern: 'product requirements' // Or the specific use case matched
+      matchedPattern: 'product requirements', // Or the specific use case matched
     });
   });
 
   it('should match description keyword with lower confidence', () => {
     const result = matchRequest('can you find info on vite');
-     expect(result).toEqual({
+    expect(result).toEqual({
       toolName: 'research-manager',
       confidence: 0.7, // Or 0.5 depending on your logic/keywords
-      matchedPattern: 'find info' // Or 'description_match'
+      matchedPattern: 'find info', // Or 'description_match'
     });
   });
 
@@ -88,31 +90,40 @@ describe('matchRequest', () => {
 
   // Add tests for case-insensitivity
   it('should be case-insensitive', () => {
-     const result = matchRequest('RESEARCH REACT');
-     expect(result?.toolName).toBe('research-manager');
-     expect(result?.confidence).toBe(0.9);
+    const result = matchRequest('RESEARCH REACT');
+    expect(result?.toolName).toBe('research-manager');
+    expect(result?.confidence).toBe(0.9);
   });
 });
 
 describe('extractParameters', () => {
   it('should extract parameters from matched pattern', () => {
-    const params = extractParameters('research react best practices', 'research {topic}');
+    const params = extractParameters(
+      'research react best practices',
+      'research {topic}'
+    );
     expect(params).toEqual({ topic: 'react best practices' });
   });
 
   it('should extract parameters with multiple words', () => {
-    const params = extractParameters('create prd for my awesome new app', 'create prd for {product}');
+    const params = extractParameters(
+      'create prd for my awesome new app',
+      'create prd for {product}'
+    );
     expect(params).toEqual({ product: 'my awesome new app' });
   });
 
   it('should return empty object if no placeholders', () => {
-     const params = extractParameters('research something', 'research something'); // Pattern without {}
-     expect(params).toEqual({});
+    const params = extractParameters(
+      'research something',
+      'research something'
+    ); // Pattern without {}
+    expect(params).toEqual({});
   });
 
   it('should return empty object if pattern does not match request (though unlikely called this way)', () => {
-     const params = extractParameters('hello world', 'research {topic}');
-     expect(params).toEqual({});
+    const params = extractParameters('hello world', 'research {topic}');
+    expect(params).toEqual({});
   });
 
   // Add more edge cases if your pattern/extraction logic is more complex

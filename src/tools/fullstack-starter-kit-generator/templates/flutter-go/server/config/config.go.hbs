@@ -1,0 +1,11 @@
+package config import "os" type Config struct { DatabaseURL string JWTSecret
+string GithubClientID string GithubClientSecret string GoogleClientID string
+GoogleClientSecret string } func Load() *Config { return &Config{ DatabaseURL:
+getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/{{kebabCase
+  projectName
+}}"), JWTSecret: getEnv("JWT_SECRET", "your-secret-key"), GithubClientID:
+os.Getenv("GITHUB_CLIENT_ID"), GithubClientSecret:
+os.Getenv("GITHUB_CLIENT_SECRET"), GoogleClientID:
+os.Getenv("GOOGLE_CLIENT_ID"), GoogleClientSecret:
+os.Getenv("GOOGLE_CLIENT_SECRET"), } } func getEnv(key, fallback string) string
+{ if value := os.Getenv(key); value != "" { return value } return fallback }

@@ -1,0 +1,16 @@
+import { inferAsyncReturnType } from '@trpc/server';
+import { H3Event } from 'h3';
+import { getServerSession } from '#auth';
+import { prisma } from '../db';
+
+export async function createContext(event: H3Event) {
+  const session = await getServerSession(event);
+
+  return {
+    prisma,
+    session,
+    event,
+  };
+}
+
+export type Context = inferAsyncReturnType<typeof createContext>;

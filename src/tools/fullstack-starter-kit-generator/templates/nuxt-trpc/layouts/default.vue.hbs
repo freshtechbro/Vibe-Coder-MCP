@@ -1,0 +1,45 @@
+<script setup lang='ts'>
+  const { data: session } = await useSession();
+</script>
+
+<template>
+  <div>
+    <nav class='bg-white border-b'>
+      <div class='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
+        <div class='flex justify-between h-16'>
+          <div class='flex'>
+            <div class='flex-shrink-0 flex items-center'>
+              <NuxtLink to='/' class='text-xl font-bold text-gray-900'>
+                {{projectName}}
+              </NuxtLink>
+            </div>
+          </div>
+          <div class='flex items-center'>
+            <template v-if='session?.user'>
+              <div class='flex items-center space-x-4'>
+                <span class='text-gray-700'>{{session.user.email}}</span>
+                <button
+                  class='text-gray-700 hover:text-gray-900'
+                  @click='signOut'
+                >
+                  Sign Out
+                </button>
+              </div>
+            </template>
+            <template v-else>
+              <NuxtLink to='/auth' class='text-gray-700 hover:text-gray-900'>
+                Sign In
+              </NuxtLink>
+            </template>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <div class='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
+        <slot />
+      </div>
+    </main>
+  </div>
+</template>

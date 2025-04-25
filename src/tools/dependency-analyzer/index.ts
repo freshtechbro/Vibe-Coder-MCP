@@ -1,130 +1,168 @@
-// src/tools/dependency-analyzer/index.ts
-import path from 'path'; // Import path
-import { DependencyAnalysisInput, dependencyAnalysisInputSchema } from './schema.js';
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { registerTool, ToolDefinition, ToolExecutor } from '../../services/routing/toolRegistry.js'; // Adjust path if necessary
-import { readFileContent } from '../../utils/fileReader.js'; // Adjust path if necessary
-import { AppError, ParsingError } from '../../utils/errors.js';
-import logger from '../../logger.js'; // Adjust path if necessary
+import path from 'path';
 
-/**
- * Parses package.json content to extract dependencies.
- * @param content The string content of package.json.
- * @param filePath The path to the file (for error context).
- * @returns An object containing dependencies and devDependencies.
- * @throws {ParsingError} If the JSON content is invalid.
- */
-function parsePackageJson(content: string, filePath: string): { dependencies: Record<string, string>, devDependencies: Record<string, string> } {
-   try {
-       const packageJson = JSON.parse(content);
-       // Ensure dependencies/devDependencies are objects, even if null/undefined in the file
-       const dependencies = typeof packageJson.dependencies === 'object' && packageJson.dependencies !== null ? packageJson.dependencies : {};
-       const devDependencies = typeof packageJson.devDependencies === 'object' && packageJson.devDependencies !== null ? packageJson.devDependencies : {};
-       return { dependencies, devDependencies };
-   } catch (error) {
-        logger.error({ err: error, filePath }, 'Failed to parse package.json content');
-        throw new ParsingError(`Invalid JSON in file: ${filePath}`, { filePath }, error instanceof Error ? error : undefined);
-   }
-}
+import { z } from 'zod';
 
-/**
- * Formats the extracted dependencies into a readable Markdown string.
- * @param filePath The path to the analyzed file.
- * @param deps The regular dependencies.
- * @param devDeps The development dependencies.
- * @returns A formatted string summarizing the dependencies.
- */
-function formatAnalysisResult(
-    filePath: string,
-    deps: Record<string, string>,
-    devDeps: Record<string, string>
-): string {
-    let result = `## Dependency Analysis for: ${filePath}\n\n`;
-    const depCount = Object.keys(deps).length;
-    const devDepCount = Object.keys(devDeps).length;
+import logger from '@/logger.js';
+import { AppError, ParsingError, ValidationError } from '@/utils/errors.js';
+import { readFileContent } from '@/utils/fileReader.js';
 
-    if (depCount > 0) {
-        result += `### Dependencies (${depCount}):\n`;
-        for (const [name, version] of Object.entries(deps)) {
-            result += `- ${name}: ${version}\n`;
-        }
-    } else {
-         result += `### Dependencies:\n - None found.\n`;
-    }
+import {
+  ToolExecutionContext,
+  toolRegistry,
+} from '../../services/routing/toolRegistry.js';
+import { ToolDefinition, ToolResult } from '../../types/tools.js';
 
-     if (devDepCount > 0) {
-         result += `\n### Dev Dependencies (${devDepCount}):\n`;
-         for (const [name, version] of Object.entries(devDeps)) {
-             result += `- ${name}: ${version}\n`;
-         }
-     } else {
-         result += `\n### Dev Dependencies:\n - None found.\n`;
-     }
+// Define Zod schema for input parameters
+const dependencyInputSchema = {
+  projectPath: z.string(),
+  filePath: z.string().optional().default('package.json'),
+  includeDevDependencies: z.boolean().optional().default(true),
+};
 
-    return result;
-}
-
-
-// Main executor function
-export const analyzeDependencies: ToolExecutor = async (
+async function analyzeDependencies(
   params: Record<string, unknown>,
-  // OpenRouterConfig not used for this tool
-): Promise<CallToolResult> => {
-  // Validation happens in executeTool, but we cast here for type safety
-  const validatedParams = params as DependencyAnalysisInput;
-  const filePath = validatedParams.filePath;
-  logger.info(`Analyzing dependencies for file: ${filePath}`);
+  config: Record<string, unknown>,
+  context: ToolExecutionContext
+): Promise<ToolResult> {
+  // Restore validation
+  const validationResult = z.object(dependencyInputSchema).safeParse(params);
+  if (!validationResult.success) {
+    const errorMessage = `Invalid input parameters: ${validationResult.error.errors.map((e) => `${e.path.join('.')} - ${e.message}`).join(', ')}`;
+    logger.error(
+      { error: validationResult.error, sessionId: context.sessionId },
+      errorMessage
+    );
+    return {
+      isError: true,
+      content: [{ type: 'text', text: errorMessage }],
+      errorDetails: {
+        type: 'ValidationError',
+        errors: validationResult.error.errors,
+      },
+    };
+  }
+
+  const { projectPath, filePath, includeDevDependencies } =
+    validationResult.data;
+  const fullFilePath = path.resolve(projectPath, filePath);
+  const logContext = {
+    fullFilePath,
+    includeDevDependencies,
+    sessionId: context.sessionId,
+  };
+
+  logger.info(logContext, 'Analyzing dependencies');
 
   try {
-    // Read the file content using the utility
-    const fileContent = await readFileContent(filePath);
+    // Read the file content first
+    const fileContent = await readFileContent(fullFilePath);
 
-    // Determine file type and parse
-    let analysisResult: string;
-    const fileName = path.basename(filePath).toLowerCase();
-
-    if (fileName === 'package.json') {
-       const { dependencies, devDependencies } = parsePackageJson(fileContent, filePath);
-       analysisResult = formatAnalysisResult(filePath, dependencies, devDependencies);
-    }
-    // TODO: Add support for requirements.txt, pom.xml, etc.
-    // else if (fileName === 'requirements.txt') { ... parse requirements.txt logic ... }
-    else {
-         logger.warn(`Unsupported dependency file type: ${fileName} at path ${filePath}`);
-         // Return a specific error message for unsupported types
-         return {
-             content: [{ type: 'text', text: `Error: Unsupported file type '${fileName}'. Currently only 'package.json' is supported.` }],
-             isError: true,
-             errorDetails: { type: 'UnsupportedFileTypeError', message: `Unsupported file type: ${fileName}` }
-         };
+    // Now check for supported file type
+    if (path.basename(filePath) !== 'package.json') {
+      throw new AppError(
+        `Unsupported file type '${filePath}'. Currently only 'package.json' is supported.`,
+        { fileType: path.extname(filePath) }
+      );
     }
 
-    logger.info(`Successfully analyzed dependencies for ${filePath}`);
-    return {
-      content: [{ type: 'text', text: analysisResult }],
-      isError: false,
+    // Continue with parsing etc.
+    let packageData;
+    try {
+      packageData = JSON.parse(fileContent);
+    } catch (parseError) {
+      throw new ParsingError(
+        `Invalid JSON in file: ${filePath}`,
+        {
+          parsingError:
+            parseError instanceof Error
+              ? parseError.message
+              : String(parseError),
+        },
+        parseError instanceof Error ? parseError : undefined
+      );
+    }
+
+    const dependencies = packageData.dependencies || {};
+    const devDependencies = packageData.devDependencies || {};
+
+    let resultText = `## Dependency Analysis for: ${filePath}\n\n`;
+
+    const formatDeps = (deps: Record<string, string>, title: string) => {
+      const keys = Object.keys(deps);
+      resultText += `### ${title}${keys.length ? ` (${keys.length}):` : ':'}\n`;
+      if (keys.length > 0) {
+        keys.forEach((key) => {
+          resultText += `- ${key}: ${deps[key]}\n`;
+        });
+      } else {
+        resultText += ` - None found.\n`;
+      }
     };
 
+    formatDeps(dependencies, 'Dependencies');
+    if (includeDevDependencies) {
+      resultText += `\n`;
+      formatDeps(devDependencies, 'Dev Dependencies');
+    }
+
+    return {
+      isError: false,
+      content: [
+        {
+          type: 'text',
+          text: resultText,
+        },
+      ],
+    };
   } catch (error) {
-     logger.error({ err: error, tool: 'analyze-dependencies', filePath }, `Error analyzing dependencies for ${filePath}`);
-     // Handle errors thrown by readFileContent or parsePackageJson
-     const message = (error instanceof Error) ? error.message : `Unknown error analyzing dependencies for ${filePath}.`;
-     // Use the specific error name if it's an AppError, otherwise use a generic name
-     const errorType = (error instanceof AppError) ? error.name : 'DependencyAnalysisError';
-     return {
-        content: [{ type: 'text', text: `Error analyzing dependencies: ${message}` }],
-        isError: true,
-        errorDetails: { type: errorType, message: message }
-     };
+    let errorMessage = 'An unknown error occurred during dependency analysis.';
+    let errorType = 'UnknownError';
+    let errorDetails: Record<string, unknown> = { rawError: error };
+
+    if (error instanceof AppError) {
+      logger.error(
+        { error: error, ...logContext },
+        `${error.name} analyzing dependencies`
+      );
+      errorMessage = error.message;
+      errorType = error.name;
+      errorDetails = {
+        type: errorType,
+        message: errorMessage,
+        ...(error.context || {}),
+      };
+    } else if (error instanceof Error) {
+      logger.error(
+        { error: error, ...logContext },
+        'Error analyzing dependencies'
+      );
+      errorMessage = `Error analyzing dependencies: ${error.message}`;
+      errorType = error.name || 'Error';
+      errorDetails = {
+        type: errorType,
+        message: error.message,
+        stack: error.stack,
+      };
+    } else {
+      logger.error(
+        { error, ...logContext },
+        'Unknown error type analyzing dependencies'
+      );
+    }
+
+    return {
+      isError: true,
+      content: [{ type: 'text', text: errorMessage }],
+      errorDetails: errorDetails,
+    };
   }
+}
+
+export const dependencyAnalyzerTool: ToolDefinition = {
+  name: 'dependency-analyzer',
+  description: 'Lists project dependencies from a package file.',
+  inputSchema: dependencyInputSchema,
+  execute: analyzeDependencies,
 };
 
-// Define and Register Tool
-const dependencyAnalyzerToolDefinition: ToolDefinition = {
-  name: "analyze-dependencies",
-  description: "Analyzes dependency manifest files (currently supports package.json) to list project dependencies.",
-  inputSchema: dependencyAnalysisInputSchema.shape, // Pass the raw shape
-  executor: analyzeDependencies
-};
-
-registerTool(dependencyAnalyzerToolDefinition);
+toolRegistry.registerTool(dependencyAnalyzerTool);

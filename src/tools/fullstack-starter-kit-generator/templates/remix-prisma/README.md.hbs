@@ -1,0 +1,37 @@
+#
+{{projectName}}
+
+{{description}}
+
+## Features - 🔐 Authentication with OAuth (GitHub, Google) and Email/Password -
+👥 Role-Based Access Control (RBAC) - 📊 Type-safe database with Prisma ORM - 🎨
+Styling with Tailwind CSS - ✨ Type-safe forms and API routes - 🔄 Real-time
+data with TanStack Query ## Getting Started 1. Install dependencies: ```bash
+pnpm install ``` 2. Copy the example environment file and update the values:
+```bash cp .env.example .env ``` 3. Set up the database: ```bash # Generate
+Prisma client pnpm db:generate # Push schema to database pnpm db:push ``` 4.
+Start the development server: ```bash pnpm dev ``` 5. Open
+[http://localhost:3000](http://localhost:3000) in your browser. ## Project
+Structure ``` . ├── app/ # Application source code │ ├── components/ # Shared
+components │ ├── routes/ # Route components │ ├── services/ # Server-side
+services │ └── styles/ # Global styles ├── prisma/ # Database schema and
+migrations └── public/ # Static assets ``` ## Available Scripts - `pnpm dev` -
+Start development server - `pnpm build` - Build for production - `pnpm start` -
+Start production server - `pnpm typecheck` - Run type checking - `pnpm test` -
+Run tests - `pnpm lint` - Run linting - `pnpm format` - Format code - `pnpm
+db:generate` - Generate Prisma client - `pnpm db:push` - Push schema to database
+- `pnpm db:studio` - Open Prisma Studio ## Authentication This template includes
+both OAuth providers and email/password authentication: ### OAuth Providers -
+GitHub authentication - Google authentication - Automatic user profile sync ###
+Email/Password Authentication - Secure password hashing with bcrypt -
+Session-based authentication - Role-based access control ## Database This
+project uses PostgreSQL with Prisma ORM: - Type-safe database operations -
+Automatic migrations - Database schema management - Connection pooling - Prisma
+Studio for database management ## Technologies ### Frontend - Remix - React -
+TypeScript - TanStack Query - Tailwind CSS ### Backend - Remix - Prisma ORM -
+PostgreSQL - Zod - Remix Auth ## Deployment Deploy to any platform that supports
+Node.js: ### Vercel ```bash vercel ``` ### Fly.io ```bash fly deploy ``` ###
+Railway ```bash railway up ``` ## Contributing 1. Fork the repository 2. Create
+your feature branch (`git checkout -b feature/amazing-feature`) 3. Commit your
+changes (`git commit -m 'Add some amazing feature'`) 4. Push to the branch (`git
+push origin feature/amazing-feature`) 5. Open a Pull Request

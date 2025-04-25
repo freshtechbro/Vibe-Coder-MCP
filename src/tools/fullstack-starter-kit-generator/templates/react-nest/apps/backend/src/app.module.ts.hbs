@@ -1,0 +1,8 @@
+import { Module } from '@nestjs/common'; import { ConfigModule } from
+'@nestjs/config'; import { LoggerModule } from 'nestjs-pino'; import {
+PrismaModule } from './prisma/prisma.module'; import { UsersModule } from
+'./users/users.module'; import { validate } from './config/env.validation';
+@Module({ imports: [ ConfigModule.forRoot({ isGlobal: true, validate, }),
+LoggerModule.forRoot({ pinoHttp: { transport: process.env.NODE_ENV ===
+'development' ? { target: 'pino-pretty' } : undefined, }, }), PrismaModule,
+UsersModule, ], }) export class AppModule {}

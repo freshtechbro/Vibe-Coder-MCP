@@ -6,25 +6,50 @@ This tool executes a predefined sequence of tool calls, known as a workflow, bas
 
 ## Inputs
 
-| Parameter       | Type                        | Description                                                                                                | Required |
-| :-------------- | :-------------------------- | :--------------------------------------------------------------------------------------------------------- | :------- |
-| `workflowName`  | `string`                    | The name of the workflow to execute, corresponding to a key in the `workflows.json` file's `workflows` object. | Yes      |
+| Parameter       | Type                           | Description                                                                                                                                                                          | Required |
+| :-------------- | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| `workflowName`  | `string`                       | The name of the workflow to execute, corresponding to a key in the `workflows.json` file's `workflows` object.                                                                       | Yes      |
 | `workflowInput` | `object` (Record<string, any>) | Optional. An object containing input data for the workflow. Keys and values depend on the specific workflow definition and how its steps reference `{workflow.input.key}` templates. | No       |
 
-*Note: While `workflowInput` is optional in the schema, most workflows will require specific inputs defined within this object to function correctly.*
+_Note: While `workflowInput` is optional in the schema, most workflows will require specific inputs defined within this object to function correctly._
 
 ## Outputs
 
-*   **Primary Output:** A summary message indicating the success or failure of the workflow execution. If the workflow definition includes an `output` template, the resolved output object might also be included or summarized in the message. This is returned within the `CallToolResult.content` array (type `text`).
-*   **File Storage:** This tool itself does not save files. However, the individual tools *called within* the workflow might save files to their respective directories under `workflow-agent-files/`.
-*   **Error Details:** If the workflow fails, the `CallToolResult` will have `isError: true` and may include `errorDetails` specifying the step and reason for failure.
+- **Primary Output:** A summary message indicating the success or failure of the workflow execution. If the workflow definition includes an `output` template, the resolved output object might also be included or summarized in the message. This is returned within the `CallToolResult.content` array (type `text`).
+- **File Storage:** This tool itself does not save files. However, the individual tools _called within_ the workflow might save files to their respective directories under `workflow-agent-files/`.
+- **Error Details:** If the workflow fails, the `CallToolResult` will have `isError: true` and may include `errorDetails` specifying the step and reason for failure.
 
 ## Asynchronous Execution
 
 This tool executes asynchronously because it orchestrates multiple steps, some of which may themselves be long-running asynchronous tools.
+
 1.  When you call `run-workflow`, it will immediately return a **Job ID**.
 2.  The entire workflow execution process runs in the background, managed by the `WorkflowExecutor` service.
 3.  Use the `get-job-result` tool with the received Job ID to retrieve the final outcome (success message or error details) once the entire workflow job is complete.
+
+## Async Job Submission
+
+When you submit a workflow run with `async: true`, you will receive a response like this:
+
+```
+Your request has been received and is being processed as an async job.
+
+Job ID: 123e4567-e89b-12d3-a456-426614174000
+
+Please wait a moment for the task to complete before attempting to retrieve the job result.
+
+To check the status or result of this job, send the following prompt:
+```json
+{
+  "tool_name": "workflow-runner-job-result",
+  "arguments": {
+    "jobId": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+You can use this prompt in the assistant, API, or Studio to retrieve your job's status or result.
+
+- **Note:** Always wait a moment before polling for the result to ensure the job has time to complete.
 
 ## Workflow
 
@@ -71,7 +96,7 @@ flowchart TD
 {
   "tool_name": "run-workflow",
   "arguments": {
-    "workflowName": "newFeatureSetup", 
+    "workflowName": "newFeatureSetup",
     "workflowInput": {
       "featureName": "User Authentication",
       "featureType": "Core Security"
@@ -85,11 +110,11 @@ Invoked via AI Assistant:
 
 ## Error Handling
 
-*   **Input Validation Errors:** Returns an error if `workflowName` is missing or `workflowInput` is not an object (if provided).
-*   **Workflow Not Found:** Returns an error if the specified `workflowName` does not exist in the loaded `workflows.json`.
-*   **Parameter Resolution Errors:** Returns an error if a template string in a step's `params` cannot be resolved (e.g., missing input key, invalid path, previous step failed or didn't produce expected output).
-*   **Tool Execution Errors:** If any tool executed within a step fails, the workflow stops, and an error result is returned, indicating the failed step and tool, along with the error details from the failed tool.
-*   **Configuration Errors:** Errors during the initial loading of `workflows.json` (logged at server start) will prevent any workflows from running.
+- **Input Validation Errors:** Returns an error if `workflowName` is missing or `workflowInput` is not an object (if provided).
+- **Workflow Not Found:** Returns an error if the specified `workflowName` does not exist in the loaded `workflows.json`.
+- **Parameter Resolution Errors:** Returns an error if a template string in a step's `params` cannot be resolved (e.g., missing input key, invalid path, previous step failed or didn't produce expected output).
+- **Tool Execution Errors:** If any tool executed within a step fails, the workflow stops, and an error result is returned, indicating the failed step and tool, along with the error details from the failed tool.
+- **Configuration Errors:** Errors during the initial loading of `workflows.json` (logged at server start) will prevent any workflows from running.
 
 ## Configuration and Troubleshooting
 
@@ -103,7 +128,6 @@ The `workflows.json` file must be located in the root directory of the project (
   - The `workflows.json` file exists in the root directory
   - The file has valid JSON syntax with proper commas between properties
   - The workflow name you're calling matches exactly (case-sensitive)
-  
 - **Parameter Resolution Errors**: Ensure template strings in workflow step parameters are correctly formatted:
   - For workflow inputs: `{workflow.input.paramName}`
   - For previous step outputs: `{steps.stepId.output.content[0].text}`

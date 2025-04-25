@@ -1,0 +1,14 @@
+{ "name": "{{kebabCase projectName}}", "version": "0.1.0", "private": true,
+"packageManager": "pnpm@8.0.0",
+{{#if description}}
+  "description": "{{description}}",
+{{/if}}
+{{#if author}}
+  "author": "{{author}}",
+{{/if}}
+"workspaces": [ "apps/*", "packages/*" ], "scripts": { "build": "turbo run
+build", "dev": "turbo run dev", "lint": "turbo run lint", "test": "turbo run
+test", "clean": "turbo run clean && rm -rf node_modules" }, "devDependencies": {
+"@types/node": "^20.11.5", "@typescript-eslint/eslint-plugin": "^6.19.0",
+"@typescript-eslint/parser": "^6.19.0", "eslint": "^8.56.0", "prettier":
+"^3.2.4", "turbo": "^1.11.3", "typescript": "^5.3.3" } }

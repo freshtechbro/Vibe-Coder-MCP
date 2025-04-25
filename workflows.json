@@ -1,43 +1,15 @@
-{
-  "workflows": {
-    "newProjectSetup": {
-      "description": "Generates User Stories, Task List, and Rules based on a product description.",
-      "inputSchema": {
-        "productDescription": "string"
-      },
-      "steps": [
-        {
-          "id": "step1_user_stories",
-          "toolName": "generate-user-stories",
-          "params": {
-            "productDescription": "{workflow.input.productDescription}"
-          }
-        },
-        {
-          "id": "step2_task_list",
-          "toolName": "generate-task-list",
-          "params": {
-            "productDescription": "{workflow.input.productDescription}",
-            "userStories": "{steps.step1_user_stories.output.content[0].text}"
-          }
-        },
-        {
-          "id": "step3_rules",
-          "toolName": "generate-rules",
-          "params": {
-            "productDescription": "{workflow.input.productDescription}",
-            "userStories": "{steps.step1_user_stories.output.content[0].text}"
-          }
-        }
-      ],
-      "output": {
-        "summary": "Workflow 'newProjectSetup' completed. Generated artifacts are stored in workflow-agent-files.",
-        "details": [
-          "User Stories generated based on product description.",
-          "Task List generated based on description and generated user stories.",
-          "Development Rules generated based on description and generated user stories."
-        ]
+[
+  {
+    "id": "fullstack-starter-kit",
+    "name": "Generate Fullstack Starter Kit",
+    "description": "Generates a new fullstack project based on requirements",
+    "steps": [
+      {
+        "id": "analyze",
+        "name": "Analyze Requirements",
+        "handler": "fullstack-starter-kit",
+        "params": {}
       }
-    }
+    ]
   }
-}
+]

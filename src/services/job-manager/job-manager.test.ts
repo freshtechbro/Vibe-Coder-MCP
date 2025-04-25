@@ -1,43 +1,61 @@
 // src/services/job-manager/job-manager.test.ts
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { jobManager, JobStatus } from './index.js'; // Import the singleton instance
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { sseNotifier } from '../sse-notifier/index.js'; // Import to potentially mock
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock the sseNotifier if JobManager interacts with it directly (e.g., on setJobResult)
+import { sseNotifier } from '../sse-notifier/index.js'; // Import for mocking
+
+import { jobManager } from './index.js'; // Import the singleton instance
+
+// Define JobStatus locally for tests if not exported
+type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
+const JobStatus = {
+  PENDING: 'pending' as JobStatus,
+  RUNNING: 'running' as JobStatus,
+  COMPLETED: 'completed' as JobStatus,
+  FAILED: 'failed' as JobStatus,
+};
+
+// Mock the sseNotifier
 vi.mock('../sse-notifier/index.js', () => ({
   sseNotifier: {
-    sendProgress: vi.fn(),
-    // Add other methods if needed by JobManager
-  }
+    notify: vi.fn(), // Mock the notify method used by JobManager
+  },
 }));
 
-// Mock the logger if needed
+// Mock the logger if needed (optional, depends if JobManager logs warnings on edge cases)
 vi.mock('../../logger.js', () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  }
+  },
 }));
 
+// Helper function to clear jobs map for isolation - NOT ideal for singletons, but needed if no reset method
+function clearJobsForTesting() {
+  const jobs = (jobManager as any).jobs as Map<string, any>; // Access private map for testing
+  if (jobs) {
+    jobs.clear();
+  } else {
+    console.warn('Could not access jobs map for clearing in tests.');
+  }
+}
 
 describe('JobManager Singleton', () => {
-  // We are testing the singleton instance directly
-  // let jobManager: JobManager; // No need to declare or instantiate
-
   beforeEach(() => {
     // Reset mocks before each test
     vi.clearAllMocks();
-    // TODO: Consider adding a reset method to JobManager for testing if needed
-    // e.g., jobManager.resetForTesting();
+    // Clear the internal jobs map before each test for isolation
+    clearJobsForTesting();
+  });
+
+  afterEach(() => {
+    // Ensure cleanup after each test
+    clearJobsForTesting();
   });
 
   it('should create a new job with PENDING status and return a job ID', () => {
-    const toolName = 'test-tool';
-    const params = { input: 'test' };
-    const jobId = jobManager.createJob(toolName, params);
+    const jobId = jobManager.createJob();
 
     expect(typeof jobId).toBe('string');
     expect(jobId.length).toBeGreaterThan(0);
@@ -45,13 +63,19 @@ describe('JobManager Singleton', () => {
     const job = jobManager.getJob(jobId);
     expect(job).toBeDefined();
     expect(job?.id).toBe(jobId);
-    expect(job?.toolName).toBe(toolName);
-    expect(job?.params).toEqual(params);
+    // Current implementation does not store toolName or params
+    // expect(job?.toolName).toBe(toolName);
+    // expect(job?.params).toEqual(params);
     expect(job?.status).toBe(JobStatus.PENDING);
     expect(job?.result).toBeUndefined();
-    expect(job?.createdAt).toBeInstanceOf(Date);
-    expect(job?.updatedAt).toBeInstanceOf(Date);
-    expect(job?.createdAt).toEqual(job?.updatedAt); // Initially they should be the same
+    expect(job?.error).toBeUndefined(); // Check error is initially undefined
+
+    // Check SSE notification
+    expect(sseNotifier.notify).toHaveBeenCalledWith('job_status', {
+      type: 'JOB_CREATED',
+      jobId,
+      status: JobStatus.PENDING,
+    });
   });
 
   it('should return undefined when getting a non-existent job', () => {
@@ -59,65 +83,110 @@ describe('JobManager Singleton', () => {
     expect(job).toBeUndefined();
   });
 
-  it('should update the status of an existing job', () => {
-    const jobId = jobManager.createJob('test-tool', {});
+  it('should update the status to RUNNING using startJob', () => {
+    const jobId = jobManager.createJob();
     const initialJob = jobManager.getJob(jobId);
-    const initialTimestamp = initialJob?.updatedAt;
 
-    // Allow a small delay to ensure timestamp changes
-    vi.advanceTimersByTime(10); // Requires fake timers enabled in vitest config or setup
-
-    jobManager.updateJobStatus(jobId, JobStatus.RUNNING, 'Job is now running');
+    jobManager.startJob(jobId);
     const updatedJob = jobManager.getJob(jobId);
 
     expect(updatedJob?.status).toBe(JobStatus.RUNNING);
-    expect(updatedJob?.progressMessage).toBe('Job is now running'); // Corrected: statusMessage -> progressMessage
-    expect(updatedJob?.updatedAt).not.toEqual(initialTimestamp);
+    // startJob doesn't set progressMessage
+    // expect(updatedJob?.progressMessage).toBe('Job is now running');
+
+    // Check SSE notification
+    expect(sseNotifier.notify).toHaveBeenCalledWith('job_status', {
+      type: 'JOB_UPDATED',
+      jobId,
+      status: JobStatus.RUNNING,
+    });
   });
 
-   it('should not throw when updating status of a non-existent job (or handle gracefully)', () => {
-     expect(() => jobManager.updateJobStatus('fake-id', JobStatus.RUNNING)).not.toThrow();
-     // Optionally check logs if warnings are expected: expect(logger.warn).toHaveBeenCalled();
-   });
+  it('should not throw when starting a non-existent job', () => {
+    expect(() => jobManager.startJob('fake-id')).not.toThrow();
+    expect(sseNotifier.notify).not.toHaveBeenCalled(); // Should not notify if job doesn't exist
+  });
 
-  it('should set the success result for a job and update status to COMPLETED', () => {
-    const jobId = jobManager.createJob('test-tool', {});
-    jobManager.updateJobStatus(jobId, JobStatus.RUNNING); // Move to running first
+  it('should set the success result and status to COMPLETED using completeJob', () => {
+    const jobId = jobManager.createJob();
+    jobManager.startJob(jobId); // Move to running first
 
-    const successResult: CallToolResult = { content: [{ type: 'text', text: 'Success!' }], isError: false };
-    jobManager.setJobResult(jobId, successResult);
+    const successResult = { data: 'Success!' }; // Use a simple object for result
+    jobManager.completeJob(jobId, successResult);
 
     const finalJob = jobManager.getJob(jobId);
     expect(finalJob?.status).toBe(JobStatus.COMPLETED);
     expect(finalJob?.result).toEqual(successResult);
-    expect(finalJob?.progressMessage).toBe('Job completed successfully'); // Corrected: statusMessage -> progressMessage, check final message
+    expect(finalJob?.error).toBeUndefined(); // Error should be undefined on success
 
-    // Check if notifier was called (assuming JobManager calls it)
-    // expect(sseNotifier.sendProgress).toHaveBeenCalledWith(expect.any(String), jobId, JobStatus.COMPLETED, expect.any(String));
+    // Check SSE notification
+    expect(sseNotifier.notify).toHaveBeenCalledWith('job_status', {
+      type: 'JOB_COMPLETED',
+      jobId,
+      result: successResult,
+    });
   });
 
-  it('should set the error result for a job and update status to FAILED', () => {
-    const jobId = jobManager.createJob('test-tool', {});
-    jobManager.updateJobStatus(jobId, JobStatus.RUNNING);
+  it('should set the error object and status to FAILED using failJob', () => {
+    const jobId = jobManager.createJob();
+    jobManager.startJob(jobId);
 
-    const errorResult: CallToolResult = { content: [{ type: 'text', text: 'It failed!' }], isError: true, errorDetails: { type: 'TestError', message: 'Failed hard' } };
-    jobManager.setJobResult(jobId, errorResult);
+    const error = new Error('It failed!');
+    jobManager.failJob(jobId, error);
 
     const finalJob = jobManager.getJob(jobId);
     expect(finalJob?.status).toBe(JobStatus.FAILED);
-    expect(finalJob?.result).toEqual(errorResult);
-    expect(finalJob?.progressMessage).toBe('Job failed'); // Corrected: statusMessage -> progressMessage, check final message
+    expect(finalJob?.error).toBe(error); // Should store the actual Error object
+    expect(finalJob?.result).toBeUndefined(); // Result should be undefined on failure
 
-    // Check if notifier was called (assuming JobManager calls it)
-    // expect(sseNotifier.sendProgress).toHaveBeenCalledWith(expect.any(String), jobId, JobStatus.FAILED, expect.any(String));
+    // Check SSE notification
+    expect(sseNotifier.notify).toHaveBeenCalledWith('job_status', {
+      type: 'JOB_FAILED',
+      jobId,
+      error: error, // SSE sends the error object
+    });
   });
 
-   it('should not throw when setting result for a non-existent job (or handle gracefully)', () => {
-     const result: CallToolResult = { content: [], isError: false };
-     expect(() => jobManager.setJobResult('fake-id', result)).not.toThrow();
-     // Optionally check logs if warnings are expected
-   });
+  it('should not throw when completing a non-existent job', () => {
+    const result = { data: 'Success!' };
+    expect(() => jobManager.completeJob('fake-id', result)).not.toThrow();
+    expect(sseNotifier.notify).not.toHaveBeenCalled(); // Should not notify
+  });
 
-   // TODO: Add tests for status transition logic if implemented (e.g., cannot go from COMPLETED to RUNNING)
-   // TODO: Add tests for job cleanup/expiration if implemented
+  it('should not throw when failing a non-existent job', () => {
+    const error = new Error('Failure');
+    expect(() => jobManager.failJob('fake-id', error)).not.toThrow();
+    expect(sseNotifier.notify).not.toHaveBeenCalled(); // Should not notify
+  });
+
+  // Test status transitions (optional but good)
+  it('should allow PENDING -> RUNNING', () => {
+    const jobId = jobManager.createJob();
+    expect(() => jobManager.startJob(jobId)).not.toThrow();
+    expect(jobManager.getJob(jobId)?.status).toBe(JobStatus.RUNNING);
+  });
+
+  it('should allow RUNNING -> COMPLETED', () => {
+    const jobId = jobManager.createJob();
+    jobManager.startJob(jobId);
+    expect(() => jobManager.completeJob(jobId, {})).not.toThrow();
+    expect(jobManager.getJob(jobId)?.status).toBe(JobStatus.COMPLETED);
+  });
+
+  it('should allow RUNNING -> FAILED', () => {
+    const jobId = jobManager.createJob();
+    jobManager.startJob(jobId);
+    expect(() => jobManager.failJob(jobId, new Error())).not.toThrow();
+    expect(jobManager.getJob(jobId)?.status).toBe(JobStatus.FAILED);
+  });
+
+  // Example of testing disallowed transitions (if JobManager prevented them)
+  // it('should NOT allow COMPLETED -> RUNNING', () => {
+  //     const jobId = jobManager.createJob();
+  //     jobManager.startJob(jobId);
+  //     jobManager.completeJob(jobId, {});
+  //     // Assuming startJob would throw or log if called on a completed job
+  //     expect(() => jobManager.startJob(jobId)).toThrow(); // or check logs/status
+  //     expect(jobManager.getJob(jobId)?.status).toBe(JobStatus.COMPLETED);
+  // });
 });

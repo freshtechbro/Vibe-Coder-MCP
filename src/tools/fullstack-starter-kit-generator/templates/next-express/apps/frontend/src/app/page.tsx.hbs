@@ -1,0 +1,10 @@
+import { Metadata } from 'next'; export const metadata: Metadata = { title: '{{projectName}}',
+description: '{{description}}' }; export default function HomePage() { return (
+<main className='flex min-h-screen flex-col items-center justify-center p-24'>
+  <h1 className='text-4xl font-bold mb-8'>Welcome to {{projectName}}</h1>
+  <p className='text-lg text-gray-600 mb-4'>{{description}}</p>
+  <div className='grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl w-full'>
+    {/* Add your content here */}
+  </div>
+</main>
+); }

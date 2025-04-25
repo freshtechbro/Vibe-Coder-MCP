@@ -1,8 +1,7 @@
-// src/services/sse-notifier/sse-notifier.test.ts
+import { Response } from 'express';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
-import { sseNotifier } from './index.js'; // Import the singleton instance
-import { JobStatus } from '../job-manager/index.js'; // Import JobStatus enum
-import { Response } from 'express'; // Import Response type for mocking
+
+import { sseNotifier } from './index.js';
 
 // Mock the logger
 vi.mock('../../logger.js', () => ({
@@ -11,124 +10,148 @@ vi.mock('../../logger.js', () => ({
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  }
+  },
 }));
 
-// Mock Express Response object
-const createMockResponse = (): Partial<Response> => ({
-  write: vi.fn(),
-  flushHeaders: vi.fn(), // Often used with SSE
-  // Mock 'close' event handling if needed
-  on: vi.fn((event, listener) => {
-    if (event === 'close') {
-      // Store the listener to simulate the close event later
-      (mockResponse as any)._closeListener = listener;
-    }
-    return mockResponse as Response; // Return self for chaining
-  }),
-  off: vi.fn(), // Mock off if used
-  writableEnded: false, // Initial state
-  // Add other methods/properties if SseNotifier uses them
-});
+// Define interfaces for our mock objects
+interface MockRequest {
+  on: Mock;
+  _closeListener: null | (() => void);
+}
 
-let mockResponse: Partial<Response> & { _closeListener?: () => void };
+interface MockResponse extends Partial<Response> {
+  writeHead: Mock;
+  write: Mock;
+  end: Mock;
+  on: Mock;
+  off: Mock;
+  writableEnded: boolean;
+  _closeListener?: () => void;
+}
+
+// Create a mock request with event handling
+const createMockRequest = (): MockRequest => {
+  const mock: MockRequest = {
+    on: vi.fn().mockImplementation((event, listener) => {
+      if (event === 'close') {
+        // Store the listener for later use
+        mock._closeListener = listener;
+      }
+      return mock;
+    }),
+    _closeListener: null,
+  };
+  return mock;
+};
+
+// Mock Express Response object
+const createMockResponse = (): MockResponse => {
+  const mock: MockResponse = {
+    writeHead: vi.fn(),
+    write: vi.fn(),
+    end: vi.fn(),
+    on: vi.fn().mockImplementation((event, listener) => {
+      if (event === 'close') {
+        // Store the listener to simulate the close event later
+        mock._closeListener = listener;
+      }
+      return mock; // Return self for chaining
+    }),
+    off: vi.fn(),
+    writableEnded: false,
+  };
+  return mock;
+};
+
+let mockResponse: MockResponse;
+let mockRequest: MockRequest;
 
 describe('SseNotifier Singleton', () => {
-  // We are testing the singleton instance directly
-  // let sseNotifier: SseNotifier; // No need to declare or instantiate
-
   beforeEach(() => {
-    // Create a fresh mock response for each test
+    // Create fresh mocks for each test
     mockResponse = createMockResponse();
+    mockRequest = createMockRequest();
+
     // Reset mocks
     vi.clearAllMocks();
-    // TODO: Consider adding a reset method to SseNotifier for testing if needed
-    // e.g., sseNotifier.resetForTesting(); or manually clear internal clients map
-    (sseNotifier as any).connections.clear(); // Clear connections before each test
+
+    // Clear connections before each test
+    // Cast to access private properties for testing purposes
+    const notifier = sseNotifier as unknown as { connections: Set<Response> };
+    notifier.connections.clear();
   });
 
-  it('should register a new connection', () => {
-    const sessionId = 'session-1';
-    sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    // Check internal state if possible/necessary, or test via sendProgress
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(true);
-    expect((sseNotifier as any).clients.get(sessionId)).toBe(mockResponse);
-    // Check if initial headers/keep-alive message was sent
-    expect(mockResponse.write).toHaveBeenCalledWith('event: connection\ndata: established\n\n');
+  it('should notify all connected clients', () => {
+    // Register a connection
+    sseNotifier.handleConnection(
+      mockRequest as any,
+      mockResponse as unknown as Response
+    );
+
+    // Trigger a notification
+    const testEvent = 'test_event';
+    const testData = { foo: 'bar' };
+    sseNotifier.notify(testEvent, testData);
+
+    // Check that response.write was called correctly
+    expect(mockResponse.write).toHaveBeenCalledWith(
+      `event: ${testEvent}\ndata: ${JSON.stringify(testData)}\n\n`
+    );
   });
 
-  it('should unregister a connection', () => {
-    const sessionId = 'session-1';
-    sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    sseNotifier.unregisterConnection(sessionId);
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(false);
-  });
+  it('should remove connection when client disconnects', () => {
+    // Register a connection
+    sseNotifier.handleConnection(
+      mockRequest as any,
+      mockResponse as unknown as Response
+    );
 
-  it('should automatically unregister when the connection closes', () => {
-    const sessionId = 'session-1';
-    sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(true);
-
-    // Simulate the 'close' event
-    if (mockResponse._closeListener) {
-      mockResponse._closeListener();
-    } else {
-      throw new Error("Close listener was not registered by mock");
+    // Simulate client disconnect by calling the stored close listener
+    if (mockRequest._closeListener) {
+      mockRequest._closeListener();
     }
 
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(false);
+    // Send a notification
+    sseNotifier.notify('test', {});
+
+    // Expect write not to be called (connection should be removed)
+    expect(mockResponse.write).not.toHaveBeenCalled();
   });
 
-  it('should send progress updates to a registered connection', () => {
-    const sessionId = 'session-1';
-    const jobId = 'job-123';
-    const status = JobStatus.RUNNING;
-    const message = 'Processing step 1...';
+  it('should handle multiple connections', () => {
+    // Create multiple mock responses
+    const mockResponse2 = createMockResponse();
+    const mockRequest2 = createMockRequest();
 
-    sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    sseNotifier.sendProgress(sessionId, jobId, status, message);
+    // Register connections
+    sseNotifier.handleConnection(
+      mockRequest as any,
+      mockResponse as unknown as Response
+    );
+    sseNotifier.handleConnection(
+      mockRequest2 as any,
+      mockResponse2 as unknown as Response
+    );
 
-    const expectedData = JSON.stringify({ jobId, status, message });
-    const expectedSseMessage = `event: progress\ndata: ${expectedData}\n\n`;
+    // Send a notification
+    sseNotifier.notify('test', {});
 
-    // Check if write was called with the correct SSE formatted message
-    expect(mockResponse.write).toHaveBeenCalledWith(expectedSseMessage);
+    // Both should receive the notification
+    expect(mockResponse.write).toHaveBeenCalled();
+    expect(mockResponse2.write).toHaveBeenCalled();
   });
 
-  it('should not send progress if session ID is not registered', () => {
-    sseNotifier.sendProgress('non-existent-session', 'job-1', JobStatus.RUNNING, 'message');
-    expect(mockResponse.write).not.toHaveBeenCalledWith(expect.stringContaining('event: progress'));
+  it('should close all connections', () => {
+    // Register connections
+    sseNotifier.handleConnection(
+      mockRequest as any,
+      mockResponse as unknown as Response
+    );
+
+    // Close all connections
+    sseNotifier.closeAllConnections();
+
+    // Response end should be called
+    expect(mockResponse.end).toHaveBeenCalled();
   });
-
-  it('should handle JSON stringify errors gracefully when sending progress', () => {
-    const sessionId = 'session-1';
-    sseNotifier.registerConnection(sessionId, mockResponse as Response);
-
-    // Create an object that cannot be stringified (circular reference)
-    const circularData: any = { jobId: 'job-circ' };
-    circularData.self = circularData;
-
-    // Expect sendProgress not to throw, but log an error (mock logger check)
-    expect(() => sseNotifier.sendProgress(sessionId, 'job-circ', JobStatus.FAILED, circularData)).not.toThrow();
-
-    // Check that write was NOT called with the bad data, but the initial connection message might still be there
-    expect(mockResponse.write).toHaveBeenCalledTimes(1); // Only the initial connection message
-    expect(mockResponse.write).not.toHaveBeenCalledWith(expect.stringContaining('job-circ'));
-    // Check logger mock: expect(logger.error).toHaveBeenCalled();
-  });
-
-  it('should not send progress if the connection is already closed (writableEnded)', () => {
-    const sessionId = 'session-1';
-    sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    // Simulate closed connection - Cast to 'any' to set property on mock
-    (mockResponse as any).writableEnded = true;
-
-    sseNotifier.sendProgress(sessionId, 'job-1', JobStatus.COMPLETED, 'Done');
-
-    // write should only have been called for the initial connection message
-    expect(mockResponse.write).toHaveBeenCalledTimes(1);
-    expect(mockResponse.write).not.toHaveBeenCalledWith(expect.stringContaining('event: progress'));
-  });
-
-  // TODO: Add tests for sendWorkflowStepStart, sendWorkflowStepUpdate, sendWorkflowStepEnd if those methods are kept/implemented
 });

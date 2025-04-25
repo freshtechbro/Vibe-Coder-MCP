@@ -1,0 +1,9 @@
+import express from 'express'; import cors from 'cors'; import helmet from
+'helmet'; import morgan from 'morgan'; import { config } from './config'; import
+{ logger } from './utils/logger'; import { errorHandler } from
+'./middleware/error-handler'; import { router } from './routes'; const app =
+express(); // Middleware app.use(cors()); app.use(helmet());
+app.use(morgan('dev')); app.use(express.json()); // Routes app.use('/api',
+router); // Error handling app.use(errorHandler); // Start server
+app.listen(config.port, () => { logger.info(`Server running on port
+${config.port}`); });

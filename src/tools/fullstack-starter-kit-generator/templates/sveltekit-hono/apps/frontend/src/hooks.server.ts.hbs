@@ -1,0 +1,10 @@
+import { SvelteKitAuth } from '@auth/sveltekit'; import GitHub from
+'@auth/core/providers/github'; import Google from '@auth/core/providers/google';
+import { DrizzleAdapter } from '@auth/drizzle-adapter'; import { db } from
+'$lib/server/db'; import { env } from '$env/dynamic/private'; export const
+handle = SvelteKitAuth({ adapter: DrizzleAdapter(db), providers: [ GitHub({
+clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET, }),
+Google({ clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET,
+}), ], callbacks: { async session({ session, user }) { if (session.user) {
+session.user.id = user.id; } return session; }, async jwt({ token, user }) { if
+(user) { token.id = user.id; } return token; }, }, });

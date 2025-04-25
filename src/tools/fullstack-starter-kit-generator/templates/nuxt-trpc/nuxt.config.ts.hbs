@@ -1,0 +1,9 @@
+// https://nuxt.com/docs/api/configuration/nuxt-config export default
+defineNuxtConfig({ devtools: { enabled: true }, modules:
+['@nuxtjs/tailwindcss'], typescript: { strict: true, typeCheck: true, },
+runtimeConfig: { // Private keys are only available on the server sessionSecret:
+process.env.SESSION_SECRET, githubClientId: process.env.GITHUB_CLIENT_ID,
+githubClientSecret: process.env.GITHUB_CLIENT_SECRET, googleClientId:
+process.env.GOOGLE_CLIENT_ID, googleClientSecret:
+process.env.GOOGLE_CLIENT_SECRET, // Public keys that are exposed to the client
+public: { apiBase: '/api', }, }, });

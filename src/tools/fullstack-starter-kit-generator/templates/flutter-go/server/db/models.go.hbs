@@ -1,0 +1,11 @@
+package db import ( "time" "gorm.io/gorm" ) type User struct { gorm.Model Email
+string `gorm:"unique;not null"` Name string HashedPassword string Roles []Role
+`gorm:"many2many:user_roles;"` } type Role struct { gorm.Model Name string
+`gorm:"unique;not null"` Description string Users []User
+`gorm:"many2many:user_roles;"` Permissions []Permission
+`gorm:"many2many:role_permissions;"` } type Permission struct { gorm.Model
+Action string `gorm:"not null"` Entity string `gorm:"not null"` Access string
+`gorm:"not null"` Description string Roles []Role
+`gorm:"many2many:role_permissions;"` } type Session struct { ID string
+`gorm:"primaryKey"` UserID uint `gorm:"not null"` ExpiresAt time.Time `gorm:"not
+null"` CreatedAt time.Time }

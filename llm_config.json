@@ -1,18 +1,40 @@
 {
   "llm_mapping": {
-    "research_query": "perplexity/sonar-deep-research",
-    "sequential_thought_generation": "google/gemini-2.0-flash-thinking-exp:free",
-    "task_list_initial_generation": "google/gemini-2.0-flash-thinking-exp:free",
-    "task_list_decomposition": "deepseek/deepseek-chat-v3-0324",
-    "code_refactoring": "google/gemini-2.0-flash-thinking-exp:free",
-    "code_stub_generation": "google/gemini-2.0-flash-thinking-exp:free",
-    "prd_generation": "google/gemini-2.0-flash-thinking-exp:free",
-    "rules_generation": "deepseek/deepseek-chat-v3-0324",
-    "user_stories_generation": "deepseek/deepseek-chat-v3-0324",
-    "git_summary_generation": "google/gemini-2.0-flash-thinking-exp:free",
-    "dependency_analysis": "google/gemini-2.0-flash-thinking-exp:free",
-    "fullstack_starter_kit_generation": "google/gemini-2.0-flash-thinking-exp:free",
-    "workflow_step_execution": "deepseek/deepseek-chat-v3-0324",
-    "default_generation": "deepseek/deepseek-chat-v3-0324"
+    "starter_kit_generation": "openai/gpt-4-0125-preview",
+    "template_customization": "openai/gpt-4-0125-preview",
+    "dependency_analysis": "openai/gpt-3.5-turbo-0125",
+    "code_generation": "openai/gpt-4-0125-preview",
+    "documentation": "openai/gpt-3.5-turbo-0125",
+    "default_generation": "openai/gpt-3.5-turbo-0125",
+    "rules_generation": "openai/gpt-4-0125-preview",
+    "research_execution": "google/gemini-2.5-flash-preview:online",
+    "prd_generation": "openai/gpt-4-0125-preview",
+    "user_stories_generation": "openai/gpt-4-0125-preview",
+    "task_list_generation": "openai/gpt-4-0125-preview",
+    "request_processing": "openai/gpt-4-0125-preview",
+    "hybrid_matching": "openai/gpt-4-0125-preview",
+    "semantic_matching": "openai/gpt-4-0125-preview",
+    "workflow_execution": "openai/gpt-4-0125-preview",
+    "tool_registry": "openai/gpt-4-0125-preview"
+  },
+  "api_config": {
+    "provider": "openrouter",
+    "base_url": "https://openrouter.ai/api/v1",
+    "timeout": 60000,
+    "max_retries": 3,
+    "retry_delay": 1000,
+    "web_search": {
+      "enabled": true,
+      "max_results": 5,
+      "search_prompt": "A web search was conducted to find the most up-to-date and relevant information. Incorporate these search results into your response. IMPORTANT: Cite sources using markdown links with the domain name as the link text. Example: [example.com](https://example.com/page)."
+    }
+  },
+  "model_params": {
+    "defaultModel": "google/gemini-2.5-flash-preview",
+    "temperature": 0.7,
+    "max_tokens": 2048,
+    "top_p": 1.0,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0
   }
 }
