@@ -1,6 +1,7 @@
 # Project-specific directories and files
 .env
 workflow-agent-files/
+YT-Playlist/
 
 # Dependency directories
 node_modules/
@@ -98,3 +99,12 @@ VibeCoderOutput/
 docs/
 
 # Untracked file to ignore
+
+.roomodes
+.windsurfrules
+ARCHITECTURE.json
+ARCHITECTURE.md
+CODE_STUB_GENERATOR_PLAN.md
+IMPLEMENTATION_PLAN.md
+vibecoder-knowledge.md
+test-output/
