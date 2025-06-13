@@ -3,7 +3,7 @@
 **Version**: 2.1 (Production Ready - Enhanced)
 **Purpose**: Comprehensive system prompt for AI agents and MCP clients consuming the Vibe Coder MCP server
 **Target Clients**: Claude Desktop, Augment, Cursor, Windsurf, Roo Code, Cline, and other MCP-compatible clients
-**Last Updated**: January 2025
+**Last Updated**: June 2025
 
 ---
 
