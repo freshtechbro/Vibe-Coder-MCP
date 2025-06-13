@@ -616,67 +616,15 @@ async function handleRunCommand(
               }
             };
           } else {
-            // Fallback to basic context if project not found
-            logger.warn({ taskId, projectId: task.projectId }, 'Project not found, using fallback context');
-            projectContext = {
-              projectPath: process.cwd(),
-              projectName: task.projectId,
-              description: 'Project context not available',
-              languages: ['typescript'],
-              frameworks: ['node.js'],
-              buildTools: ['npm'],
-              configFiles: ['package.json'],
-              entryPoints: ['src/index.ts'],
-              architecturalPatterns: ['mvc'],
-              structure: {
-                sourceDirectories: ['src'],
-                testDirectories: ['tests'],
-                docDirectories: ['docs'],
-                buildDirectories: ['dist']
-              },
-              dependencies: {
-                production: [],
-                development: [],
-                external: []
-              },
-              metadata: {
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                version: '1.0.0',
-                source: 'manual' as const
-              }
-            };
+            // Fallback to dynamic context if project not found
+            logger.warn({ taskId, projectId: task.projectId }, 'Project not found, using dynamic detection');
+            projectContext = await createDynamicProjectContext(process.cwd());
+            projectContext.projectName = task.projectId; // Use task's project ID as name
+            projectContext.description = 'Project context dynamically detected';
           }
         } else {
-          // No project ID available, use basic context
-          projectContext = {
-            projectPath: process.cwd(),
-            projectName: 'Unknown Project',
-            description: 'No project context available',
-            languages: ['typescript'],
-            frameworks: ['node.js'],
-            buildTools: ['npm'],
-            configFiles: ['package.json'],
-            entryPoints: ['src/index.ts'],
-            architecturalPatterns: ['mvc'],
-            structure: {
-              sourceDirectories: ['src'],
-              testDirectories: ['tests'],
-              docDirectories: ['docs'],
-              buildDirectories: ['dist']
-            },
-            dependencies: {
-              production: [],
-              development: [],
-              external: []
-            },
-            metadata: {
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              version: '1.0.0',
-              source: 'manual' as const
-            }
-          };
+          // No project ID available, use dynamic detection
+          projectContext = await createDynamicProjectContext(process.cwd());
         }
 
         // Execute task using real AgentOrchestrator
@@ -1396,6 +1344,158 @@ async function ensureAgentRegistration(sessionId: string, context?: ToolExecutio
   } catch (error) {
     logger.error({ err: error, sessionId }, 'Failed to ensure agent registration');
     // Don't throw - continue with execution even if registration fails
+  }
+}
+
+/**
+ * Create dynamic project context using existing project detection utilities
+ */
+async function createDynamicProjectContext(projectPath: string): Promise<ProjectContext> {
+  try {
+    // Try to detect project information dynamically
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    // Basic project info
+    const projectName = path.basename(projectPath);
+
+    // Try to read package.json for Node.js projects
+    let detectedLanguages = ['typescript']; // fallback
+    let detectedFrameworks = ['node.js']; // fallback
+    let detectedBuildTools = ['npm']; // fallback
+    let detectedConfigFiles = ['package.json']; // fallback
+    let detectedEntryPoints = ['src/index.ts']; // fallback
+
+    try {
+      const packageJsonPath = path.join(projectPath, 'package.json');
+      const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageJsonContent);
+
+      // Detect languages from dependencies and devDependencies
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+      // Language detection
+      if (allDeps['typescript'] || allDeps['@types/node']) {
+        detectedLanguages = ['typescript', 'javascript'];
+      } else if (allDeps['@babel/core'] || packageJson.main?.endsWith('.js')) {
+        detectedLanguages = ['javascript'];
+      }
+
+      // Framework detection
+      const frameworks = [];
+      if (allDeps['react'] || allDeps['@types/react']) frameworks.push('react');
+      if (allDeps['vue'] || allDeps['@vue/cli']) frameworks.push('vue');
+      if (allDeps['angular'] || allDeps['@angular/core']) frameworks.push('angular');
+      if (allDeps['express'] || allDeps['@types/express']) frameworks.push('express');
+      if (allDeps['next'] || allDeps['nextjs']) frameworks.push('next.js');
+      if (allDeps['nuxt'] || allDeps['@nuxt/core']) frameworks.push('nuxt.js');
+      if (frameworks.length > 0) detectedFrameworks = frameworks;
+
+      // Build tools detection
+      const buildTools = [];
+      if (allDeps['webpack'] || allDeps['@webpack-cli/generators']) buildTools.push('webpack');
+      if (allDeps['vite'] || allDeps['@vitejs/plugin-react']) buildTools.push('vite');
+      if (allDeps['rollup'] || allDeps['@rollup/plugin-node-resolve']) buildTools.push('rollup');
+      if (packageJson.scripts?.build) buildTools.push('npm');
+      if (buildTools.length > 0) detectedBuildTools = buildTools;
+
+      // Entry points detection
+      if (packageJson.main) {
+        detectedEntryPoints = [packageJson.main];
+      } else if (packageJson.scripts?.start) {
+        // Try to extract entry point from start script
+        const startScript = packageJson.scripts.start;
+        if (startScript.includes('src/')) {
+          detectedEntryPoints = ['src/index.ts'];
+        }
+      }
+
+    } catch (error) {
+      // package.json not found or invalid, use fallbacks
+      logger.debug({ err: error, projectPath }, 'Could not read package.json, using fallbacks');
+    }
+
+    // Try to detect other config files
+    const configFiles = ['package.json'];
+    try {
+      const files = await fs.readdir(projectPath);
+      const commonConfigFiles = [
+        'tsconfig.json', 'webpack.config.js', 'vite.config.js', 'rollup.config.js',
+        '.eslintrc.js', '.eslintrc.json', 'jest.config.js', 'babel.config.js',
+        'tailwind.config.js', 'next.config.js', 'nuxt.config.js'
+      ];
+
+      for (const file of files) {
+        if (commonConfigFiles.includes(file)) {
+          configFiles.push(file);
+        }
+      }
+      detectedConfigFiles = configFiles;
+    } catch (error) {
+      logger.debug({ err: error, projectPath }, 'Could not read directory for config files');
+    }
+
+    return {
+      projectPath,
+      projectName,
+      description: `Dynamically detected project: ${projectName}`,
+      languages: detectedLanguages,
+      frameworks: detectedFrameworks,
+      buildTools: detectedBuildTools,
+      configFiles: detectedConfigFiles,
+      entryPoints: detectedEntryPoints,
+      architecturalPatterns: ['mvc'], // Default pattern
+      structure: {
+        sourceDirectories: ['src'],
+        testDirectories: ['tests', 'test', '__tests__'],
+        docDirectories: ['docs', 'documentation'],
+        buildDirectories: ['dist', 'build', 'out']
+      },
+      dependencies: {
+        production: [],
+        development: [],
+        external: []
+      },
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: '1.0.0',
+        source: 'auto-detected' as const
+      }
+    };
+
+  } catch (error) {
+    logger.warn({ err: error, projectPath }, 'Dynamic project detection failed, using basic fallback');
+
+    // Ultimate fallback
+    return {
+      projectPath,
+      projectName: 'Unknown Project',
+      description: 'No project context available',
+      languages: ['typescript'],
+      frameworks: ['node.js'],
+      buildTools: ['npm'],
+      configFiles: ['package.json'],
+      entryPoints: ['src/index.ts'],
+      architecturalPatterns: ['mvc'],
+      structure: {
+        sourceDirectories: ['src'],
+        testDirectories: ['tests'],
+        docDirectories: ['docs'],
+        buildDirectories: ['dist']
+      },
+      dependencies: {
+        production: [],
+        development: [],
+        external: []
+      },
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: '1.0.0',
+        source: 'manual' as const
+      }
+    };
   }
 }
 

@@ -12,6 +12,7 @@ import { loadLlmConfigMapping } from './utils/configLoader.js'; // Import the ne
 import { OpenRouterConfig } from './types/workflow.js'; // Import OpenRouterConfig type
 import { ToolRegistry } from './services/routing/toolRegistry.js'; // Import ToolRegistry to initialize it properly
 import { sseNotifier } from './services/sse-notifier/index.js'; // Import the SSE notifier singleton
+import { transportManager } from './services/transport-manager/index.js'; // Import transport manager singleton
 
 // Import createServer *after* tool imports to ensure proper initialization order
 import { createServer } from "./server.js";
@@ -267,6 +268,15 @@ async function initializeApp() {
   // which will register themselves with the properly configured registry
   await initDirectories(); // Initialize tool directories
   await initializeToolEmbeddings(); // Initialize embeddings
+
+  // Start transport services for agent communication
+  try {
+    await transportManager.startAll();
+    logger.info('Transport services started successfully');
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to start transport services');
+    // Don't throw - allow application to continue with stdio/SSE only
+  }
 
   logger.info('Application initialization complete.');
   // Return the fully loaded config
