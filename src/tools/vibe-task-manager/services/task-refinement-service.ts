@@ -614,10 +614,10 @@ export class TaskRefinementService {
 
   /**
    * Get refinement history for a task
+   * Currently returns empty array - refinement history tracking not yet implemented
    */
   async getRefinementHistory(_taskId: string): Promise<FileOperationResult<RefinementHistoryEntry[]>> {
-    // TODO: Implement refinement history tracking
-    // This would require storing refinement events in a separate log
+    // Refinement history tracking would require storing refinement events in a separate log
     return {
       success: true,
       data: [],
@@ -757,46 +757,46 @@ export class TaskRefinementService {
 
   /**
    * Get project languages from project configuration
+   * Returns default languages - could be enhanced to fetch from project storage
    */
   private getProjectLanguages(projectId: string): string[] {
-    // TODO: In a real implementation, this would fetch from project storage
-    // For now, return sensible defaults based on common project types
+    // Default implementation returns sensible defaults based on common project types
     return ['typescript', 'javascript'];
   }
 
   /**
    * Get project frameworks from project configuration
+   * Returns default frameworks - could be enhanced to fetch from project storage
    */
   private getProjectFrameworks(projectId: string): string[] {
-    // TODO: In a real implementation, this would fetch from project storage
-    // For now, return sensible defaults
+    // Default implementation returns sensible defaults
     return ['node.js'];
   }
 
   /**
    * Get project tools from project configuration
+   * Returns default tools - could be enhanced to fetch from project storage
    */
   private getProjectTools(projectId: string): string[] {
-    // TODO: In a real implementation, this would fetch from project storage
-    // For now, return sensible defaults
+    // Default implementation returns sensible defaults
     return ['vitest', 'npm'];
   }
 
   /**
    * Determine codebase size from project analysis
+   * Returns default size - could be enhanced to analyze project structure
    */
   private determineCodebaseSize(projectId: string): 'small' | 'medium' | 'large' {
-    // TODO: In a real implementation, this would analyze the project structure
-    // For now, return medium as a sensible default
+    // Default implementation returns medium as a sensible default
     return 'medium';
   }
 
   /**
    * Get team size from project configuration
+   * Returns default team size - could be enhanced to fetch from project storage
    */
   private getTeamSize(projectId: string): number {
-    // TODO: In a real implementation, this would fetch from project storage
-    // For now, return a sensible default
+    // Default implementation returns a sensible default
     return 3;
   }
 

@@ -320,10 +320,38 @@ Provide your decomposition in the following JSON format:
           acceptanceCriteria: Array.isArray(subTask.acceptanceCriteria) ? subTask.acceptanceCriteria : [],
           tags: Array.isArray(subTask.tags) ? subTask.tags : originalTask.tags,
           dependencies: Array.isArray(subTask.dependencies) ? subTask.dependencies : [],
+          dependents: [], // Initialize empty dependents array
+          testingRequirements: originalTask.testingRequirements || {
+            unitTests: [],
+            integrationTests: [],
+            performanceTests: [],
+            coverageTarget: 80
+          },
+          performanceCriteria: originalTask.performanceCriteria || {},
+          qualityCriteria: originalTask.qualityCriteria || {
+            codeQuality: [],
+            documentation: [],
+            typeScript: true,
+            eslint: true
+          },
+          integrationCriteria: originalTask.integrationCriteria || {
+            compatibility: [],
+            patterns: []
+          },
+          validationMethods: originalTask.validationMethods || {
+            automated: [],
+            manual: []
+          },
           assignedAgent: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          createdBy: originalTask.createdBy
+          createdBy: originalTask.createdBy,
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            createdBy: originalTask.createdBy,
+            tags: Array.isArray(subTask.tags) ? subTask.tags : originalTask.tags
+          }
         };
       });
 

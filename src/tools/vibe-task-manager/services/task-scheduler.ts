@@ -908,6 +908,27 @@ export class TaskScheduler {
     return 1.0 - Math.min(task.estimatedHours / maxHours, 0.8);
   }
 
+  /**
+   * Calculate task deadline based on priority and estimated hours
+   * Used for earliest deadline scheduling when no explicit deadline is set
+   */
+  private calculateTaskDeadline(task: AtomicTask): Date {
+    const now = new Date();
+
+    // Base deadline calculation: priority affects urgency
+    const priorityMultipliers = {
+      'critical': 0.5,  // Half the normal time
+      'high': 1.0,      // Normal time
+      'medium': 2.0,    // Double time
+      'low': 3.0        // Triple time
+    };
+
+    const multiplier = priorityMultipliers[task.priority] || 2.0;
+    const deadlineHours = task.estimatedHours * multiplier + 24; // Add 24h buffer
+
+    return new Date(now.getTime() + deadlineHours * 60 * 60 * 1000);
+  }
+
   // Resource allocation methods
 
   private allocateResources(task: AtomicTask): {
@@ -1141,8 +1162,54 @@ export class TaskScheduler {
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[]
   ): Map<string, ScheduledTask> {
-    // Implement earliest deadline first algorithm
-    return this.priorityFirstScheduling(tasks, taskScores, parallelBatches);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Sort tasks by earliest deadline (using priority and estimated hours as fallback)
+    const sortedTasks = tasks.sort((a, b) => {
+      const deadlineA = this.calculateTaskDeadline(a);
+      const deadlineB = this.calculateTaskDeadline(b);
+      return deadlineA.getTime() - deadlineB.getTime();
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    for (const batch of parallelBatches) {
+      const batchTasks = batch.taskIds
+        .map(id => sortedTasks.find(t => t.id === id))
+        .filter(task => task !== undefined) as AtomicTask[];
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateResources(task);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: new Date(currentTime),
+          scheduledEnd: new Date(currentTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'earliest_deadline',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Move to next batch time
+      currentTime = new Date(currentTime.getTime() + batch.estimatedDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 
   private criticalPathScheduling(
@@ -1151,8 +1218,67 @@ export class TaskScheduler {
     parallelBatches: ParallelBatch[],
     dependencyGraph: OptimizedDependencyGraph
   ): Map<string, ScheduledTask> {
-    // Implement critical path method
-    return this.hybridOptimalScheduling(tasks, taskScores, parallelBatches, dependencyGraph);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Get critical path tasks from dependency graph
+    const criticalPath = dependencyGraph.getCriticalPath();
+    const criticalPathSet = new Set(criticalPath);
+
+    // Sort tasks prioritizing critical path tasks first, then by total score
+    const sortedTasks = tasks.sort((a, b) => {
+      const aOnCriticalPath = criticalPathSet.has(a.id);
+      const bOnCriticalPath = criticalPathSet.has(b.id);
+
+      // Critical path tasks get highest priority
+      if (aOnCriticalPath && !bOnCriticalPath) return -1;
+      if (!aOnCriticalPath && bOnCriticalPath) return 1;
+
+      // For tasks both on or both off critical path, sort by total score
+      const scoreA = taskScores.get(a.id)?.totalScore || 0;
+      const scoreB = taskScores.get(b.id)?.totalScore || 0;
+      return scoreB - scoreA;
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    // Process batches with critical path optimization
+    for (const batch of parallelBatches) {
+      const batchTasks = this.optimizeBatchOrder(batch, sortedTasks, taskScores);
+      const batchStartTime = new Date(currentTime);
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateOptimalResources(task, batchTasks);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: batchStartTime,
+          scheduledEnd: new Date(batchStartTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'critical_path',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Calculate actual batch duration based on parallel execution
+      const maxTaskDuration = Math.max(...batchTasks.map(t => t.estimatedHours));
+      currentTime = new Date(currentTime.getTime() + maxTaskDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 
   private resourceBalancedScheduling(
@@ -1160,8 +1286,54 @@ export class TaskScheduler {
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[]
   ): Map<string, ScheduledTask> {
-    // Implement resource-balanced scheduling
-    return this.priorityFirstScheduling(tasks, taskScores, parallelBatches);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Sort tasks by resource optimization scores (prioritize resource-efficient tasks)
+    const sortedTasks = tasks.sort((a, b) => {
+      const scoreA = taskScores.get(a.id)?.resourceScore || 0;
+      const scoreB = taskScores.get(b.id)?.resourceScore || 0;
+      return scoreB - scoreA;
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    for (const batch of parallelBatches) {
+      const batchTasks = batch.taskIds
+        .map(id => sortedTasks.find(t => t.id === id))
+        .filter(task => task !== undefined) as AtomicTask[];
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateOptimalResources(task, batchTasks);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: new Date(currentTime),
+          scheduledEnd: new Date(currentTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'resource_balanced',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Move to next batch time
+      currentTime = new Date(currentTime.getTime() + batch.estimatedDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 
   private shortestJobScheduling(
@@ -1169,7 +1341,51 @@ export class TaskScheduler {
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[]
   ): Map<string, ScheduledTask> {
-    // Implement shortest job first algorithm
-    return this.priorityFirstScheduling(tasks, taskScores, parallelBatches);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Sort tasks by estimated duration (shortest first)
+    const sortedTasks = tasks.sort((a, b) => {
+      return a.estimatedHours - b.estimatedHours;
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    for (const batch of parallelBatches) {
+      const batchTasks = batch.taskIds
+        .map(id => sortedTasks.find(t => t.id === id))
+        .filter(task => task !== undefined) as AtomicTask[];
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateResources(task);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: new Date(currentTime),
+          scheduledEnd: new Date(currentTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'shortest_job',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Move to next batch time
+      currentTime = new Date(currentTime.getTime() + batch.estimatedDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 }
