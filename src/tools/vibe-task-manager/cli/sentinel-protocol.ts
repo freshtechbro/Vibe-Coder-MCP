@@ -310,13 +310,17 @@ export class SentinelProtocol {
   /**
    * Map task priority to numeric value
    */
-  private mapPriorityToNumber(priority: string): number {
+  private mapPriorityToNumber(priority: string | undefined): number {
     const priorityMap: Record<string, number> = {
       'critical': 1,
       'high': 2,
       'medium': 3,
       'low': 4
     };
+
+    if (!priority || typeof priority !== 'string') {
+      return 3; // Default to medium priority
+    }
 
     return priorityMap[priority.toLowerCase()] || 3;
   }

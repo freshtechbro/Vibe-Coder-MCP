@@ -30,8 +30,8 @@ function createCompleteAtomicTask(partialTask: Partial<AtomicTask> & { id: strin
     type: partialTask.type || 'development',
     estimatedHours: partialTask.estimatedHours || 4,
     actualHours: partialTask.actualHours,
-    epicId: partialTask.epicId || 'default-epic',
-    projectId: partialTask.projectId || 'default-project',
+    epicId: partialTask.epicId || `epic-${Date.now()}`,
+    projectId: partialTask.projectId || `project-${Date.now()}`,
     dependencies: partialTask.dependencies || [],
     dependents: partialTask.dependents || [],
     filePaths: partialTask.filePaths || [],
@@ -162,8 +162,8 @@ function createTaskDecomposeCommand(): Command {
           }),
           context: {
             projectId: task.projectId,
-            languages: ['typescript', 'javascript'], // TODO: Extract from project
-            frameworks: ['react', 'node.js'], // TODO: Extract from project
+            languages: ['typescript', 'javascript'], // Default languages - could be enhanced with project detection
+            frameworks: ['node.js'], // Default frameworks - could be enhanced with project detection
             tools: ['vscode', 'git'],
             existingTasks: [],
             codebaseSize: 'medium' as const,
