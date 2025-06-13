@@ -244,7 +244,7 @@ export const contextCuratorInputSchema = z.object({
   /** Whether to use existing codemap cache */
   useCodeMapCache: z.boolean().default(true),
   /** Maximum age of cached codemap in minutes */
-  codeMapCacheMaxAgeMinutes: z.number().min(1).max(1440).default(60),
+  codeMapCacheMaxAgeMinutes: z.number().min(1).max(1440).default(120),
   /** Maximum token budget for the context package */
   maxTokenBudget: z.number().min(1000).max(500000).default(250000)
 });
