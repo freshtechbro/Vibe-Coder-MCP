@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  /* Glass morphism components */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20 
+           shadow-glass rounded-2xl p-8 m-6
+           hover:bg-white/90 hover:shadow-glass-hover 
+           transition-all duration-300 ease-out;
+  }
+
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-xl border-r border-white/20 
+           shadow-glass h-full
+           transition-all duration-300 ease-out;
+  }
+
+  .glass-button {
+    @apply bg-gradient-primary text-white font-medium
+           rounded-xl shadow-lg hover:shadow-xl 
+           transition-all duration-300 transform hover:scale-105
+           backdrop-blur-sm border border-white/20;
+  }
+
+  .glass-input {
+    @apply bg-white/60 backdrop-blur-md border border-white/30
+           rounded-xl px-4 py-3 text-slate-800 placeholder-slate-500
+           focus:bg-white/80 focus:border-blue-400 focus:ring-2 focus:ring-blue-200
+           transition-all duration-200;
+  }
+
+  /* Generous spacing utilities */
+  .space-generous > * + * {
+    @apply mt-8;
+  }
+
+  .p-generous {
+    @apply p-8;
+  }
+
+  .m-generous {
+    @apply m-6;
+  }
+
+  .gap-generous {
+    @apply gap-8;
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  /* Hover effects */
+  .hover-lift {
+    @apply transition-transform duration-300 hover:scale-[1.02] hover:shadow-glass-hover;
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300 hover:shadow-lg hover:shadow-blue-200/50;
+  }
+
+  /* Text styles */
+  .text-glass {
+    @apply text-slate-800/90 font-light;
+  }
+
+  .text-glass-muted {
+    @apply text-slate-600/80 font-light;
+  }
+
+  /* Background patterns */
+  .bg-glass-pattern {
+    background-image: 
+      radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+  }
+
+  /* Chrome extension specific styles */
+  .extension-popup {
+    @apply w-96 h-[600px] bg-gradient-to-br from-slate-50 to-blue-50;
+  }
+
+  .extension-sidepanel {
+    @apply w-full h-screen bg-gradient-to-b from-white to-slate-50;
+  }
+
+  /* Scrollbar styling */
+  .glass-scrollbar::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .glass-scrollbar::-webkit-scrollbar-track {
+    @apply bg-white/20 rounded-full;
+  }
+
+  .glass-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-300/50 rounded-full hover:bg-slate-400/50;
+  }
+}
+
+@layer utilities {
+  /* Custom backdrop blur utilities */
+  .backdrop-blur-xs {
+    backdrop-filter: blur(2px);
+  }
+
+  /* Glass shadow utilities */
+  .shadow-glass {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+  }
+
+  .shadow-glass-hover {
+    box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.15);
+  }
+
+  .shadow-glass-inset {
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* Gradient text utilities */
+  .text-gradient-primary {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+
+  .text-gradient-secondary {
+    @apply bg-gradient-secondary bg-clip-text text-transparent;
+  }
+
+  .text-gradient-accent {
+    @apply bg-gradient-accent bg-clip-text text-transparent;
+  }
+}
