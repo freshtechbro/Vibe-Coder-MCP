@@ -54,6 +54,21 @@
       "description": "Intelligently analyzes codebases and curates comprehensive context packages for AI-driven development tasks. Generates refined prompts, relevance-ranked files, and meta-prompts for downstream AI agents. Supports automatic task type detection, file relevance scoring, content optimization, and XML output formatting for seamless integration with AI development workflows.",
       "use_cases": ["context curation", "codebase analysis", "AI task preparation", "file relevance ranking", "meta-prompt generation", "task decomposition", "development context", "code understanding", "AI workflow preparation"],
       "input_patterns": ["curate context for {task}", "analyze codebase for {feature}", "prepare context for {requirement}", "generate meta-prompt for {task_type}", "rank files for {development_task}", "create context package for {project}"]
+    },
+    "register-agent": {
+      "description": "Multi-agent coordination and registration system for distributed development workflows. Supports agent registration with capability-based matching, multi-transport support (stdio, SSE, WebSocket, HTTP), and real-time agent coordination.",
+      "use_cases": ["agent registration", "multi-agent coordination", "capability matching", "agent management", "distributed workflows", "agent orchestration", "transport configuration"],
+      "input_patterns": ["register agent {agentId} with capabilities {capabilities}", "register {transportType} agent for {project}", "add agent {agentId} to coordination system", "setup agent with {capabilities}"]
+    },
+    "get-agent-tasks": {
+      "description": "Task polling and retrieval system for AI agents. Provides capability-based task polling, intelligent task queue management, priority-based task assignment, and real-time task availability notifications.",
+      "use_cases": ["task polling", "agent task retrieval", "capability-based assignment", "task queue management", "agent coordination", "task distribution"],
+      "input_patterns": ["get tasks for agent {agentId}", "poll tasks with capabilities {capabilities}", "retrieve available tasks", "check task queue for {agentId}"]
+    },
+    "submit-task-response": {
+      "description": "Task completion and response handling system. Supports task completion status tracking (DONE, ERROR, PARTIAL), detailed completion metadata, automatic job status updates, and SSE notifications for real-time updates.",
+      "use_cases": ["task completion", "response submission", "status tracking", "completion metadata", "agent response handling", "task workflow"],
+      "input_patterns": ["submit response for task {taskId}", "complete task {taskId} with status {status}", "report task completion", "submit task result"]
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "vibe-coder-mcp",
-  "version": "1.1.0",
-  "description": "Advanced MCP server providing tools for semantic routing, code generation, workflows, and AI-assisted development.",
+  "version": "2.3.0",
+  "description": "Production-ready MCP server with complete agent integration, multi-transport support, and comprehensive development automation tools for AI-assisted workflows.",
   "main": "build/index.js",
   "type": "module",
   "scripts": {
@@ -34,7 +34,11 @@
     "test:transport": "vitest run \"e2e/transport-specific-flow.test.ts\"",
     "test:message-format": "vitest run \"e2e/message-format-flow.test.ts\"",
     "test:rate-limiting": "vitest run \"e2e/rate-limiting-flow.test.ts\"",
-    "test:job-result-retriever": "vitest run \"e2e/job-result-retriever-flow.test.ts\""
+    "test:job-result-retriever": "vitest run \"e2e/job-result-retriever-flow.test.ts\"",
+    "test:agent-integration": "node test-agent-task-integration.cjs",
+    "test:multi-transport": "node test-multi-transport-agents.cjs",
+    "test:agent-response": "node test-agent-response-integration.cjs",
+    "test:full-integration": "npm run test:agent-integration && npm run test:multi-transport && npm run test:agent-response"
   },
   "keywords": [
     "MCP",
@@ -46,7 +50,12 @@
     "code-generation",
     "semantic-routing",
     "embeddings",
-    "developer-tools"
+    "developer-tools",
+    "agent-orchestration",
+    "multi-transport",
+    "real-time-notifications",
+    "dynamic-port-allocation",
+    "production-ready"
   ],
   "author": "Vibe Coder MCP Team",
   "license": "MIT",
