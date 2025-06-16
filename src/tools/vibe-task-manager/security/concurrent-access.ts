@@ -11,7 +11,9 @@
 
 import fs from 'fs-extra';
 import path from 'path';
+import os from 'os';
 import { VibeTaskManagerConfig } from '../utils/config-loader.js';
+import { getTimeoutManager } from '../utils/timeout-manager.js';
 import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
@@ -97,16 +99,20 @@ export class ConcurrentAccessManager {
   private constructor(config?: Partial<ConcurrentAccessConfig>) {
     const isTestEnv = process.env.NODE_ENV === 'test';
 
+    // Get configurable timeout values from timeout manager
+    const timeoutManager = getTimeoutManager();
+    const retryConfig = timeoutManager.getRetryConfig();
+
     this.config = {
       lockDirectory: isTestEnv
         ? path.join(process.cwd(), 'tmp', 'test-locks')
-        : path.join(process.cwd(), 'data', 'locks'),
-      defaultLockTimeout: isTestEnv ? 5000 : 300000, // 5 seconds in test, 5 minutes in prod
-      maxLockTimeout: isTestEnv ? 10000 : 1800000, // 10 seconds in test, 30 minutes in prod
-      deadlockDetectionInterval: isTestEnv ? 1000 : 10000, // 1 second in test, 10 seconds in prod
-      lockCleanupInterval: isTestEnv ? 2000 : 60000, // 2 seconds in test, 1 minute in prod
-      maxRetryAttempts: 3,
-      retryDelayMs: isTestEnv ? 100 : 1000, // 100ms in test, 1 second in prod
+        : this.getOSAwareLockDirectory(),
+      defaultLockTimeout: isTestEnv ? 5000 : timeoutManager.getTimeout('databaseOperations'), // Configurable
+      maxLockTimeout: isTestEnv ? 10000 : timeoutManager.getTimeout('taskExecution'), // Configurable
+      deadlockDetectionInterval: isTestEnv ? 1000 : 10000, // Keep static for performance
+      lockCleanupInterval: isTestEnv ? 2000 : 60000, // Keep static for performance
+      maxRetryAttempts: retryConfig.maxRetries, // Configurable
+      retryDelayMs: isTestEnv ? 100 : retryConfig.initialDelayMs, // Configurable
       enableDeadlockDetection: !isTestEnv, // Disable in tests for performance
       enableLockAuditTrail: true, // Keep enabled for statistics tracking
       ...config
@@ -409,6 +415,27 @@ export class ConcurrentAccessManager {
           this.lockWaiters.delete(resource);
         }
       }
+    }
+  }
+
+  /**
+   * Get OS-aware lock directory following existing patterns
+   */
+  private getOSAwareLockDirectory(): string {
+    // Follow existing pattern from security-config.ts and environment variables
+    const envLockDir = process.env.VIBE_LOCK_DIR;
+    if (envLockDir) {
+      return envLockDir;
+    }
+
+    // Use OS-appropriate temp directory (following existing patterns)
+    try {
+      const tempDir = os.tmpdir();
+      return path.join(tempDir, 'vibe-locks');
+    } catch (error) {
+      // Fallback to project directory if os module fails
+      logger.warn({ error }, 'Failed to get OS temp directory, using project fallback');
+      return path.join(process.cwd(), 'tmp', 'vibe-locks');
     }
   }
 

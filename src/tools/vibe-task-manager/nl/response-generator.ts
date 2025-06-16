@@ -331,6 +331,9 @@ export class ResponseGenerator {
       'assign_task': ['Set task deadlines', 'Add task comments', 'Track assignment'],
       'get_help': ['View command examples', 'Check documentation', 'Contact support'],
       'open_project': ['View project details', 'Edit project settings', 'Add project members'],
+      'parse_prd': ['Generate epics from PRD', 'Create tasks from features', 'Review PRD content'],
+      'parse_tasks': ['Execute task list', 'Review task dependencies', 'Assign tasks to agents'],
+      'import_artifact': ['Parse specific artifact type', 'Review imported content', 'Create project from artifact'],
       'unknown': ['Try a different command', 'Ask for help', 'View available commands']
     };
 

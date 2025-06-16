@@ -9,6 +9,7 @@ import { Command } from 'commander';
 import { DecompositionService } from '../../services/decomposition-service.js';
 import { getTaskOperations } from '../../core/operations/task-operations.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
+import { ProjectAnalyzer } from '../../utils/project-analyzer.js';
 import { CLIUtils } from './index.js';
 import { AppError, ValidationError } from '../../../../utils/errors.js';
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
@@ -16,9 +17,71 @@ import { AtomicTask } from '../../types/task.js';
 import logger from '../../../../logger.js';
 
 /**
+ * Resolve epic ID for a task using epic context resolver
+ */
+async function resolveEpicIdForTask(partialTask: Partial<AtomicTask>): Promise<string> {
+  try {
+    if (partialTask.epicId && partialTask.epicId !== 'default-epic') {
+      return partialTask.epicId;
+    }
+
+    const { getEpicContextResolver } = await import('../../services/epic-context-resolver.js');
+    const contextResolver = getEpicContextResolver();
+
+    const taskContext = partialTask.title && partialTask.description ? {
+      title: partialTask.title,
+      description: partialTask.description,
+      type: partialTask.type || 'development',
+      tags: partialTask.tags || []
+    } : undefined;
+
+    const resolverParams = {
+      projectId: partialTask.projectId || 'default-project',
+      taskContext
+    };
+
+    const contextResult = await contextResolver.resolveEpicContext(resolverParams);
+    return contextResult.epicId;
+
+  } catch (error) {
+    logger.warn({ err: error, partialTask }, 'Failed to resolve epic ID for task, using fallback');
+    return `${partialTask.projectId || 'default-project'}-main-epic`;
+  }
+}
+
+/**
+ * Resolve epic ID for a project using epic context resolver
+ */
+async function resolveEpicIdForProject(projectId: string, projectName: string): Promise<string> {
+  try {
+    const { getEpicContextResolver } = await import('../../services/epic-context-resolver.js');
+    const contextResolver = getEpicContextResolver();
+
+    const taskContext = {
+      title: `Complete ${projectName}`,
+      description: `Project implementation for ${projectName}`,
+      type: 'development' as const,
+      tags: ['project-decomposition']
+    };
+
+    const resolverParams = {
+      projectId,
+      taskContext
+    };
+
+    const contextResult = await contextResolver.resolveEpicContext(resolverParams);
+    return contextResult.epicId;
+
+  } catch (error) {
+    logger.warn({ err: error, projectId, projectName }, 'Failed to resolve epic ID for project, using fallback');
+    return `${projectId}-main-epic`;
+  }
+}
+
+/**
  * Helper function to create a complete AtomicTask from partial data
  */
-function createCompleteAtomicTask(partialTask: Partial<AtomicTask> & { id: string; title: string; description: string }): AtomicTask {
+async function createCompleteAtomicTask(partialTask: Partial<AtomicTask> & { id: string; title: string; description: string }): Promise<AtomicTask> {
   const now = new Date();
 
   return {
@@ -30,8 +93,8 @@ function createCompleteAtomicTask(partialTask: Partial<AtomicTask> & { id: strin
     type: partialTask.type || 'development',
     estimatedHours: partialTask.estimatedHours || 4,
     actualHours: partialTask.actualHours,
-    epicId: partialTask.epicId || `epic-${Date.now()}`,
-    projectId: partialTask.projectId || `project-${Date.now()}`,
+    epicId: await resolveEpicIdForTask(partialTask),
+    projectId: partialTask.projectId || 'default-project',
     dependencies: partialTask.dependencies || [],
     dependents: partialTask.dependents || [],
     filePaths: partialTask.filePaths || [],
@@ -141,9 +204,39 @@ function createTaskDecomposeCommand(): Command {
 
         const decompositionService = new DecompositionService(openRouterConfig);
 
+        // Get project analyzer for dynamic detection
+        const projectAnalyzer = ProjectAnalyzer.getInstance();
+        const projectPath = process.cwd(); // Default to current working directory
+
+        // Detect project characteristics dynamically
+        let languages: string[];
+        let frameworks: string[];
+        let tools: string[];
+
+        try {
+          languages = await projectAnalyzer.detectProjectLanguages(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Language detection failed in CLI, using fallback');
+          languages = ['typescript', 'javascript']; // fallback
+        }
+
+        try {
+          frameworks = await projectAnalyzer.detectProjectFrameworks(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Framework detection failed in CLI, using fallback');
+          frameworks = ['node.js']; // fallback
+        }
+
+        try {
+          tools = await projectAnalyzer.detectProjectTools(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Tools detection failed in CLI, using fallback');
+          tools = ['vscode', 'git']; // fallback
+        }
+
         // Create decomposition request
         const decompositionRequest = {
-          task: createCompleteAtomicTask({
+          task: await createCompleteAtomicTask({
             id: task.id,
             title: task.title,
             description: options.description || task.description,
@@ -162,9 +255,9 @@ function createTaskDecomposeCommand(): Command {
           }),
           context: {
             projectId: task.projectId,
-            languages: ['typescript', 'javascript'], // Default languages - could be enhanced with project detection
-            frameworks: ['node.js'], // Default frameworks - could be enhanced with project detection
-            tools: ['vscode', 'git'],
+            languages, // Dynamic detection using existing 35+ language infrastructure
+            frameworks, // Dynamic detection using existing language handler methods
+            tools, // Dynamic detection using Context Curator patterns
             existingTasks: [],
             codebaseSize: 'medium' as const,
             teamSize: 1,
@@ -294,7 +387,7 @@ function createProjectDecomposeCommand(): Command {
         const decompositionService = new DecompositionService(openRouterConfig);
 
         // Create high-level project task for decomposition
-        const projectTask = createCompleteAtomicTask({
+        const projectTask = await createCompleteAtomicTask({
           id: `project-${project.id}`,
           title: `Complete ${project.name}`,
           description: options.description || project.description,
@@ -305,17 +398,53 @@ function createProjectDecomposeCommand(): Command {
           tags: ['project-decomposition', ...project.metadata.tags],
           filePaths: [],
           projectId: project.id,
-          epicId: `epic-${project.id}`,
+          epicId: await resolveEpicIdForProject(project.id, project.name),
           createdBy: 'system'
         });
+
+        // Get project analyzer for dynamic detection
+        const projectAnalyzer = ProjectAnalyzer.getInstance();
+        const projectPath = process.cwd(); // Default to current working directory
+
+        // Detect project characteristics dynamically with project preference
+        let languages: string[];
+        let frameworks: string[];
+        let tools: string[];
+
+        try {
+          languages = project.techStack.languages?.length
+            ? project.techStack.languages
+            : await projectAnalyzer.detectProjectLanguages(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Language detection failed for CLI project, using fallback');
+          languages = ['typescript']; // fallback
+        }
+
+        try {
+          frameworks = project.techStack.frameworks?.length
+            ? project.techStack.frameworks
+            : await projectAnalyzer.detectProjectFrameworks(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Framework detection failed for CLI project, using fallback');
+          frameworks = ['node.js']; // fallback
+        }
+
+        try {
+          tools = project.techStack.tools?.length
+            ? project.techStack.tools
+            : await projectAnalyzer.detectProjectTools(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Tools detection failed for CLI project, using fallback');
+          tools = ['vscode', 'git']; // fallback
+        }
 
         const decompositionRequest = {
           task: projectTask,
           context: {
             projectId: project.id,
-            languages: project.techStack.languages || ['typescript'],
-            frameworks: project.techStack.frameworks || [],
-            tools: project.techStack.tools || ['vscode', 'git'],
+            languages, // Dynamic detection with project techStack preference
+            frameworks, // Dynamic detection with project techStack preference
+            tools, // Dynamic detection with project techStack preference
             existingTasks: [],
             codebaseSize: 'large' as const,
             teamSize: 1,
