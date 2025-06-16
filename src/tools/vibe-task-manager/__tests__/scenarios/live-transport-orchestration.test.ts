@@ -307,7 +307,9 @@ describe('🚀 Live Transport & Orchestration - HTTP/SSE/Agent Integration', () 
       const scheduledTasksArray = Array.from(executionSchedule.scheduledTasks.values());
       const assignmentResults = [];
 
-      for (const task of scheduledTasksArray.slice(0, 5)) { // Test first 5 tasks
+      for (const scheduledTask of scheduledTasksArray.slice(0, 5)) { // Test first 5 tasks
+        // Extract the actual task from the scheduled task
+        const task = scheduledTask.task || scheduledTask;
         const assignmentResult = await agentOrchestrator.assignTask(task, projectContext);
 
         if (assignmentResult) {

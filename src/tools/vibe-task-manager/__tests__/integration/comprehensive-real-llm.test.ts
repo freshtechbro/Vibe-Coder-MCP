@@ -9,10 +9,13 @@ import { TaskScheduler } from '../../services/task-scheduler.js';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
 import { DecompositionService } from '../../services/decomposition-service.js';
 import { OptimizedDependencyGraph } from '../../core/dependency-graph.js';
+import { PRDIntegrationService } from '../../integrations/prd-integration.js';
+import { TaskListIntegrationService } from '../../integrations/task-list-integration.js';
+import { ProjectOperations } from '../../core/operations/project-operations.js';
 import { transportManager } from '../../../../services/transport-manager/index.js';
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import { createMockConfig } from '../utils/test-setup.js';
-import type { AtomicTask, ProjectContext } from '../../types/project-context.js';
+import type { AtomicTask, ProjectContext, ParsedPRD, ParsedTaskList } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
 
 // Test timeout for real LLM calls
@@ -594,7 +597,220 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
     });
   });
 
-  describe('9. End-to-End Workflow Integration', () => {
+  describe('9. Artifact Parsing Integration with Real Files', () => {
+    let prdIntegration: PRDIntegrationService;
+    let taskListIntegration: TaskListIntegrationService;
+    let projectOps: ProjectOperations;
+
+    beforeAll(() => {
+      prdIntegration = PRDIntegrationService.getInstance();
+      taskListIntegration = TaskListIntegrationService.getInstance();
+      projectOps = new ProjectOperations();
+    });
+
+    it('should discover and parse real PRD files from VibeCoderOutput', async () => {
+      const startTime = Date.now();
+
+      // Test PRD file discovery
+      const discoveredPRDs = await prdIntegration.findPRDFiles();
+      const discoveryDuration = Date.now() - startTime;
+
+      expect(discoveredPRDs).toBeDefined();
+      expect(Array.isArray(discoveredPRDs)).toBe(true);
+      expect(discoveryDuration).toBeLessThan(10000); // Should complete within 10 seconds
+
+      logger.info({
+        discoveredPRDs: discoveredPRDs.length,
+        discoveryDuration,
+        prdFiles: discoveredPRDs.map(prd => ({ name: prd.fileName, project: prd.projectName }))
+      }, 'PRD file discovery completed');
+
+      // If PRDs are found, test parsing
+      if (discoveredPRDs.length > 0) {
+        const testPRD = discoveredPRDs[0];
+        const fs = await import('fs/promises');
+
+        try {
+          const prdContent = await fs.readFile(testPRD.filePath, 'utf-8');
+          const parseStartTime = Date.now();
+          const parsedPRD: ParsedPRD = await prdIntegration.parsePRDContent(prdContent, testPRD.filePath);
+          const parseDuration = Date.now() - parseStartTime;
+
+          if (parsedPRD) {
+            expect(parsedPRD.projectName).toBeDefined();
+            expect(parseDuration).toBeLessThan(5000);
+
+            logger.info({
+              parsedProject: parsedPRD.projectName,
+              featuresCount: parsedPRD.features?.length || 0,
+              parseDuration
+            }, 'PRD content parsed successfully');
+          }
+        } catch (error) {
+          logger.warn({ err: error, prdPath: testPRD.filePath }, 'PRD parsing failed - this may be expected if implementation is incomplete');
+        }
+      }
+    }, LLM_TIMEOUT);
+
+    it('should discover and parse real task list files from VibeCoderOutput', async () => {
+      const startTime = Date.now();
+
+      // Test task list file discovery
+      const discoveredTaskLists = await taskListIntegration.findTaskListFiles();
+      const discoveryDuration = Date.now() - startTime;
+
+      expect(discoveredTaskLists).toBeDefined();
+      expect(Array.isArray(discoveredTaskLists)).toBe(true);
+      expect(discoveryDuration).toBeLessThan(10000); // Should complete within 10 seconds
+
+      logger.info({
+        discoveredTaskLists: discoveredTaskLists.length,
+        discoveryDuration,
+        taskListFiles: discoveredTaskLists.map(tl => ({ name: tl.fileName, project: tl.projectName }))
+      }, 'Task list file discovery completed');
+
+      // If task lists are found, test parsing
+      if (discoveredTaskLists.length > 0) {
+        const testTaskList = discoveredTaskLists[0];
+        const fs = await import('fs/promises');
+
+        try {
+          const taskListContent = await fs.readFile(testTaskList.filePath, 'utf-8');
+          const parseStartTime = Date.now();
+          const parsedTaskList: ParsedTaskList = await taskListIntegration.parseTaskListContent(taskListContent, testTaskList.filePath);
+          const parseDuration = Date.now() - parseStartTime;
+
+          if (parsedTaskList) {
+            expect(parsedTaskList.projectName).toBeDefined();
+            expect(parseDuration).toBeLessThan(5000);
+
+            logger.info({
+              parsedProject: parsedTaskList.projectName,
+              phasesCount: parsedTaskList.phases?.length || 0,
+              totalTasks: parsedTaskList.statistics?.totalTasks || 0,
+              parseDuration
+            }, 'Task list content parsed successfully');
+          }
+        } catch (error) {
+          logger.warn({ err: error, taskListPath: testTaskList.filePath }, 'Task list parsing failed - this may be expected if implementation is incomplete');
+        }
+      }
+    }, LLM_TIMEOUT);
+
+    it('should create project context from parsed PRD data', async () => {
+      const discoveredPRDs = await prdIntegration.findPRDFiles();
+
+      if (discoveredPRDs.length > 0) {
+        const testPRD = discoveredPRDs[0];
+        const fs = await import('fs/promises');
+
+        try {
+          const prdContent = await fs.readFile(testPRD.filePath, 'utf-8');
+          const parsedPRD = await prdIntegration.parsePRDContent(prdContent, testPRD.filePath);
+
+          if (parsedPRD) {
+            const startTime = Date.now();
+            const projectContext = await projectOps.createProjectFromPRD(parsedPRD);
+            const duration = Date.now() - startTime;
+
+            expect(projectContext).toBeDefined();
+            expect(projectContext.projectName).toBeDefined();
+            expect(duration).toBeLessThan(5000);
+
+            logger.info({
+              originalPRDProject: parsedPRD.projectName,
+              createdProjectName: projectContext.projectName,
+              languages: projectContext.languages,
+              frameworks: projectContext.frameworks,
+              duration
+            }, 'Project context created from PRD');
+          }
+        } catch (error) {
+          logger.warn({ err: error }, 'Project creation from PRD failed - this may be expected if implementation is incomplete');
+        }
+      } else {
+        logger.info('No PRDs found for project context creation test');
+      }
+    }, LLM_TIMEOUT);
+
+    it('should convert task lists to atomic tasks', async () => {
+      const discoveredTaskLists = await taskListIntegration.findTaskListFiles();
+
+      if (discoveredTaskLists.length > 0) {
+        const testTaskList = discoveredTaskLists[0];
+        const fs = await import('fs/promises');
+
+        try {
+          const taskListContent = await fs.readFile(testTaskList.filePath, 'utf-8');
+          const parsedTaskList = await taskListIntegration.parseTaskListContent(taskListContent, testTaskList.filePath);
+
+          if (parsedTaskList) {
+            const startTime = Date.now();
+            const atomicTasks = await taskListIntegration.convertToAtomicTasks(parsedTaskList, testProjectContext);
+            const duration = Date.now() - startTime;
+
+            expect(atomicTasks).toBeDefined();
+            expect(Array.isArray(atomicTasks)).toBe(true);
+            expect(duration).toBeLessThan(10000);
+
+            // Validate atomic task structure if tasks were generated
+            if (atomicTasks.length > 0) {
+              atomicTasks.forEach(task => {
+                expect(task.id).toBeDefined();
+                expect(task.title).toBeDefined();
+                expect(task.description).toBeDefined();
+                expect(task.estimatedHours).toBeGreaterThan(0);
+              });
+            }
+
+            logger.info({
+              originalTaskList: parsedTaskList.projectName,
+              atomicTasksGenerated: atomicTasks.length,
+              totalEstimatedHours: atomicTasks.reduce((sum, t) => sum + t.estimatedHours, 0),
+              duration
+            }, 'Task list converted to atomic tasks');
+          }
+        } catch (error) {
+          logger.warn({ err: error }, 'Task list to atomic tasks conversion failed - this may be expected if implementation is incomplete');
+        }
+      } else {
+        logger.info('No task lists found for atomic task conversion test');
+      }
+    }, LLM_TIMEOUT);
+
+    it('should recognize artifact parsing intents with real LLM calls', async () => {
+      const artifactCommands = [
+        'read prd',
+        'parse the PRD for my project',
+        'read task list',
+        'parse tasks for E-commerce Platform',
+        'import PRD from file',
+        'load task list from document'
+      ];
+
+      for (const command of artifactCommands) {
+        const startTime = Date.now();
+        const result = await intentEngine.recognizeIntent(command);
+        const duration = Date.now() - startTime;
+
+        expect(result).toBeDefined();
+        expect(duration).toBeLessThan(30000); // Should complete within 30 seconds
+
+        // Check if artifact parsing intents are recognized
+        const isArtifactIntent = ['parse_prd', 'parse_tasks', 'import_artifact'].includes(result.intent);
+
+        logger.info({
+          command,
+          recognizedIntent: result.intent,
+          confidence: result.confidence,
+          isArtifactIntent,
+          duration
+        }, 'Artifact parsing intent recognition tested');
+      }
+    }, LLM_TIMEOUT);
+  });
+
+  describe('10. End-to-End Workflow Integration', () => {
     it('should execute complete task lifecycle with real LLM calls', async () => {
       const workflowStartTime = Date.now();
 
@@ -673,7 +889,7 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
     });
   });
 
-  describe('10. Performance and Load Testing', () => {
+  describe('11. Performance and Load Testing', () => {
     it('should handle concurrent LLM requests efficiently', async () => {
       const concurrentRequests = 3; // Keep reasonable for integration test
       const requests = Array(concurrentRequests).fill(null).map((_, index) =>

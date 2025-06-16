@@ -37,27 +37,55 @@ describe('AtomicTaskDetector', () => {
 
     mockTask = {
       id: 'T0001',
-      title: 'Implement user login',
-      description: 'Create a login form with email and password validation',
+      title: 'Add email input field',
+      description: 'Create email input field with basic validation in LoginForm component',
       type: 'development' as TaskType,
       priority: 'medium' as TaskPriority,
       status: 'pending' as TaskStatus,
       projectId: 'PID-TEST-001',
       epicId: 'E001',
-      estimatedHours: 3,
+      estimatedHours: 0.1, // 6 minutes - within 5-10 minute range
       actualHours: 0,
-      filePaths: ['src/components/LoginForm.tsx', 'src/utils/auth.ts'],
+      filePaths: ['src/components/LoginForm.tsx'], // Single file
       acceptanceCriteria: [
-        'User can enter email and password',
-        'Form validates input fields',
-        'Successful login redirects to dashboard'
-      ],
+        'Email input field renders with type="email" attribute'
+      ], // Single acceptance criteria
       tags: ['authentication', 'frontend'],
       dependencies: [],
-      assignedAgent: null,
+      dependents: [],
+      testingRequirements: {
+        unitTests: [],
+        integrationTests: [],
+        performanceTests: [],
+        coverageTarget: 90
+      },
+      performanceCriteria: {},
+      qualityCriteria: {
+        codeQuality: [],
+        documentation: [],
+        typeScript: true,
+        eslint: true
+      },
+      integrationCriteria: {
+        compatibility: [],
+        patterns: []
+      },
+      validationMethods: {
+        automated: [],
+        manual: []
+      },
+      assignedAgent: undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
-      createdBy: 'test-user'
+      startedAt: undefined,
+      completedAt: undefined,
+      createdBy: 'test-user',
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'test-user',
+        tags: ['authentication', 'frontend']
+      }
     };
 
     mockContext = {
@@ -83,8 +111,8 @@ describe('AtomicTaskDetector', () => {
         isAtomic: true,
         confidence: 0.85,
         reasoning: 'Task has clear scope and can be completed in estimated time',
-        estimatedHours: 3,
-        complexityFactors: ['Frontend component', 'Authentication logic'],
+        estimatedHours: 0.1, // 6 minutes - atomic
+        complexityFactors: ['Frontend component'],
         recommendations: ['Add unit tests', 'Consider error handling']
       });
 
@@ -96,8 +124,8 @@ describe('AtomicTaskDetector', () => {
         isAtomic: true,
         confidence: 0.85,
         reasoning: 'Task has clear scope and can be completed in estimated time',
-        estimatedHours: 3,
-        complexityFactors: ['Frontend component', 'Authentication logic'],
+        estimatedHours: 0.1,
+        complexityFactors: ['Frontend component'],
         recommendations: ['Add unit tests', 'Consider error handling']
       });
 
@@ -135,27 +163,27 @@ describe('AtomicTaskDetector', () => {
 
       expect(result.isAtomic).toBe(false);
       expect(result.confidence).toBeLessThanOrEqual(0.3); // Validation rule applied
-      expect(result.recommendations).toContain('Consider breaking down tasks estimated over 6 hours');
+      expect(result.recommendations).toContain('Task exceeds 20-minute validation threshold - must be broken down further');
     });
 
     it('should apply validation rules correctly', async () => {
-      const { performDirectLlmCall } = await import('../../../../utils/llmHelper.js');
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockResponse = JSON.stringify({
         isAtomic: true,
         confidence: 0.9,
         reasoning: 'Initial analysis suggests atomic',
-        estimatedHours: 7, // Over 6 hours
+        estimatedHours: 0.5, // 30 minutes - over 20 minute limit
         complexityFactors: [],
         recommendations: []
       });
 
-      vi.mocked(performDirectLlmCall).mockResolvedValue(mockResponse);
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockResponse);
 
       const result = await detector.analyzeTask(mockTask, mockContext);
 
       expect(result.isAtomic).toBe(false); // Validation rule overrides
-      expect(result.confidence).toBeLessThanOrEqual(0.3);
-      expect(result.recommendations).toContain('Consider breaking down tasks estimated over 6 hours');
+      expect(result.confidence).toBe(0.0); // Should be 0 for non-atomic
+      expect(result.recommendations).toContain('Task exceeds 20-minute validation threshold - must be broken down further');
     });
 
     it('should handle multiple file paths validation', async () => {
@@ -164,7 +192,7 @@ describe('AtomicTaskDetector', () => {
         isAtomic: true,
         confidence: 0.8,
         reasoning: 'Task seems manageable',
-        estimatedHours: 3,
+        estimatedHours: 0.1, // 6 minutes - atomic duration
         complexityFactors: ['Multiple file modifications'],
         recommendations: []
       });
@@ -173,66 +201,67 @@ describe('AtomicTaskDetector', () => {
 
       const multiFileTask = {
         ...mockTask,
-        filePaths: ['file1.ts', 'file2.ts', 'file3.ts', 'file4.ts', 'file5.ts', 'file6.ts']
+        filePaths: ['file1.ts', 'file2.ts', 'file3.ts'] // 3 files - exceeds limit of 2
       };
 
       const result = await detector.analyzeTask(multiFileTask, mockContext);
 
-      expect(result.confidence).toBeLessThanOrEqual(0.6);
-      expect(result.complexityFactors).toContain('Multiple file modifications');
+      expect(result.isAtomic).toBe(false); // Should be non-atomic due to multiple files
+      expect(result.confidence).toBe(0.0); // Should be 0 for non-atomic
+      expect(result.complexityFactors).toContain('Multiple file modifications indicate non-atomic task');
+      expect(result.recommendations).toContain('Split into separate tasks - one per file modification');
     });
 
     it('should handle insufficient acceptance criteria', async () => {
-      const { performDirectLlmCall } = await import('../../../../utils/llmHelper.js');
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockResponse = JSON.stringify({
         isAtomic: true,
         confidence: 0.9,
         reasoning: 'Task analysis',
-        estimatedHours: 3,
+        estimatedHours: 0.1, // 6 minutes - atomic duration
         complexityFactors: [],
         recommendations: []
       });
 
-      vi.mocked(performDirectLlmCall).mockResolvedValue(mockResponse);
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockResponse);
 
-      const vagueTask = {
+      const multiCriteriaTask = {
         ...mockTask,
-        acceptanceCriteria: ['Complete the feature'] // Only one vague criterion
+        acceptanceCriteria: ['Complete the feature', 'Add tests', 'Update documentation'] // Multiple criteria - not atomic
       };
 
-      const result = await detector.analyzeTask(vagueTask, mockContext);
+      const result = await detector.analyzeTask(multiCriteriaTask, mockContext);
 
-      expect(result.confidence).toBeLessThanOrEqual(0.7);
-      expect(result.recommendations).toContain('Add more specific acceptance criteria');
+      expect(result.isAtomic).toBe(false); // Should be non-atomic due to multiple criteria
+      expect(result.confidence).toBe(0.0); // Should be 0 for non-atomic
+      expect(result.recommendations).toContain('Atomic tasks must have exactly ONE acceptance criteria');
     });
 
-    it('should handle critical tasks in complex projects', async () => {
-      const { performDirectLlmCall } = await import('../../../../utils/llmHelper.js');
+    it('should handle tasks with "and" operators', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockResponse = JSON.stringify({
         isAtomic: true,
         confidence: 0.9,
         reasoning: 'Task analysis',
-        estimatedHours: 3,
+        estimatedHours: 0.1, // 6 minutes - atomic duration
         complexityFactors: [],
         recommendations: []
       });
 
-      vi.mocked(performDirectLlmCall).mockResolvedValue(mockResponse);
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockResponse);
 
-      const criticalTask = {
+      const andTask = {
         ...mockTask,
-        priority: 'critical' as TaskPriority
+        title: 'Create and validate user input',
+        description: 'Create input field and add validation logic'
       };
 
-      const complexContext = {
-        ...mockContext,
-        complexity: 'high' as const
-      };
+      const result = await detector.analyzeTask(andTask, mockContext);
 
-      const result = await detector.analyzeTask(criticalTask, complexContext);
-
-      expect(result.confidence).toBeLessThanOrEqual(0.8);
-      expect(result.complexityFactors).toContain('Critical task in complex project');
+      expect(result.isAtomic).toBe(false); // Should be non-atomic due to "and" operators
+      expect(result.confidence).toBe(0.0); // Should be 0 for non-atomic
+      expect(result.complexityFactors).toContain('Task contains "and" operator indicating multiple actions');
+      expect(result.recommendations).toContain('Remove "and" operations - split into separate atomic tasks');
     });
 
     it('should return fallback analysis on LLM failure', async () => {
@@ -245,6 +274,7 @@ describe('AtomicTaskDetector', () => {
       expect(result.reasoning).toContain('Fallback analysis');
       expect(result.complexityFactors).toContain('LLM analysis unavailable');
       expect(result.recommendations).toContain('Manual review recommended due to analysis failure');
+      expect(result.recommendations).toContain('Verify task meets 5-10 minute atomic criteria');
     });
 
     it('should handle malformed LLM response', async () => {
@@ -261,7 +291,8 @@ describe('AtomicTaskDetector', () => {
       const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const partialResponse = JSON.stringify({
         isAtomic: true,
-        confidence: 0.8
+        confidence: 0.8,
+        estimatedHours: 0.1 // 6 minutes - atomic duration
         // Missing other fields
       });
 
@@ -269,10 +300,10 @@ describe('AtomicTaskDetector', () => {
 
       const result = await detector.analyzeTask(mockTask, mockContext);
 
-      expect(result.isAtomic).toBe(true);
+      expect(result.isAtomic).toBe(true); // Should remain atomic since it passes validation
       expect(result.confidence).toBe(0.8);
       expect(result.reasoning).toBe('No reasoning provided');
-      expect(result.estimatedHours).toBeGreaterThan(0);
+      expect(result.estimatedHours).toBe(0.1); // Should use the provided value
       expect(Array.isArray(result.complexityFactors)).toBe(true);
       expect(Array.isArray(result.recommendations)).toBe(true);
     });

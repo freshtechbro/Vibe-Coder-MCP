@@ -243,7 +243,7 @@ describe('Context Curator Type Definitions', () => {
       expect(parsed.excludePatterns).toEqual(['node_modules/**', '.git/**', 'dist/**', 'build/**']);
       expect(parsed.focusAreas).toEqual([]);
       expect(parsed.useCodeMapCache).toBe(true);
-      expect(parsed.codeMapCacheMaxAgeMinutes).toBe(60);
+      expect(parsed.codeMapCacheMaxAgeMinutes).toBe(120);
     });
 
     it('should reject invalid input', () => {
