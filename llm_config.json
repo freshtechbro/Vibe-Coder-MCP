@@ -24,6 +24,17 @@
     "context_curator_relevance_scoring": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_meta_prompt_generation": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_task_decomposition": "google/gemini-2.5-flash-preview-05-20",
+    "context_curator_architectural_analysis": "google/gemini-2.5-flash-preview-05-20",
+    "research_query_generation": "google/gemini-2.5-flash-preview-05-20",
+    "research_enhancement": "google/gemini-2.5-flash-preview-05-20",
+    "agent_task_assignment": "google/gemini-2.5-flash-preview-05-20",
+    "agent_response_processing": "google/gemini-2.5-flash-preview-05-20",
+    "agent_status_analysis": "google/gemini-2.5-flash-preview-05-20",
+    "task_orchestration": "google/gemini-2.5-flash-preview-05-20",
+    "capability_matching": "google/gemini-2.5-flash-preview-05-20",
+    "agent_health_monitoring": "google/gemini-2.5-flash-preview-05-20",
+    "transport_optimization": "google/gemini-2.5-flash-preview-05-20",
+    "error_recovery_analysis": "google/gemini-2.5-flash-preview-05-20",
     "default_generation": "google/gemini-2.5-flash-preview-05-20"
   }
 }
