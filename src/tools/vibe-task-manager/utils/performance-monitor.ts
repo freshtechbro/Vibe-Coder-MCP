@@ -766,6 +766,177 @@ export class PerformanceMonitor {
   }
 
   /**
+   * Auto-apply performance optimizations
+   */
+  async autoOptimize(): Promise<{
+    applied: string[];
+    skipped: string[];
+    errors: string[];
+  }> {
+    const applied: string[] = [];
+    const skipped: string[] = [];
+    const errors: string[] = [];
+
+    try {
+      // Get current metrics
+      const metrics = this.getCurrentRealTimeMetrics();
+
+      // Memory optimization
+      if (metrics.memoryUsage > this.config.performanceThresholds.maxMemoryUsage * 0.8) {
+        try {
+          await this.optimizeMemoryUsage();
+          applied.push('memory-optimization');
+        } catch (error) {
+          errors.push(`Memory optimization failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      // Cache optimization
+      if (metrics.cacheHitRate < 0.7) {
+        try {
+          await this.optimizeCacheStrategy();
+          applied.push('cache-optimization');
+        } catch (error) {
+          errors.push(`Cache optimization failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      // Concurrent processing optimization
+      if (metrics.queueLength > 10) {
+        try {
+          await this.optimizeConcurrentProcessing();
+          applied.push('concurrency-optimization');
+        } catch (error) {
+          errors.push(`Concurrency optimization failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      // Response time optimization
+      if (metrics.responseTime > this.config.performanceThresholds.maxResponseTime) {
+        try {
+          await this.optimizeResponseTime();
+          applied.push('response-time-optimization');
+        } catch (error) {
+          errors.push(`Response time optimization failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      logger.info({ applied, skipped, errors }, 'Auto-optimization completed');
+      return { applied, skipped, errors };
+
+    } catch (error) {
+      logger.error({ err: error }, 'Auto-optimization failed');
+      errors.push(`Auto-optimization failed: ${error instanceof Error ? error.message : String(error)}`);
+      return { applied, skipped, errors };
+    }
+  }
+
+  /**
+   * Optimize memory usage
+   */
+  private async optimizeMemoryUsage(): Promise<void> {
+    logger.info('Starting memory optimization');
+
+    // Trigger memory manager cleanup
+    if (this.memoryManager) {
+      await this.memoryManager.performAggressiveCleanup();
+    }
+
+    // Clear old metrics
+    if (this.realTimeMetrics.length > 50) {
+      this.realTimeMetrics.splice(0, this.realTimeMetrics.length - 50);
+    }
+
+    // Clear old operation timings
+    const cutoffTime = Date.now() - (60 * 60 * 1000); // 1 hour ago
+    for (const [operationId, timestamp] of this.operationTimings.entries()) {
+      if (timestamp < cutoffTime) {
+        this.operationTimings.delete(operationId);
+      }
+    }
+
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+
+    logger.info('Memory optimization completed');
+  }
+
+  /**
+   * Optimize cache strategy
+   */
+  private async optimizeCacheStrategy(): Promise<void> {
+    logger.info('Starting cache optimization');
+
+    // Import cache managers dynamically
+    try {
+      const { ConfigLoader } = await import('./config-loader.js');
+      const configLoader = ConfigLoader.getInstance();
+
+      // Reset cache statistics
+      configLoader.resetCacheStats();
+
+      // Warm up frequently accessed configurations
+      await configLoader.warmupCache();
+
+      logger.info('Cache optimization completed');
+    } catch (error) {
+      logger.warn({ err: error }, 'Cache optimization partially failed');
+    }
+  }
+
+  /**
+   * Optimize concurrent processing
+   */
+  private async optimizeConcurrentProcessing(): Promise<void> {
+    logger.info('Starting concurrency optimization');
+
+    try {
+      // Import execution coordinator dynamically
+      const { ExecutionCoordinator } = await import('../services/execution-coordinator.js');
+      const coordinator = await ExecutionCoordinator.getInstance();
+
+      // Optimize batch processing
+      await coordinator.optimizeBatchProcessing();
+
+      logger.info('Concurrency optimization completed');
+    } catch (error) {
+      logger.warn({ err: error }, 'Concurrency optimization failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Optimize response time
+   */
+  private async optimizeResponseTime(): Promise<void> {
+    logger.info('Starting response time optimization');
+
+    // Reduce monitoring intervals temporarily for faster processing
+    const originalInterval = this.config.metricsInterval;
+    this.config.metricsInterval = Math.max(originalInterval * 2, 5000);
+
+    // Clear active operations that might be stuck
+    const stuckOperations = Array.from(this.activeOperations).filter(op => {
+      const startTime = this.operationTimings.get(op);
+      return startTime && (Date.now() - startTime) > 30000; // 30 seconds
+    });
+
+    for (const operationId of stuckOperations) {
+      this.activeOperations.delete(operationId);
+      this.operationTimings.delete(operationId);
+    }
+
+    // Restore original interval after a delay
+    setTimeout(() => {
+      this.config.metricsInterval = originalInterval;
+    }, 60000); // 1 minute
+
+    logger.info({ clearedOperations: stuckOperations.length }, 'Response time optimization completed');
+  }
+
+  /**
    * Get optimization suggestions
    */
   getOptimizationSuggestions(category?: OptimizationSuggestion['category']): OptimizationSuggestion[] {

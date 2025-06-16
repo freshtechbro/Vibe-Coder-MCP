@@ -69,6 +69,27 @@ export class ProjectOperations {
   }
 
   /**
+   * Resolve project root path following existing patterns
+   */
+  private resolveProjectRootPath(providedPath?: string): string {
+    // 1. Use provided path if valid
+    if (providedPath && providedPath !== '/' && providedPath.length > 1) {
+      return providedPath;
+    }
+
+    // 2. Use environment variable (following existing security patterns)
+    const envProjectPath = process.env.VIBE_TASK_MANAGER_READ_DIR;
+    if (envProjectPath && envProjectPath !== '/' && envProjectPath.length > 1) {
+      return envProjectPath;
+    }
+
+    // 3. Fallback to current working directory
+    const cwd = process.cwd();
+    logger.debug({ providedPath, envProjectPath, cwd }, 'Project root path resolution completed');
+    return cwd;
+  }
+
+  /**
    * Create a new project with validation and default configuration
    */
   async createProject(params: CreateProjectParams, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
@@ -169,7 +190,7 @@ export class ProjectOperations {
         }
       };
 
-      // Create project object
+      // Create project object with proper path resolution
       const project: Project = {
         id: projectId,
         name: params.name,
@@ -177,7 +198,7 @@ export class ProjectOperations {
         status: 'pending',
         config: projectConfig,
         epicIds: [],
-        rootPath: params.rootPath || process.cwd(),
+        rootPath: this.resolveProjectRootPath(params.rootPath),
         techStack: params.techStack || {
           languages: [],
           frameworks: [],
@@ -332,6 +353,80 @@ export class ProjectOperations {
         metadata: {
           filePath: 'project-operations',
           operation: 'update_project',
+          timestamp: new Date()
+        }
+      };
+    }
+  }
+
+  /**
+   * Create a project from PRD data
+   */
+  async createProjectFromPRD(prdData: any, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
+    try {
+      logger.info({ projectName: prdData.metadata?.projectName, createdBy }, 'Creating project from PRD');
+
+      // Extract project information from PRD
+      const projectParams: CreateProjectParams = {
+        name: prdData.metadata?.projectName || 'Untitled Project',
+        description: prdData.overview?.description || 'Project created from PRD',
+        tags: ['prd-generated'],
+        techStack: {
+          languages: prdData.technical?.techStack || [],
+          frameworks: prdData.technical?.architecturalPatterns || [],
+          tools: []
+        }
+      };
+
+      // Create the project using the standard method
+      return await this.createProject(projectParams, createdBy);
+
+    } catch (error) {
+      logger.error({ err: error, prdData }, 'Failed to create project from PRD');
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        metadata: {
+          filePath: 'project-operations',
+          operation: 'create_project_from_prd',
+          timestamp: new Date()
+        }
+      };
+    }
+  }
+
+  /**
+   * Create a project from task list data
+   */
+  async createProjectFromTaskList(taskListData: any, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
+    try {
+      logger.info({ projectName: taskListData.metadata?.projectName, createdBy }, 'Creating project from task list');
+
+      // Extract project information from task list
+      const projectParams: CreateProjectParams = {
+        name: taskListData.metadata?.projectName || 'Untitled Project',
+        description: taskListData.metadata?.description || 'Project created from task list',
+        tags: ['task-list-generated'],
+        techStack: {
+          languages: taskListData.metadata?.techStack?.languages || [],
+          frameworks: taskListData.metadata?.techStack?.frameworks || [],
+          tools: taskListData.metadata?.techStack?.tools || []
+        }
+      };
+
+      // Create the project using the standard method
+      return await this.createProject(projectParams, createdBy);
+
+    } catch (error) {
+      logger.error({ err: error, taskListData }, 'Failed to create project from task list');
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        metadata: {
+          filePath: 'project-operations',
+          operation: 'create_project_from_task_list',
           timestamp: new Date()
         }
       };

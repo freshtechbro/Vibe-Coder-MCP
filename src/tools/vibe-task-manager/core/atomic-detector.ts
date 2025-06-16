@@ -49,6 +49,16 @@ export interface ProjectContext {
     totalContextSize: number;
     averageRelevance: number;
   };
+
+  /** Research context from auto-research integration */
+  researchContext?: {
+    researchResults: string[];
+    researchSummary: string;
+    researchQueries: string[];
+    researchTime: number;
+    knowledgeBase: string[];
+    actionItems: string[];
+  };
 }
 
 /**
@@ -157,14 +167,32 @@ ${context.codebaseContext.contextSummary.substring(0, 1000)}${context.codebaseCo
 
     prompt += `
 
+ATOMIC TASK DEFINITION:
+An atomic task is a task that:
+1. Takes 5-10 minutes maximum to complete
+2. Involves exactly ONE specific action/step
+3. Has exactly ONE clear acceptance criteria
+4. Focuses on ONE thing only
+5. Is simple and straightforward
+6. Cannot be broken down into smaller meaningful tasks
+7. Can be started and completed without planning additional tasks
+8. Requires no coordination between multiple actions
+
 ANALYSIS CRITERIA:
-1. Implementation Time: Can this be completed in 1-4 hours by a skilled developer?
-2. Scope Clarity: Are the requirements clear and unambiguous?
-3. Dependency Completeness: Are all dependencies clearly identified?
-4. Acceptance Criteria: Are the success criteria specific and testable?
-5. Single Responsibility: Does the task focus on one specific outcome?
-6. Technical Complexity: Is the technical approach straightforward?
-7. Codebase Alignment: Does the task align with existing patterns and architecture?
+1. Duration Test: Can this be completed in 5-10 minutes? (If no, NOT ATOMIC)
+2. Single Action Test: Does this involve exactly ONE action? (If multiple actions, NOT ATOMIC)
+3. Single Focus Test: Does this focus on ONE specific thing? (If multiple focuses, NOT ATOMIC)
+4. Acceptance Criteria Test: Does this have exactly ONE acceptance criteria? (If multiple, NOT ATOMIC)
+5. Simplicity Test: Is this simple and straightforward? (If complex, NOT ATOMIC)
+6. Decomposition Test: Can this be broken down further? (If yes, NOT ATOMIC)
+7. Immediate Action Test: Can a developer start and finish this immediately? (If planning needed, NOT ATOMIC)
+
+VALIDATION RULES:
+- Tasks over 20 minutes are NEVER atomic
+- Tasks with multiple acceptance criteria are NEVER atomic
+- Tasks with "and" in the title/description are usually NOT atomic
+- Tasks requiring multiple file changes are usually NOT atomic
+- Tasks with words like "implement", "create and", "setup and" are usually NOT atomic
 
 Please provide your analysis in the following JSON format:
 {
@@ -203,7 +231,7 @@ Please provide your analysis in the following JSON format:
         isAtomic: parsed.isAtomic,
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.5)),
         reasoning: parsed.reasoning || 'No reasoning provided',
-        estimatedHours: Math.max(0.5, parsed.estimatedHours || 2),
+        estimatedHours: Math.max(0.08, parsed.estimatedHours || 0.1), // Use atomic range: 5 minutes minimum
         complexityFactors: Array.isArray(parsed.complexityFactors) ? parsed.complexityFactors : [],
         recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : []
       };
@@ -224,29 +252,80 @@ Please provide your analysis in the following JSON format:
   ): AtomicityAnalysis {
     const validatedAnalysis = { ...analysis };
 
-    // Rule 1: Tasks over 6 hours are likely not atomic
-    if (validatedAnalysis.estimatedHours > 6) {
+    // Rule 1: Tasks over 20 minutes are NEVER atomic
+    if (validatedAnalysis.estimatedHours > 0.33) { // 20 minutes
+      validatedAnalysis.isAtomic = false;
+      validatedAnalysis.confidence = 0.0;
+      validatedAnalysis.recommendations.push('Task exceeds 20-minute validation threshold - must be broken down further');
+    }
+
+    // Rule 2: Tasks under 5 minutes might be too granular
+    if (validatedAnalysis.estimatedHours < 0.08) { // 5 minutes
+      validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.7);
+      validatedAnalysis.recommendations.push('Task might be too granular - consider combining with related task');
+    }
+
+    // Rule 3: Tasks must have exactly ONE acceptance criteria
+    if (task.acceptanceCriteria.length !== 1) {
+      validatedAnalysis.isAtomic = false;
+      validatedAnalysis.confidence = 0.0;
+      validatedAnalysis.recommendations.push('Atomic tasks must have exactly ONE acceptance criteria');
+    }
+
+    // Rule 4: Tasks with "and" in title/description indicate multiple actions
+    const hasAndOperator = task.title.toLowerCase().includes(' and ') ||
+                          task.description.toLowerCase().includes(' and ');
+    if (hasAndOperator) {
+      validatedAnalysis.isAtomic = false;
+      validatedAnalysis.confidence = 0.0;
+      validatedAnalysis.complexityFactors.push('Task contains "and" operator indicating multiple actions');
+      validatedAnalysis.recommendations.push('Remove "and" operations - split into separate atomic tasks');
+    }
+
+    // Rule 5: Tasks with multiple file modifications are likely not atomic
+    if (task.filePaths.length > 2) {
+      validatedAnalysis.isAtomic = false;
+      validatedAnalysis.confidence = 0.0; // Set to 0 for consistency with other non-atomic rules
+      validatedAnalysis.complexityFactors.push('Multiple file modifications indicate non-atomic task');
+      validatedAnalysis.recommendations.push('Split into separate tasks - one per file modification');
+    }
+
+    // Rule 6: Tasks with complex action words are not atomic
+    const complexActionWords = [
+      'implement', 'create and', 'setup and', 'design and', 'build and',
+      'configure and', 'develop', 'establish', 'integrate', 'coordinate',
+      'build', 'construct', 'architect', 'engineer'
+    ];
+    const hasComplexAction = complexActionWords.some(word =>
+      task.title.toLowerCase().includes(word) || task.description.toLowerCase().includes(word)
+    );
+    if (hasComplexAction) {
       validatedAnalysis.isAtomic = false;
       validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.3);
-      validatedAnalysis.recommendations.push('Consider breaking down tasks estimated over 6 hours');
+      validatedAnalysis.complexityFactors.push('Task uses complex action words suggesting multiple steps');
+      validatedAnalysis.recommendations.push('Use simple action verbs: Add, Create, Write, Update, Import, Export');
     }
 
-    // Rule 2: Tasks with many file paths may not be atomic
-    if (task.filePaths.length > 5) {
-      validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.6);
-      validatedAnalysis.complexityFactors.push('Multiple file modifications');
+    // Rule 7: Tasks with vague descriptions are not atomic
+    const vagueWords = ['various', 'multiple', 'several', 'different', 'appropriate', 'necessary', 'proper', 'suitable'];
+    const hasVagueWords = vagueWords.some(word =>
+      task.description.toLowerCase().includes(word)
+    );
+    if (hasVagueWords) {
+      validatedAnalysis.isAtomic = false;
+      validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.4);
+      validatedAnalysis.complexityFactors.push('Task description contains vague terms');
+      validatedAnalysis.recommendations.push('Use specific, concrete descriptions instead of vague terms');
     }
 
-    // Rule 3: Vague acceptance criteria indicate non-atomic tasks
-    if (task.acceptanceCriteria.length < 2) {
-      validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.7);
-      validatedAnalysis.recommendations.push('Add more specific acceptance criteria');
-    }
-
-    // Rule 4: High-priority tasks in complex projects need extra scrutiny
-    if (task.priority === 'critical' && context.complexity === 'high') {
-      validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.8);
-      validatedAnalysis.complexityFactors.push('Critical task in complex project');
+    // Rule 8: Epic time constraint validation
+    const epicTimeLimit = 8; // 8 hours maximum per epic
+    if (context.existingTasks && context.existingTasks.length > 0) {
+      const totalEpicTime = context.existingTasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
+      if (totalEpicTime + validatedAnalysis.estimatedHours > epicTimeLimit) {
+        validatedAnalysis.confidence = Math.min(validatedAnalysis.confidence, 0.5);
+        validatedAnalysis.recommendations.push('Adding this task would exceed 8-hour epic limit');
+      }
     }
 
     return validatedAnalysis;
@@ -258,18 +337,21 @@ Please provide your analysis in the following JSON format:
   private getFallbackAnalysis(task: AtomicTask, context: ProjectContext): AtomicityAnalysis {
     logger.warn({ taskId: task.id }, 'Using fallback atomic analysis');
 
-    // Simple heuristic-based analysis
-    const isLikelyAtomic = task.estimatedHours <= 4 &&
-                          task.filePaths.length <= 3 &&
-                          task.acceptanceCriteria.length >= 2;
+    // Simple heuristic-based analysis with updated atomic criteria
+    const isLikelyAtomic = task.estimatedHours <= 0.17 && // 10 minutes max
+                          task.estimatedHours >= 0.08 && // 5 minutes min
+                          task.filePaths.length <= 2 &&
+                          task.acceptanceCriteria.length === 1 && // Exactly one criteria
+                          !task.title.toLowerCase().includes(' and ') &&
+                          !task.description.toLowerCase().includes(' and ');
 
     return {
       isAtomic: isLikelyAtomic,
       confidence: 0.4, // Low confidence for fallback
-      reasoning: 'Fallback analysis based on simple heuristics due to LLM analysis failure',
-      estimatedHours: task.estimatedHours,
+      reasoning: 'Fallback analysis based on atomic task heuristics due to LLM analysis failure',
+      estimatedHours: Math.max(0.08, Math.min(0.17, task.estimatedHours)), // Clamp to 5-10 minutes
       complexityFactors: ['LLM analysis unavailable'],
-      recommendations: ['Manual review recommended due to analysis failure']
+      recommendations: ['Manual review recommended due to analysis failure', 'Verify task meets 5-10 minute atomic criteria']
     };
   }
 }

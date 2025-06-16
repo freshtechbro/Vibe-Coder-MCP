@@ -3,6 +3,7 @@ import { getTaskOperations } from '../core/operations/task-operations.js';
 import { DecompositionService, DecompositionRequest } from './decomposition-service.js';
 import { ProjectContext } from '../core/atomic-detector.js';
 import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
+import { ProjectAnalyzer } from '../utils/project-analyzer.js';
 import { FileOperationResult } from '../utils/file-utils.js';
 import logger from '../../../logger.js';
 
@@ -539,12 +540,16 @@ export class TaskRefinementService {
         throw new Error('Failed to initialize decomposition service');
       }
 
-      // Build project context
+      // Build project context with dynamic detection
+      const languages = await this.getProjectLanguages(task.projectId);
+      const frameworks = await this.getProjectFrameworks(task.projectId);
+      const tools = await this.getProjectTools(task.projectId);
+
       const context: ProjectContext = {
         projectId: task.projectId,
-        languages: this.getProjectLanguages(task.projectId), // Get from project config
-        frameworks: this.getProjectFrameworks(task.projectId), // Get from project config
-        tools: this.getProjectTools(task.projectId), // Get from project config
+        languages, // Dynamic detection using existing 35+ language infrastructure
+        frameworks, // Dynamic detection using existing language handler methods
+        tools, // Dynamic detection using Context Curator patterns
         existingTasks: [],
         codebaseSize: this.determineCodebaseSize(task.projectId), // Determine from project
         teamSize: this.getTeamSize(task.projectId), // Get from project config
@@ -756,30 +761,57 @@ export class TaskRefinementService {
    */
 
   /**
-   * Get project languages from project configuration
-   * Returns default languages - could be enhanced to fetch from project storage
+   * Get project languages using dynamic detection
+   * Uses ProjectAnalyzer to detect languages from actual project structure
    */
-  private getProjectLanguages(projectId: string): string[] {
-    // Default implementation returns sensible defaults based on common project types
-    return ['typescript', 'javascript'];
+  private async getProjectLanguages(projectId: string): Promise<string[]> {
+    try {
+      const projectAnalyzer = ProjectAnalyzer.getInstance();
+      const projectPath = process.cwd(); // Default to current working directory
+
+      const languages = await projectAnalyzer.detectProjectLanguages(projectPath);
+      logger.debug({ projectId, languages }, 'Detected project languages for refinement');
+      return languages;
+    } catch (error) {
+      logger.warn({ error, projectId }, 'Language detection failed in refinement service, using fallback');
+      return ['typescript', 'javascript']; // fallback
+    }
   }
 
   /**
-   * Get project frameworks from project configuration
-   * Returns default frameworks - could be enhanced to fetch from project storage
+   * Get project frameworks using dynamic detection
+   * Uses ProjectAnalyzer to detect frameworks from actual project structure
    */
-  private getProjectFrameworks(projectId: string): string[] {
-    // Default implementation returns sensible defaults
-    return ['node.js'];
+  private async getProjectFrameworks(projectId: string): Promise<string[]> {
+    try {
+      const projectAnalyzer = ProjectAnalyzer.getInstance();
+      const projectPath = process.cwd(); // Default to current working directory
+
+      const frameworks = await projectAnalyzer.detectProjectFrameworks(projectPath);
+      logger.debug({ projectId, frameworks }, 'Detected project frameworks for refinement');
+      return frameworks;
+    } catch (error) {
+      logger.warn({ error, projectId }, 'Framework detection failed in refinement service, using fallback');
+      return ['node.js']; // fallback
+    }
   }
 
   /**
-   * Get project tools from project configuration
-   * Returns default tools - could be enhanced to fetch from project storage
+   * Get project tools using dynamic detection
+   * Uses ProjectAnalyzer to detect tools from actual project structure
    */
-  private getProjectTools(projectId: string): string[] {
-    // Default implementation returns sensible defaults
-    return ['vitest', 'npm'];
+  private async getProjectTools(projectId: string): Promise<string[]> {
+    try {
+      const projectAnalyzer = ProjectAnalyzer.getInstance();
+      const projectPath = process.cwd(); // Default to current working directory
+
+      const tools = await projectAnalyzer.detectProjectTools(projectPath);
+      logger.debug({ projectId, tools }, 'Detected project tools for refinement');
+      return tools;
+    } catch (error) {
+      logger.warn({ error, projectId }, 'Tools detection failed in refinement service, using fallback');
+      return ['vitest', 'npm']; // fallback
+    }
   }
 
   /**
