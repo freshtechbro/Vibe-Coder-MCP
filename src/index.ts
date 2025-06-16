@@ -13,6 +13,7 @@ import { OpenRouterConfig } from './types/workflow.js'; // Import OpenRouterConf
 import { ToolRegistry } from './services/routing/toolRegistry.js'; // Import ToolRegistry to initialize it properly
 import { sseNotifier } from './services/sse-notifier/index.js'; // Import the SSE notifier singleton
 import { transportManager } from './services/transport-manager/index.js'; // Import transport manager singleton
+import { PortAllocator } from './utils/port-allocator.js'; // Import port allocator for cleanup
 
 // Import createServer *after* tool imports to ensure proper initialization order
 import { createServer } from "./server.js";
@@ -51,11 +52,23 @@ const useSSE = args.includes('--sse');
 async function main(mcpServer: import("@modelcontextprotocol/sdk/server/mcp.js").McpServer) {
   try {
     if (useSSE) {
-      // Set up Express server for SSE
+      // Set up Express server for SSE with dynamic port allocation
       const app = express();
       app.use(cors());
       app.use(express.json());
-      const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+      // Get allocated SSE port from Transport Manager, fallback to environment or default
+      const allocatedSsePort = transportManager.getServicePort('sse');
+      const port = allocatedSsePort ||
+                   (process.env.SSE_PORT ? parseInt(process.env.SSE_PORT) : undefined) ||
+                   (process.env.PORT ? parseInt(process.env.PORT) : 3000);
+
+      logger.debug({
+        allocatedSsePort,
+        envSsePort: process.env.SSE_PORT,
+        envPort: process.env.PORT,
+        finalPort: port
+      }, 'SSE server port selection');
 
       // Add a health endpoint
       app.get('/health', (req: express.Request, res: express.Response) => {
@@ -127,7 +140,11 @@ async function main(mcpServer: import("@modelcontextprotocol/sdk/server/mcp.js")
       });
 
       app.listen(port, () => {
-        logger.info(`Vibe Coder MCP server running on http://localhost:${port}`);
+        logger.info({
+          port,
+          allocatedByTransportManager: !!allocatedSsePort,
+          source: allocatedSsePort ? 'Transport Manager' : 'Environment/Default'
+        }, `Vibe Coder MCP SSE server running on http://localhost:${port}`);
          logger.info('Connect using SSE at /sse and post messages to /messages');
          logger.info('Subscribe to job progress events at /events/:sessionId'); // Log new endpoint
        });
@@ -145,11 +162,21 @@ async function main(mcpServer: import("@modelcontextprotocol/sdk/server/mcp.js")
        // --- End new SSE endpoint ---
 
      } else {
+      // Set environment variable to indicate stdio transport is being used
+      process.env.MCP_TRANSPORT = 'stdio';
+
+      // Override console methods to prevent stdout contamination in stdio mode
+      // Redirect all console output to stderr when using stdio transport
+      console.log = (...args: any[]) => process.stderr.write(args.join(' ') + '\n');
+      console.info = (...args: any[]) => process.stderr.write('[INFO] ' + args.join(' ') + '\n');
+      console.warn = (...args: any[]) => process.stderr.write('[WARN] ' + args.join(' ') + '\n');
+      console.error = (...args: any[]) => process.stderr.write('[ERROR] ' + args.join(' ') + '\n');
+
       // Use stdio transport with session ID
       const stdioSessionId = 'stdio-session';
       const transport = new StdioServerTransport();
 
-      // Log the session ID
+      // Log the session ID (this will now go to stderr due to our logger fix)
       logger.info({ sessionId: stdioSessionId }, 'Initialized stdio transport with session ID');
 
       // We'll pass the session ID and transport type in the context when handling messages
@@ -269,13 +296,56 @@ async function initializeApp() {
   await initDirectories(); // Initialize tool directories
   await initializeToolEmbeddings(); // Initialize embeddings
 
+  // Check for other running vibe-coder-mcp instances
+  try {
+    logger.info('Checking for other running vibe-coder-mcp instances...');
+    const commonPorts = [8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8089, 8090];
+    const portsInUse: number[] = [];
+
+    for (const port of commonPorts) {
+      const isAvailable = await PortAllocator.findAvailablePort(port);
+      if (!isAvailable) {
+        portsInUse.push(port);
+      }
+    }
+
+    if (portsInUse.length > 0) {
+      logger.warn({
+        portsInUse,
+        message: 'Detected ports in use that may indicate other vibe-coder-mcp instances running'
+      }, 'Multiple instance detection warning');
+    } else {
+      logger.info('No conflicting instances detected on common ports');
+    }
+  } catch (error) {
+    logger.warn({ err: error }, 'Instance detection failed, continuing with startup');
+  }
+
+  // Cleanup orphaned ports from previous crashed instances
+  try {
+    logger.info('Starting port cleanup for orphaned processes...');
+    const cleanedPorts = await PortAllocator.cleanupOrphanedPorts();
+    logger.info({ cleanedPorts }, 'Port cleanup completed');
+  } catch (error) {
+    logger.warn({ err: error }, 'Port cleanup failed, continuing with startup');
+  }
+
+  // Configure transport services with dynamic port allocation
+  // Enable all transports for comprehensive agent communication
+  transportManager.configure({
+    websocket: { enabled: true, port: 8080, path: '/agent-ws' },
+    http: { enabled: true, port: 3011, cors: true },
+    sse: { enabled: true },
+    stdio: { enabled: true }
+  });
+
   // Start transport services for agent communication
   try {
     await transportManager.startAll();
-    logger.info('Transport services started successfully');
+    logger.info('All transport services started successfully with dynamic port allocation');
   } catch (error) {
     logger.error({ err: error }, 'Failed to start transport services');
-    // Don't throw - allow application to continue with stdio/SSE only
+    // Don't throw - allow application to continue with available transports
   }
 
   logger.info('Application initialization complete.');
