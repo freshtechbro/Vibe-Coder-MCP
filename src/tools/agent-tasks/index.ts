@@ -11,15 +11,33 @@ import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
 import { z } from 'zod';
 
-// Task assignment interface
+// Unified task assignment interface (compatible with agent-orchestrator)
 export interface TaskAssignment {
+  /** Assignment ID */
+  id?: string;
+
+  /** Task ID being assigned */
   taskId: string;
+
+  /** Agent ID receiving the assignment */
   agentId: string;
+
+  /** Sentinel protocol payload for agent communication */
   sentinelPayload: string;
+
+  /** Assignment timestamp (number for backward compatibility) */
   assignedAt: number;
+
+  /** Assignment priority */
   priority: 'low' | 'normal' | 'high' | 'urgent';
+
+  /** Estimated duration in milliseconds */
   estimatedDuration?: number;
+
+  /** Assignment deadline */
   deadline?: number;
+
+  /** Assignment metadata */
   metadata?: Record<string, any>;
 }
 
