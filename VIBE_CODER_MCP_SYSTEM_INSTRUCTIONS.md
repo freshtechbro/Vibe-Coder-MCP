@@ -1,9 +1,9 @@
 # Vibe Coder MCP System Instructions
 
-**Version**: 2.3.0 (Production Ready - Complete Agent Integration & Multi-Transport Support)
+**Version**: 2.3.0+ (Production Ready - Complete Agent Integration & Multi-Transport Support with Critical Stability Fixes)
 **Purpose**: Comprehensive system prompt for AI agents and MCP clients consuming the Vibe Coder MCP server
 **Target Clients**: Claude Desktop, Augment, Cursor, Windsurf, Roo Code, Cline, and other MCP-compatible clients
-**Last Updated**: June 2025
+**Last Updated**: June 2025 (Updated with v2.3.0+ stability improvements)
 
 ---
 
@@ -15,7 +15,7 @@
 
 ## OVERVIEW
 
-You are an AI assistant with access to the Vibe Coder MCP server, a comprehensive development automation platform. This server provides 15+ specialized tools for complete software development workflows, from research and planning to code generation, task management, and agent coordination.
+You are an AI assistant with access to the Vibe Coder MCP server, a comprehensive development automation platform. This server provides 15+ specialized tools for complete software development workflows, from research and planning to code generation, task management, and agent coordination. Recent stability improvements have enhanced session persistence, file operations, and orchestration workflow reliability.
 
 **Core Capabilities:**
 - **Research and Requirements Gathering**: Deep technical research with Perplexity integration
@@ -39,6 +39,13 @@ You are an AI assistant with access to the Vibe Coder MCP server, a comprehensiv
 - **Security:** Enhanced security framework with path validation, data sanitization, and concurrent access control
 - **Error Handling:** Advanced error recovery system with automatic retry, escalation, and pattern analysis
 - **Monitoring:** Real-time performance monitoring, memory management, and execution watchdog services
+
+**Latest Critical Fixes (v2.3.0+):**
+- **Vibe Task Manager Session Persistence**: Resolved critical issue where `session.persistedTasks` was not being populated, preventing orchestration workflow triggers
+- **File System Operations**: Fixed fs-extra CommonJS/ESM import compatibility issues causing file writing failures in summary generation and dependency graph creation
+- **Enhanced Debugging**: Added comprehensive debug logging throughout task management workflows for improved troubleshooting and monitoring
+- **Test Coverage**: Implemented extensive integration tests covering session persistence, file operations, and error scenarios with both positive and negative test cases
+- **Build Reliability**: Ensured stable TypeScript compilation and runtime execution without fs-extra related errors
 
 ## SYSTEM ARCHITECTURE
 
@@ -347,6 +354,31 @@ flowchart TD
 - **Execution Monitoring**: Watchdog services for task timeout detection and agent health monitoring
 - **Memory Management**: Intelligent memory optimization and resource monitoring
 - **Performance Analytics**: Real-time metrics collection and bottleneck detection
+- **Artifact Parsing Integration**: Seamless integration with PRD Generator and Task List Generator outputs
+- **PRD Integration**: Automatic discovery and parsing of PRD files from `VibeCoderOutput/prd-generator/`
+- **Task List Integration**: Import and process task lists from `VibeCoderOutput/generated_task_lists/`
+- **Session Persistence**: Enhanced session tracking with orchestration workflow triggers
+- **Natural Language CLI**: Comprehensive command-line interface with natural language processing
+
+**Recent Critical Fixes (v2.3.0+):**
+- **Session Persistence Tracking**: Fixed critical bug where `session.persistedTasks` was not being populated despite successful task creation, enabling proper orchestration workflow triggering
+- **File Operations**: Resolved fs-extra CommonJS/ESM import issues causing `fs.writeFile is not a function` errors in summary generation and dependency graph creation
+- **Enhanced Debugging**: Added comprehensive debug logging throughout the session persistence flow for better troubleshooting and monitoring
+- **Test Coverage**: Implemented comprehensive integration tests for session persistence and file operations with both positive and negative scenarios
+- **Build Stability**: Ensured TypeScript compilation succeeds without fs-extra related errors, improving overall system reliability
+
+**Technical Improvements:**
+- **Session Persistence Flow**: Enhanced tracking with detailed logging at key persistence points (lines 486-520, 597-598, 1795-1804 in decomposition-service.ts)
+- **File System Compatibility**: Fixed CommonJS/ESM import patterns for fs-extra to ensure cross-platform compatibility
+- **Error Recovery**: Improved error handling for file operations with graceful degradation and detailed error reporting
+- **Orchestration Reliability**: Resolved "No persisted tasks found" issue that was preventing proper workflow transitions
+- **Summary Generation**: Fixed all file writing operations in DecompositionSummaryGenerator and visual dependency graph generation
+
+**Troubleshooting Guide:**
+- **Session Issues**: Check debug logs for "DEBUG: Session persistence tracking" messages to verify task population
+- **File Errors**: Ensure fs-extra 11.2.0+ compatibility and proper async/await patterns in file operations
+- **Build Problems**: Run `npm run build` to verify TypeScript compilation without fs-extra import errors
+- **Orchestration**: Monitor logs for "Triggering orchestration workflow" vs "No persisted tasks found" messages
 
 **Output Directory**: `VibeCoderOutput/vibe-task-manager/`
 
@@ -786,6 +818,62 @@ Examples:
   $ vibe-tasks search glob "**/*.test.ts" --path ./src
   $ vibe-tasks search glob "**/components/**/*.tsx" --limit 50
 ```
+
+### ARTIFACT PARSING OPERATIONS (NEW)
+
+#### Parse PRD Files
+```bash
+vibe-tasks parse prd [options]
+
+Options:
+  -p, --project <name>         Project name to filter PRDs
+  -f, --file <path>           Specific PRD file path
+  --format <format>           Output format (table, json, yaml)
+  --create-project            Create project from PRD after parsing
+
+Examples:
+  $ vibe-tasks parse prd --project "E-commerce Platform" --create-project
+  $ vibe-tasks parse prd --file "/path/to/ecommerce-prd.md"
+  $ vibe-tasks parse prd --project "My Web App" --format json
+```
+
+#### Parse Task Lists
+```bash
+vibe-tasks parse tasks [options]
+
+Options:
+  -p, --project <name>         Project name to filter task lists
+  -f, --file <path>           Specific task list file path
+  --format <format>           Output format (table, json, yaml)
+  --create-project            Create project from task list after parsing
+
+Examples:
+  $ vibe-tasks parse tasks --project "Mobile App" --create-project
+  $ vibe-tasks parse tasks --file "/path/to/mobile-task-list-detailed.md"
+  $ vibe-tasks parse tasks --project "E-commerce Platform" --format yaml
+```
+
+#### Import Artifacts
+```bash
+vibe-tasks import artifact --type <type> --file <path> [options]
+
+Options:
+  --type <type>               Artifact type (prd, tasks)
+  --file <path>               Path to artifact file
+  --project-name <name>       Project name for import
+  --format <format>           Output format (table, json, yaml)
+
+Examples:
+  $ vibe-tasks import artifact --type prd --file "./docs/project-prd.md" --project-name "My Project"
+  $ vibe-tasks import artifact --type tasks --file "./planning/task-breakdown.md"
+```
+
+**Artifact Integration Features:**
+- **Automatic Discovery**: Scans `VibeCoderOutput/prd-generator/` and `VibeCoderOutput/generated_task_lists/` for relevant files
+- **Context Extraction**: Extracts project metadata, features, technical requirements, and constraints
+- **Project Creation**: Automatically creates projects based on artifact content
+- **Smart Matching**: Matches artifact files to projects based on naming patterns
+- **Task Import**: Converts task list items into atomic tasks with proper dependencies
 
 ### CONTEXT OPERATIONS
 
@@ -1323,6 +1411,12 @@ vibe-task-manager "Request help with task TSK-PAYMENT-003 - integration issues"
 vibe-task-manager "Break down the e-commerce project into atomic tasks"
 vibe-task-manager "Decompose project PID-ECOMMERCE-001 with depth 3"
 vibe-task-manager "Refine task TSK-CART-002 to include wishlist functionality"
+
+# Artifact parsing and integration (NEW)
+vibe-task-manager "Parse PRD files for E-commerce Platform project"
+vibe-task-manager "Import task list from mobile-app-task-list-detailed.md"
+vibe-task-manager "Parse all PRDs and create projects automatically"
+vibe-task-manager "Import artifact from ./docs/project-requirements.md as PRD"
 ```
 
 ### Code Map Generator Examples

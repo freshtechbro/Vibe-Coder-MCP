@@ -17,12 +17,15 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 *   **Session State Management**: Maintains context across requests within sessions
 
 ### 🧠 **AI-Native Task Management**
-*   **Vibe Task Manager**: Production-ready task management with 99.9% test success rate and comprehensive integration
+*   **Vibe Task Manager**: Production-ready task management with 99.9% test success rate and comprehensive integration *(Functional but actively being enhanced)*
 *   **Natural Language Processing**: 6 core intents with multi-strategy recognition (pattern matching + LLM fallback)
 *   **Recursive Decomposition Design (RDD)**: Intelligent project breakdown into atomic tasks
 *   **Agent Orchestration**: Multi-agent coordination with capability mapping, load balancing, and real-time status synchronization
 *   **Multi-Transport Agent Support**: Full integration across stdio, SSE, WebSocket, and HTTP transports
 *   **Real Storage Integration**: Zero mock code policy - all production integrations
+*   **Artifact Parsing Integration**: Seamless integration with PRD Generator and Task List Generator outputs
+*   **Session Persistence**: Enhanced session tracking with orchestration workflow triggers
+*   **Comprehensive CLI**: Natural language command-line interface with extensive functionality
 
 ### 🔍 **Advanced Code Analysis & Context Curation**
 *   **Code Map Generator**: 35+ programming language support with 95-97% token reduction optimization
@@ -846,10 +849,15 @@ Interact with the tools via your connected AI assistant:
 
 The Vibe Task Manager is a comprehensive task management system designed specifically for AI agents and development workflows. It provides intelligent project decomposition, natural language command processing, and seamless integration with other Vibe Coder tools.
 
+**Status**: Functional and production-ready with 99.9% test success rate, but actively being enhanced with new features and improvements.
+
 ### Key Features
 
 *   **Natural Language Processing**: Understands commands like "Create a project for building a React app" or "Show me all pending tasks"
 *   **Recursive Decomposition Design (RDD)**: Automatically breaks down complex projects into atomic, executable tasks
+*   **Artifact Parsing Integration**: Seamlessly imports PRD files from `VibeCoderOutput/prd-generator/` and task lists from `VibeCoderOutput/generated_task_lists/`
+*   **Session Persistence**: Enhanced session tracking with orchestration workflow triggers for reliable multi-step operations
+*   **Comprehensive CLI**: Full command-line interface with natural language processing and structured commands
 *   **Agent Orchestration**: Coordinates multiple AI agents for parallel task execution
 *   **Integration Ready**: Works seamlessly with Code Map Generator, Research Manager, and other tools
 *   **File Storage**: All project data stored in `VibeCoderOutput/vibe-task-manager/` following established conventions
@@ -899,6 +907,9 @@ The Vibe Task Manager supports both structured commands and natural language:
 - "Show me all [status] projects"
 - "Run the [task name] task"
 - "What's the status of [project]?"
+- "Parse PRD files for [project name]" *(NEW)*
+- "Import task list from [file path]" *(NEW)*
+- "Parse all PRDs and create projects automatically" *(NEW)*
 
 For complete documentation, see `src/tools/vibe-task-manager/README.md` and the system instructions in `VIBE_CODER_MCP_SYSTEM_INSTRUCTIONS.md`.
 
@@ -952,10 +963,11 @@ gantt
 ### Tool-Specific Status
 
 #### Vibe Task Manager
-* **Status**: Production Ready
+* **Status**: Production Ready (Functional but actively being enhanced)
 * **Test Coverage**: 99.9%
-* **Features**: RDD methodology, agent orchestration, natural language processing
+* **Features**: RDD methodology, agent orchestration, natural language processing, artifact parsing, session persistence, comprehensive CLI
 * **Performance**: <50ms response time for task operations
+* **Recent Additions**: PRD/task list integration, enhanced session tracking, orchestration workflows
 
 #### Code Map Generator
 * **Status**: Production Ready with Advanced Features
