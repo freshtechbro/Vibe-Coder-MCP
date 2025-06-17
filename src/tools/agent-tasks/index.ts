@@ -44,15 +44,54 @@ export interface TaskAssignment {
 // Task queue manager singleton
 class AgentTaskQueue {
   private static instance: AgentTaskQueue;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
   private queues = new Map<string, TaskAssignment[]>(); // agentId -> tasks
   private taskHistory = new Map<string, TaskAssignment>(); // taskId -> task
   private assignmentCounter = 0;
 
   static getInstance(): AgentTaskQueue {
+    if (AgentTaskQueue.isInitializing) {
+      console.warn('Circular initialization detected in AgentTaskQueue, using safe fallback');
+      return AgentTaskQueue.createSafeFallback();
+    }
+
     if (!AgentTaskQueue.instance) {
-      AgentTaskQueue.instance = new AgentTaskQueue();
+      AgentTaskQueue.isInitializing = true;
+      try {
+        AgentTaskQueue.instance = new AgentTaskQueue();
+      } finally {
+        AgentTaskQueue.isInitializing = false;
+      }
     }
     return AgentTaskQueue.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentTaskQueue {
+    const fallback = Object.create(AgentTaskQueue.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.queues = new Map();
+    fallback.taskHistory = new Map();
+    fallback.assignmentCounter = 0;
+
+    // Provide safe no-op methods
+    fallback.assignTask = async () => {
+      console.warn('AgentTaskQueue fallback: assignTask called during initialization');
+      return null;
+    };
+    fallback.getTasks = async () => {
+      console.warn('AgentTaskQueue fallback: getTasks called during initialization');
+      return [];
+    };
+    fallback.getQueueLength = async () => {
+      console.warn('AgentTaskQueue fallback: getQueueLength called during initialization');
+      return 0;
+    };
+
+    return fallback;
   }
 
   async addTask(agentId: string, task: Omit<TaskAssignment, 'taskId' | 'assignedAt'>): Promise<string> {

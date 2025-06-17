@@ -9,6 +9,7 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
 import { transportManager } from '../../services/transport-manager/index.js';
+import { InitializationMonitor } from '../../utils/initialization-monitor.js';
 import { z } from 'zod';
 
 // Agent registration interface
@@ -33,16 +34,70 @@ export interface AgentRegistration {
 // Agent registry singleton
 class AgentRegistry {
   private static instance: AgentRegistry;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
   private agents = new Map<string, AgentRegistration>();
   private sessionToAgent = new Map<string, string>(); // sessionId -> agentId mapping
   private integrationBridge: any; // Lazy loaded to avoid circular dependencies
   private isBridgeRegistration = false; // Flag to prevent circular registration
 
   static getInstance(): AgentRegistry {
+    if (AgentRegistry.isInitializing) {
+      console.warn('Circular initialization detected in AgentRegistry, using safe fallback');
+      return AgentRegistry.createSafeFallback();
+    }
+
     if (!AgentRegistry.instance) {
-      AgentRegistry.instance = new AgentRegistry();
+      const monitor = InitializationMonitor.getInstance();
+      monitor.startServiceInitialization('AgentRegistry', [
+        'SSENotifier',
+        'TransportManager'
+      ]);
+
+      AgentRegistry.isInitializing = true;
+      try {
+        monitor.startPhase('AgentRegistry', 'constructor');
+        AgentRegistry.instance = new AgentRegistry();
+        monitor.endPhase('AgentRegistry', 'constructor');
+
+        monitor.endServiceInitialization('AgentRegistry');
+      } catch (error) {
+        monitor.endPhase('AgentRegistry', 'constructor', error as Error);
+        monitor.endServiceInitialization('AgentRegistry', error as Error);
+        throw error;
+      } finally {
+        AgentRegistry.isInitializing = false;
+      }
     }
     return AgentRegistry.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentRegistry {
+    const fallback = Object.create(AgentRegistry.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.agents = new Map();
+    fallback.sessionToAgent = new Map();
+    fallback.integrationBridge = null;
+    fallback.isBridgeRegistration = false;
+
+    // Provide safe no-op methods
+    fallback.registerAgent = async () => {
+      console.warn('AgentRegistry fallback: registerAgent called during initialization');
+      return { success: false, message: 'Registry initializing' };
+    };
+    fallback.getAgent = async () => {
+      console.warn('AgentRegistry fallback: getAgent called during initialization');
+      return null;
+    };
+    fallback.getOnlineAgents = async () => {
+      console.warn('AgentRegistry fallback: getOnlineAgents called during initialization');
+      return [];
+    };
+
+    return fallback;
   }
 
   /**

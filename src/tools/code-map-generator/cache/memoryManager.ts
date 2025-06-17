@@ -6,6 +6,8 @@
 import os from 'os';
 import v8 from 'v8';
 import logger from '../../../logger.js';
+import { RecursionGuard } from '../../../utils/recursion-guard.js';
+import { InitializationMonitor } from '../../../utils/initialization-monitor.js';
 import { MemoryCache, MemoryCacheStats } from './memoryCache.js';
 import { GrammarManager } from './grammarManager.js';
 import { Tree, SyntaxNode } from '../parser.js';
@@ -306,11 +308,14 @@ export class MemoryManager {
       return;
     }
 
-    this.monitorTimer = setInterval(() => {
-      this.checkMemoryUsage();
+    this.monitorTimer = setInterval(async () => {
+      await this.checkMemoryUsage();
     }, this.options.monitorInterval);
 
-    logger.debug(`Started memory monitoring with interval: ${this.options.monitorInterval}ms`);
+    // Defer logging to prevent recursion during initialization
+    setImmediate(() => {
+      logger.debug(`Started memory monitoring with interval: ${this.options.monitorInterval}ms`);
+    });
   }
 
   /**
@@ -367,18 +372,35 @@ export class MemoryManager {
   /**
    * Checks memory usage and prunes caches if necessary.
    */
-  private checkMemoryUsage(): void {
-    const stats = this.getMemoryStats();
-    const heapUsed = stats.raw.heapStats.used_heap_size;
-    const heapLimit = stats.raw.heapStats.heap_size_limit;
-    const heapPercentage = heapUsed / heapLimit;
+  private async checkMemoryUsage(): Promise<void> {
+    const result = await RecursionGuard.executeWithRecursionGuard(
+      'MemoryManager.checkMemoryUsage',
+      () => {
+        const stats = this.getMemoryStats();
+        const heapUsed = stats.raw.heapStats.used_heap_size;
+        const heapLimit = stats.raw.heapStats.heap_size_limit;
+        const heapPercentage = heapUsed / heapLimit;
 
-    logger.debug(`Memory usage: ${this.formatBytes(heapUsed)} / ${this.formatBytes(heapLimit)} (${(heapPercentage * 100).toFixed(2)}%)`);
+        logger.debug(`Memory usage: ${this.formatBytes(heapUsed)} / ${this.formatBytes(heapLimit)} (${(heapPercentage * 100).toFixed(2)}%)`);
 
-    // Check if we need to prune
-    if (heapPercentage > this.options.pruneThreshold) {
-      logger.info(`Memory usage exceeds threshold (${(this.options.pruneThreshold * 100).toFixed(2)}%), pruning caches...`);
-      this.pruneCaches();
+        // Check if we need to prune
+        if (heapPercentage > this.options.pruneThreshold) {
+          logger.info(`Memory usage exceeds threshold (${(this.options.pruneThreshold * 100).toFixed(2)}%), pruning caches...`);
+          this.pruneCaches();
+        }
+      },
+      {
+        maxDepth: 3,
+        enableLogging: false, // Disable logging to prevent recursion
+        executionTimeout: 5000
+      },
+      `instance_${this.constructor.name}_${Date.now()}`
+    );
+
+    if (!result.success && result.recursionDetected) {
+      logger.warn('Memory usage check skipped due to recursion detection');
+    } else if (!result.success && result.error) {
+      logger.error({ err: result.error }, 'Memory usage check failed');
     }
   }
 
@@ -426,6 +448,13 @@ export class MemoryManager {
    * @returns The memory statistics
    */
   public getMemoryStats(): MemoryStats {
+    // Use synchronous recursion guard to prevent infinite loops
+    if (RecursionGuard.isMethodExecuting('MemoryManager.getMemoryStats')) {
+      logger.debug('Memory stats request skipped due to recursion detection');
+      // Return minimal safe stats
+      return this.createFallbackMemoryStats();
+    }
+
     const totalMemory = os.totalmem();
     const freeMemory = os.freemem();
     const memoryUsage = (totalMemory - freeMemory) / totalMemory;
@@ -664,5 +693,245 @@ export class MemoryManager {
     if (afterStats.formatted.memoryStatus !== 'normal') {
       logger.warn(`Memory usage is still ${afterStats.formatted.memoryStatus} after cleanup. Consider restarting the process.`);
     }
+  }
+
+  /**
+   * Detect memory pressure levels
+   */
+  public detectMemoryPressure(): {
+    level: 'normal' | 'moderate' | 'high' | 'critical';
+    heapUsagePercentage: number;
+    systemMemoryPercentage: number;
+    recommendations: string[];
+  } {
+    const stats = this.getMemoryStats();
+    const heapUsed = stats.raw.heapStats.used_heap_size;
+    const heapLimit = stats.raw.heapStats.heap_size_limit;
+    const heapPercentage = heapUsed / heapLimit;
+
+    const systemUsed = stats.raw.totalSystemMemory - stats.raw.freeSystemMemory;
+    const systemPercentage = systemUsed / stats.raw.totalSystemMemory;
+
+    let level: 'normal' | 'moderate' | 'high' | 'critical' = 'normal';
+    const recommendations: string[] = [];
+
+    if (heapPercentage > 0.95 || systemPercentage > 0.95) {
+      level = 'critical';
+      recommendations.push('Immediate emergency cleanup required');
+      recommendations.push('Consider restarting the process');
+      recommendations.push('Reduce cache sizes aggressively');
+    } else if (heapPercentage > 0.85 || systemPercentage > 0.85) {
+      level = 'high';
+      recommendations.push('Aggressive cache pruning recommended');
+      recommendations.push('Reduce concurrent operations');
+      recommendations.push('Monitor memory usage closely');
+    } else if (heapPercentage > 0.7 || systemPercentage > 0.7) {
+      level = 'moderate';
+      recommendations.push('Consider cache pruning');
+      recommendations.push('Monitor memory trends');
+    } else {
+      recommendations.push('Memory usage is within normal limits');
+    }
+
+    return {
+      level,
+      heapUsagePercentage: heapPercentage * 100,
+      systemMemoryPercentage: systemPercentage * 100,
+      recommendations
+    };
+  }
+
+  /**
+   * Emergency cleanup for critical memory situations
+   */
+  public async emergencyCleanup(): Promise<{
+    success: boolean;
+    freedMemory: number;
+    actions: string[];
+    error?: string;
+  }> {
+    const beforeStats = this.getMemoryStats();
+    const actions: string[] = [];
+
+    try {
+      logger.warn('Emergency memory cleanup initiated', {
+        heapUsed: this.formatBytes(beforeStats.raw.heapStats.used_heap_size),
+        heapLimit: this.formatBytes(beforeStats.raw.heapStats.heap_size_limit)
+      });
+
+      // 1. Clear all caches aggressively
+      for (const [name, cache] of this.caches.entries()) {
+        const beforeSize = cache.getSize();
+        cache.clear();
+        actions.push(`Cleared cache '${name}' (${beforeSize} items)`);
+      }
+
+      // 2. Clear grammar manager caches if available
+      if (this.grammarManager) {
+        try {
+          (this.grammarManager as any).clearAllCaches?.();
+          actions.push('Cleared grammar manager caches');
+        } catch (error) {
+          logger.warn({ err: error }, 'Failed to clear grammar manager caches');
+        }
+      }
+
+      // 3. Force garbage collection if available
+      if (global.gc) {
+        global.gc();
+        actions.push('Forced garbage collection');
+      } else {
+        actions.push('Garbage collection not available (run with --expose-gc)');
+      }
+
+      // 4. Clear require cache for non-essential modules
+      const requireCache = require.cache;
+      let clearedModules = 0;
+      for (const key in requireCache) {
+        // Only clear non-essential modules (avoid core modules)
+        if (key.includes('node_modules') &&
+            !key.includes('logger') &&
+            !key.includes('core')) {
+          delete requireCache[key];
+          clearedModules++;
+        }
+      }
+      if (clearedModules > 0) {
+        actions.push(`Cleared ${clearedModules} modules from require cache`);
+      }
+
+      // 5. Wait a moment for cleanup to take effect
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const afterStats = this.getMemoryStats();
+      const freedMemory = beforeStats.raw.heapStats.used_heap_size - afterStats.raw.heapStats.used_heap_size;
+
+      logger.info('Emergency cleanup completed', {
+        freedMemory: this.formatBytes(freedMemory),
+        actions: actions.length,
+        newHeapUsage: this.formatBytes(afterStats.raw.heapStats.used_heap_size)
+      });
+
+      return {
+        success: true,
+        freedMemory,
+        actions
+      };
+
+    } catch (error) {
+      logger.error({ err: error }, 'Emergency cleanup failed');
+
+      return {
+        success: false,
+        freedMemory: 0,
+        actions,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
+  /**
+   * Check if emergency cleanup is needed and execute if necessary
+   */
+  public async checkAndExecuteEmergencyCleanup(): Promise<boolean> {
+    const pressure = this.detectMemoryPressure();
+
+    if (pressure.level === 'critical') {
+      logger.warn('Critical memory pressure detected, executing emergency cleanup', {
+        heapUsage: pressure.heapUsagePercentage,
+        systemUsage: pressure.systemMemoryPercentage
+      });
+
+      const result = await this.emergencyCleanup();
+
+      if (result.success) {
+        logger.info('Emergency cleanup successful', {
+          freedMemory: this.formatBytes(result.freedMemory),
+          actions: result.actions
+        });
+        return true;
+      } else {
+        logger.error('Emergency cleanup failed', {
+          error: result.error,
+          actions: result.actions
+        });
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Creates fallback memory stats to prevent recursion
+   */
+  private createFallbackMemoryStats(): MemoryStats {
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+
+    return {
+      raw: {
+        totalSystemMemory: totalMemory,
+        freeSystemMemory: freeMemory,
+        memoryUsagePercentage: (totalMemory - freeMemory) / totalMemory,
+        processMemory: {
+          rss: 0,
+          heapTotal: 0,
+          heapUsed: 0,
+          external: 0,
+          arrayBuffers: 0
+        },
+        heapStats: {
+          total_heap_size: 0,
+          total_heap_size_executable: 0,
+          total_physical_size: 0,
+          total_available_size: 0,
+          used_heap_size: 0,
+          heap_size_limit: 0,
+          malloced_memory: 0,
+          peak_malloced_memory: 0,
+          does_zap_garbage: 0,
+          number_of_native_contexts: 0,
+          number_of_detached_contexts: 0,
+          total_global_handles_size: 0,
+          used_global_handles_size: 0,
+          external_memory: 0
+        },
+        heapSpaceStats: []
+      },
+      formatted: {
+        totalSystemMemory: this.formatBytes(totalMemory),
+        freeSystemMemory: this.formatBytes(freeMemory),
+        usedSystemMemory: this.formatBytes(totalMemory - freeMemory),
+        memoryUsagePercentage: '0.00%',
+        memoryStatus: 'normal' as const,
+        process: {
+          rss: '0 B',
+          heapTotal: '0 B',
+          heapUsed: '0 B',
+          external: '0 B',
+          arrayBuffers: '0 B'
+        },
+        v8: {
+          heapSizeLimit: '0 B',
+          totalHeapSize: '0 B',
+          usedHeapSize: '0 B',
+          heapSizeExecutable: '0 B',
+          mallocedMemory: '0 B',
+          peakMallocedMemory: '0 B'
+        },
+        cache: {
+          totalSize: '0 B',
+          cacheCount: 0
+        },
+        thresholds: {
+          highMemoryThreshold: '80%',
+          criticalMemoryThreshold: '90%'
+        }
+      },
+      cacheStats: [],
+      grammarStats: {},
+      timestamp: Date.now()
+    };
   }
 }
