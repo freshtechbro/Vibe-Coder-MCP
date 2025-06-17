@@ -35,6 +35,16 @@
     "agent_health_monitoring": "google/gemini-2.5-flash-preview-05-20",
     "transport_optimization": "google/gemini-2.5-flash-preview-05-20",
     "error_recovery_analysis": "google/gemini-2.5-flash-preview-05-20",
+    "project_analysis": "google/gemini-2.5-flash-preview-05-20",
+    "epic_generation": "google/gemini-2.5-flash-preview-05-20",
+    "task_validation": "google/gemini-2.5-flash-preview-05-20",
+    "session_persistence": "google/gemini-2.5-flash-preview-05-20",
+    "orchestration_workflow": "google/gemini-2.5-flash-preview-05-20",
+    "artifact_parsing": "google/gemini-2.5-flash-preview-05-20",
+    "prd_integration": "google/gemini-2.5-flash-preview-05-20",
+    "task_list_integration": "google/gemini-2.5-flash-preview-05-20",
+    "natural_language_processing": "google/gemini-2.5-flash-preview-05-20",
+    "command_parsing": "google/gemini-2.5-flash-preview-05-20",
     "default_generation": "google/gemini-2.5-flash-preview-05-20"
   }
 }
