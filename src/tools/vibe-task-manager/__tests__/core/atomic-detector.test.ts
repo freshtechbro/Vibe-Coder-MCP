@@ -309,6 +309,147 @@ describe('AtomicTaskDetector', () => {
     });
   });
 
+  describe('Enhanced Validation Rules', () => {
+    it('should detect "and" operator in task title', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9}');
+
+      const taskWithAnd = {
+        ...mockTask,
+        title: 'Create user form and add validation',
+        acceptanceCriteria: ['Form should be created with validation']
+      };
+
+      const result = await detector.analyzeTask(taskWithAnd, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBe(0.0);
+      expect(result.complexityFactors).toContain('Task contains "and" operator indicating multiple actions');
+      expect(result.recommendations).toContain('Remove "and" operations - split into separate atomic tasks');
+    });
+
+    it('should detect "and" operator in task description', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9}');
+
+      const taskWithAnd = {
+        ...mockTask,
+        description: 'Implement authentication middleware and configure security settings',
+        acceptanceCriteria: ['Authentication should work with security']
+      };
+
+      const result = await detector.analyzeTask(taskWithAnd, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBe(0.0);
+      expect(result.complexityFactors).toContain('Task contains "and" operator indicating multiple actions');
+    });
+
+    it('should reject tasks with multiple acceptance criteria', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9}');
+
+      const taskWithMultipleCriteria = {
+        ...mockTask,
+        acceptanceCriteria: [
+          'Component should be created',
+          'Component should be styled',
+          'Component should be tested'
+        ]
+      };
+
+      const result = await detector.analyzeTask(taskWithMultipleCriteria, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBe(0.0);
+      expect(result.recommendations).toContain('Atomic tasks must have exactly ONE acceptance criteria');
+    });
+
+    it('should reject tasks over 20 minutes (0.33 hours)', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9, "estimatedHours": 0.5}');
+
+      const result = await detector.analyzeTask(mockTask, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBe(0.0);
+      expect(result.recommendations).toContain('Task exceeds 20-minute validation threshold - must be broken down further');
+    });
+
+    it('should reject tasks with multiple file modifications', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9}');
+
+      const taskWithMultipleFiles = {
+        ...mockTask,
+        filePaths: ['src/component1.ts', 'src/component2.ts', 'src/component3.ts'],
+        acceptanceCriteria: ['All components should be updated']
+      };
+
+      const result = await detector.analyzeTask(taskWithMultipleFiles, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBe(0.0);
+      expect(result.complexityFactors).toContain('Multiple file modifications indicate non-atomic task');
+      expect(result.recommendations).toContain('Split into separate tasks - one per file modification');
+    });
+
+    it('should detect complex action words', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9}');
+
+      const taskWithComplexAction = {
+        ...mockTask,
+        title: 'Implement comprehensive user authentication system',
+        acceptanceCriteria: ['Authentication system should be implemented']
+      };
+
+      const result = await detector.analyzeTask(taskWithComplexAction, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBeLessThanOrEqual(0.3);
+      expect(result.complexityFactors).toContain('Task uses complex action words suggesting multiple steps');
+      expect(result.recommendations).toContain('Use simple action verbs: Add, Create, Write, Update, Import, Export');
+    });
+
+    it('should detect vague descriptions', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9}');
+
+      const taskWithVagueDescription = {
+        ...mockTask,
+        description: 'Add various improvements and necessary changes to multiple components',
+        acceptanceCriteria: ['Various improvements should be made']
+      };
+
+      const result = await detector.analyzeTask(taskWithVagueDescription, mockContext);
+
+      expect(result.isAtomic).toBe(false);
+      expect(result.confidence).toBeLessThanOrEqual(0.4);
+      expect(result.complexityFactors).toContain('Task description contains vague terms');
+      expect(result.recommendations).toContain('Use specific, concrete descriptions instead of vague terms');
+    });
+
+    it('should accept properly atomic tasks', async () => {
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('{"isAtomic": true, "confidence": 0.9, "estimatedHours": 0.15}');
+
+      const atomicTask = {
+        ...mockTask,
+        title: 'Add email validation to registration form',
+        description: 'Add client-side email validation to the user registration form component',
+        filePaths: ['src/components/RegistrationForm.tsx'],
+        acceptanceCriteria: ['Email validation should prevent invalid email submissions']
+      };
+
+      const result = await detector.analyzeTask(atomicTask, mockContext);
+
+      expect(result.isAtomic).toBe(true);
+      expect(result.confidence).toBe(0.9);
+      expect(result.estimatedHours).toBe(0.15);
+    });
+  });
+
   describe('prompt building', () => {
     it('should build comprehensive analysis prompt', async () => {
       const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');

@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { CallToolResult, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { OpenRouterConfig } from '../../types/workflow.js';
 import { registerTool, ToolDefinition, ToolExecutor, ToolExecutionContext } from '../../services/routing/toolRegistry.js';
-import { getBaseOutputDir, getVibeTaskManagerOutputDir } from './utils/config-loader.js';
+import { getBaseOutputDir, getVibeTaskManagerOutputDir, getVibeTaskManagerConfig } from './utils/config-loader.js';
+import { getTimeoutManager } from './utils/timeout-manager.js';
 import logger from '../../logger.js';
 import { AgentOrchestrator } from './services/agent-orchestrator.js';
 import { ProjectOperations } from './core/operations/project-operations.js';
@@ -85,17 +86,69 @@ async function handleNaturalLanguageInput(
       };
     }
 
-    // For now, return a success message with the recognized intent
-    return {
-      content: [{
-        type: "text",
-        text: `✅ Command processed successfully!\n\n` +
-              `Intent: ${result.intent.intent}\n` +
-              `Confidence: ${Math.round(result.intent.confidence * 100)}%\n` +
-              `Parameters: ${JSON.stringify(result.toolParams, null, 2)}\n\n` +
-              `This natural language processing is working! The command was recognized and parsed correctly.`
-      }]
-    };
+    // Execute the actual command using the recognized parameters
+    const { command, projectName, taskId, description, options } = result.toolParams;
+
+    // Route to appropriate command handler based on the recognized command
+    switch (command) {
+      case 'create':
+        return await handleCreateCommand(
+          projectName as string,
+          description as string,
+          options as Record<string, unknown>,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      case 'list':
+        return await handleListCommand(
+          options as Record<string, unknown>,
+          context?.sessionId || 'default'
+        );
+
+      case 'run':
+        return await handleRunCommand(
+          taskId as string,
+          options as Record<string, unknown>,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      case 'status':
+        return await handleStatusCommand(
+          projectName as string,
+          taskId as string,
+          context?.sessionId || 'default'
+        );
+
+      case 'refine':
+        return await handleRefineCommand(
+          taskId as string,
+          description as string,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      case 'decompose':
+        return await handleDecomposeCommand(
+          taskId as string || projectName as string,
+          description as string,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      default:
+        return {
+          content: [{
+            type: "text",
+            text: `❌ Unsupported command '${command}' from natural language processing.\n\n` +
+                  `Recognized intent: ${result.intent.intent}\n` +
+                  `Confidence: ${Math.round(result.intent.confidence * 100)}%\n\n` +
+                  `Please try a different command or contact support.`
+          }],
+          isError: true
+        };
+    }
 
   } catch (error) {
     logger.error({ err: error, input }, 'Failed to process natural language input');
@@ -115,6 +168,28 @@ async function handleNaturalLanguageInput(
 }
 
 /**
+ * Initialize Vibe Task Manager configuration and core services
+ */
+async function initializeVibeTaskManagerConfig(): Promise<void> {
+  try {
+    // Load configuration
+    const config = await getVibeTaskManagerConfig();
+
+    if (config?.taskManager) {
+      // Initialize timeout manager with configuration
+      const timeoutManager = getTimeoutManager();
+      timeoutManager.initialize(config.taskManager);
+
+      logger.debug('Vibe Task Manager configuration initialized successfully');
+    } else {
+      logger.warn('Vibe Task Manager configuration not available, services will use fallback values');
+    }
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to initialize Vibe Task Manager configuration, services will use fallback values');
+  }
+}
+
+/**
  * Main executor function for the Vibe Task Manager tool
  * Implements AI-agent-native task management with recursive decomposition
  */
@@ -127,6 +202,9 @@ export const vibeTaskManagerExecutor: ToolExecutor = async (
 
   try {
     logger.info({ sessionId, params }, 'Vibe Task Manager execution started');
+
+    // Initialize configuration and timeout manager before any service usage
+    await initializeVibeTaskManagerConfig();
 
     // Auto-register agent session if not already registered
     await ensureAgentRegistration(sessionId, context);
@@ -1234,10 +1312,10 @@ async function handleDecomposeCommand(
         const { getStorageManager } = await import('./core/storage/storage-manager.js');
         const storageManager = await getStorageManager();
 
-        // Find project by name
+        // Find project by ID or name
         const projects = await storageManager.listProjects();
         const matchingProject = projects.data?.find(p =>
-          p.name.toLowerCase() === target.toLowerCase()
+          p.id === target || p.name.toLowerCase() === target.toLowerCase()
         );
 
         if (!matchingProject) {

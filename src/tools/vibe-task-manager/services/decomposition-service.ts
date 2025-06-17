@@ -1,9 +1,11 @@
+import path from 'path';
+import { EventEmitter } from 'events';
 import { RDDEngine, DecompositionResult, RDDConfig } from '../core/rdd-engine.js';
 import { ProjectContext as AtomicDetectorContext } from '../core/atomic-detector.js';
 import { ProjectContext } from '../types/project-context.js';
 import { AtomicTask } from '../types/task.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
-import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
+import { getVibeTaskManagerConfig, getVibeTaskManagerOutputDir } from '../utils/config-loader.js';
 import { ContextEnrichmentService, ContextRequest } from './context-enrichment-service.js';
 import { AutoResearchDetector } from './auto-research-detector.js';
 import { ResearchIntegration } from '../integrations/research-integration.js';
@@ -27,12 +29,125 @@ import { WorkflowStateManager, WorkflowPhase, WorkflowState } from './workflow-s
 import { DecompositionSummaryGenerator, SummaryConfig } from './decomposition-summary-generator.js';
 
 /**
+ * Base interface for all decomposition events
+ */
+export interface DecompositionEventData {
+  sessionId: string;
+  projectId: string;
+  taskId: string;
+  agentId: string;
+  timestamp: Date;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Event emitted when decomposition starts
+ */
+export interface DecompositionStartedEvent extends DecompositionEventData {
+  maxDepth: number;
+  hasCustomConfig: boolean;
+}
+
+/**
+ * Event emitted during decomposition progress
+ */
+export interface DecompositionProgressEvent extends DecompositionEventData {
+  progress: number;
+  step: string;
+  phase: string;
+}
+
+/**
+ * Event emitted when decomposition completes successfully
+ */
+export interface DecompositionCompletedEvent extends DecompositionEventData {
+  results: {
+    totalTasks: number;
+    isAtomic: boolean;
+    depth: number;
+    persistedTasks: number;
+  };
+  duration: number;
+  status: 'completed';
+}
+
+/**
+ * Event emitted when decomposition fails
+ */
+export interface DecompositionFailedEvent extends DecompositionEventData {
+  error: {
+    message: string;
+    type: string;
+    retryable: boolean;
+  };
+  duration: number;
+  status: 'failed';
+}
+
+/**
+ * Event emitted when task list decomposition starts
+ */
+export interface TaskListStartedEvent extends DecompositionEventData {
+  metadata: {
+    taskListPath: string;
+    totalTasks: number;
+    phaseCount: number;
+    projectName: string;
+  };
+}
+
+/**
+ * Event emitted when task list decomposition completes
+ */
+export interface TaskListCompletedEvent extends DecompositionEventData {
+  results: {
+    totalTasks: number;
+    totalHours: number;
+    successfullyPersisted: number;
+    totalGenerated: number;
+  };
+  duration: number;
+  status: 'completed';
+  metadata: {
+    taskListPath: string;
+    projectName: string;
+    phaseCount: number;
+    summaryGenerated: boolean;
+    orchestrationTriggered: boolean;
+  };
+}
+
+/**
+ * Event emitted when epic generation starts
+ */
+export interface EpicGenerationStartedEvent extends DecompositionEventData {
+  metadata: {
+    taskCount: number;
+    phase: 'epic_generation';
+  };
+}
+
+/**
+ * Event emitted when epic generation completes (success or failure)
+ */
+export interface EpicGenerationCompletedEvent extends DecompositionEventData {
+  status: 'completed' | 'failed';
+  metadata: {
+    taskCount: number;
+    phase: 'epic_generation';
+    success: boolean;
+    error?: string;
+  };
+}
+
+/**
  * Decomposition session for tracking progress
  */
 export interface DecompositionSession {
   id: string;
   taskId: string;
   projectId: string;
+  agentId: string; // Agent ID for tracking which agent initiated the decomposition
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   startTime: Date;
   endTime?: Date;
@@ -67,12 +182,14 @@ export interface DecompositionRequest {
   context: AtomicDetectorContext;
   config?: Partial<RDDConfig>;
   sessionId?: string;
+  agentId?: string;
 }
 
 /**
  * Decomposition service orchestrates the task decomposition process
  */
-export class DecompositionService {
+export class DecompositionService extends EventEmitter {
+  private static instance: DecompositionService | null = null;
   private engine: RDDEngine;
   private sessions: Map<string, DecompositionSession> = new Map();
   private config: OpenRouterConfig;
@@ -83,13 +200,80 @@ export class DecompositionService {
   private summaryGenerator: DecompositionSummaryGenerator;
 
   constructor(config: OpenRouterConfig, summaryConfig?: Partial<SummaryConfig>) {
+    super(); // Initialize EventEmitter
     this.config = config;
     this.engine = new RDDEngine(config);
     this.contextService = ContextEnrichmentService.getInstance();
     this.autoResearchDetector = AutoResearchDetector.getInstance();
     this.researchIntegrationService = ResearchIntegration.getInstance();
-    this.workflowStateManager = new WorkflowStateManager();
+
+    // Use absolute path for workflow state persistence
+    const workflowStatesDir = path.join(getVibeTaskManagerOutputDir(), 'workflow-states');
+    this.workflowStateManager = WorkflowStateManager.getInstance(workflowStatesDir);
+
     this.summaryGenerator = new DecompositionSummaryGenerator(summaryConfig);
+  }
+
+  /**
+   * Get singleton instance
+   */
+  static getInstance(config?: OpenRouterConfig, summaryConfig?: Partial<SummaryConfig>): DecompositionService {
+    if (!DecompositionService.instance) {
+      if (!config) {
+        throw new Error('DecompositionService requires config for first initialization');
+      }
+      DecompositionService.instance = new DecompositionService(config, summaryConfig);
+    }
+    return DecompositionService.instance;
+  }
+
+  /**
+   * Verify EventEmitter integration for testing
+   */
+  verifyEventEmitterIntegration(): {
+    hasEventEmitter: boolean;
+    supportedEvents: string[];
+    listenerCount: number;
+    isWorkflowAwareCompatible: boolean;
+  } {
+    const supportedEvents = [
+      'decomposition_started',
+      'decomposition_progress',
+      'decomposition_completed',
+      'decomposition_failed',
+      'task_list_started',
+      'task_list_completed',
+      'epic_generation_started',
+      'epic_generation_completed'
+    ];
+
+    const hasEventEmitter = typeof this.emit === 'function' && typeof this.on === 'function';
+    const listenerCount = this.listenerCount('decomposition_started') +
+                         this.listenerCount('decomposition_progress') +
+                         this.listenerCount('decomposition_completed') +
+                         this.listenerCount('decomposition_failed');
+
+    const isWorkflowAwareCompatible = hasEventEmitter && supportedEvents.length > 0;
+
+    logger.info({
+      hasEventEmitter,
+      supportedEvents,
+      listenerCount,
+      isWorkflowAwareCompatible,
+      eventEmitterMethods: {
+        emit: typeof this.emit,
+        on: typeof this.on,
+        removeListener: typeof this.removeListener,
+        listenerCount: typeof this.listenerCount
+      }
+    }, 'DecompositionService EventEmitter integration verification');
+
+    return {
+      hasEventEmitter,
+      supportedEvents,
+      listenerCount,
+      isWorkflowAwareCompatible
+    };
   }
 
   /**
@@ -166,6 +350,7 @@ export class DecompositionService {
         id: sessionId,
         taskId: request.task.id,
         projectId: request.context.projectId,
+        agentId: request.agentId || 'unknown',
         status: 'pending',
         startTime: new Date(),
         progress: 0,
@@ -190,6 +375,60 @@ export class DecompositionService {
         }
       );
 
+      // Complete initialization phase before starting decomposition
+      // First transition to in_progress
+      await this.workflowStateManager.transitionWorkflow(
+        sessionId,
+        WorkflowPhase.INITIALIZATION,
+        WorkflowState.IN_PROGRESS,
+        {
+          reason: 'Starting initialization process',
+          progress: 50,
+          triggeredBy: 'DecompositionService'
+        }
+      );
+
+      // Then transition directly to decomposition phase (as per workflow state machine rules)
+      await this.workflowStateManager.transitionWorkflow(
+        sessionId,
+        WorkflowPhase.DECOMPOSITION,
+        WorkflowState.PENDING,
+        {
+          reason: 'Initialization completed, starting decomposition',
+          progress: 0,
+          triggeredBy: 'DecompositionService'
+        }
+      );
+
+      // Emit decomposition_started event
+      const startedEvent: DecompositionStartedEvent = {
+        sessionId,
+        projectId: request.context.projectId,
+        taskId: request.task.id,
+        agentId: request.agentId || 'unknown',
+        timestamp: new Date(),
+        maxDepth: request.config?.maxDepth || 5,
+        hasCustomConfig: !!request.config,
+        metadata: {
+          taskTitle: request.task.title,
+          taskType: request.task.type
+        }
+      };
+      this.emit('decomposition_started', startedEvent);
+
+      logger.info({
+        event: 'decomposition_started',
+        sessionId,
+        taskId: request.task.id,
+        projectId: request.context.projectId,
+        agentId: request.agentId,
+        maxDepth: startedEvent.maxDepth,
+        hasCustomConfig: startedEvent.hasCustomConfig,
+        taskTitle: startedEvent.metadata?.taskTitle || 'Unknown',
+        taskType: startedEvent.metadata?.taskType || 'development',
+        timestamp: startedEvent.timestamp.toISOString()
+      }, 'EventEmitter: decomposition_started event emitted');
+
       // Start decomposition asynchronously with enhanced error handling
       setTimeout(() => {
         this.executeDecomposition(session, request).catch(error => {
@@ -209,6 +448,12 @@ export class DecompositionService {
           session.status = 'failed';
           session.error = errorMessage;
           session.endTime = new Date();
+
+          // Emit decomposition_failed event for async execution failure
+          this.emitFailedEvent(session, request, error, {
+            phase: 'async_execution',
+            step: 'execution_failed'
+          });
         });
       }, 0);
 
@@ -295,7 +540,7 @@ export class DecompositionService {
       session.status = 'in_progress';
       session.progress = 10;
 
-      // Transition to decomposition phase
+      // Transition to decomposition in_progress (already in pending state from startDecomposition)
       await this.workflowStateManager.transitionWorkflow(
         session.id,
         WorkflowPhase.DECOMPOSITION,
@@ -306,6 +551,9 @@ export class DecompositionService {
           triggeredBy: 'DecompositionService'
         }
       );
+
+      // Emit decomposition_progress event at 10%
+      this.emitProgressEvent(session, request, 10, 'decomposition_started', 'DECOMPOSITION');
 
       // Update engine configuration if provided
       if (request.config) {
@@ -324,6 +572,9 @@ export class DecompositionService {
         { step: 'context_enrichment_completed' }
       );
 
+      // Emit decomposition_progress event at 20%
+      this.emitProgressEvent(session, request, 20, 'context_enrichment_completed', 'DECOMPOSITION');
+
       // Perform decomposition
       const result = await this.engine.decomposeTask(request.task, enrichedContext);
       session.progress = 80;
@@ -335,18 +586,124 @@ export class DecompositionService {
         80,
         {
           step: 'decomposition_completed',
-          subTaskCount: result.subTasks?.length || 0,
+          decomposedTaskCount: result.subTasks?.length || 0,
           isAtomic: result.isAtomic
         }
       );
+
+      // Emit decomposition_progress event at 80%
+      this.emitProgressEvent(session, request, 80, 'decomposition_completed', 'DECOMPOSITION', {
+        decomposedTaskCount: result.subTasks?.length || 0,
+        isAtomic: result.isAtomic
+      });
 
       // Process results
       session.results = [result];
       session.processedTasks = 1;
       session.currentDepth = result.depth;
 
-      // NEW: Persist decomposed tasks to storage
+      // NEW: Generate project-specific epics before task persistence
       if (result.subTasks && result.subTasks.length > 0) {
+        session.progress = 82;
+
+        // Epic generation phase
+        logger.info({
+          sessionId: session.id,
+          projectId: session.projectId,
+          taskCount: result.subTasks.length
+        }, 'Starting epic generation phase');
+
+        // Emit epic_generation_started event
+        const epicStartedEvent = {
+          sessionId: session.id,
+          projectId: session.projectId,
+          taskId: session.taskId,
+          agentId: request.agentId || 'unknown',
+          timestamp: new Date(),
+          metadata: {
+            taskCount: result.subTasks.length,
+            phase: 'epic_generation' as const
+          }
+        };
+        this.emit('epic_generation_started', epicStartedEvent);
+
+        logger.info({
+          event: 'epic_generation_started',
+          sessionId: session.id,
+          projectId: session.projectId,
+          taskId: session.taskId,
+          agentId: request.agentId || 'unknown',
+          taskCount: epicStartedEvent.metadata.taskCount,
+          phase: epicStartedEvent.metadata.phase,
+          timestamp: epicStartedEvent.timestamp.toISOString()
+        }, 'EventEmitter: epic_generation_started event emitted');
+
+        try {
+          await this.generateProjectEpics(session, result.subTasks);
+
+          // Emit epic_generation_completed event
+          const epicCompletedEvent = {
+            sessionId: session.id,
+            projectId: session.projectId,
+            taskId: session.taskId,
+            agentId: request.agentId || 'unknown',
+            timestamp: new Date(),
+            status: 'completed' as const,
+            metadata: {
+              taskCount: result.subTasks.length,
+              phase: 'epic_generation' as const,
+              success: true
+            }
+          };
+          this.emit('epic_generation_completed', epicCompletedEvent);
+
+          logger.info({
+            event: 'epic_generation_completed',
+            sessionId: session.id,
+            projectId: session.projectId,
+            taskId: session.taskId,
+            agentId: request.agentId || 'unknown',
+            status: epicCompletedEvent.status,
+            taskCount: epicCompletedEvent.metadata.taskCount,
+            phase: epicCompletedEvent.metadata.phase,
+            success: epicCompletedEvent.metadata.success,
+            timestamp: epicCompletedEvent.timestamp.toISOString()
+          }, 'EventEmitter: epic_generation_completed event emitted (success)');
+        } catch (error) {
+          // Emit epic_generation_completed event with failure status
+          const epicFailedEvent = {
+            sessionId: session.id,
+            projectId: session.projectId,
+            taskId: session.taskId,
+            agentId: request.agentId || 'unknown',
+            timestamp: new Date(),
+            status: 'failed' as const,
+            metadata: {
+              taskCount: result.subTasks.length,
+              phase: 'epic_generation' as const,
+              success: false,
+              error: error instanceof Error ? error.message : String(error)
+            }
+          };
+          this.emit('epic_generation_completed', epicFailedEvent);
+
+          logger.warn({
+            event: 'epic_generation_completed',
+            err: error,
+            sessionId: session.id,
+            projectId: session.projectId,
+            taskId: session.taskId,
+            agentId: request.agentId || 'unknown',
+            status: epicFailedEvent.status,
+            taskCount: epicFailedEvent.metadata.taskCount,
+            phase: epicFailedEvent.metadata.phase,
+            success: epicFailedEvent.metadata.success,
+            error: epicFailedEvent.metadata.error,
+            timestamp: epicFailedEvent.timestamp.toISOString()
+          }, 'EventEmitter: epic_generation_completed event emitted (failure) - tasks will use fallback epic IDs');
+        }
+
+        // Persist decomposed tasks to storage
         session.progress = 85;
         const taskOps = getTaskOperations();
         const persistedTasks: AtomicTask[] = [];
@@ -457,6 +814,17 @@ export class DecompositionService {
         session.persistedTasks = persistedTasks;
         session.taskFiles = taskFiles;
 
+        // DEBUG: Add comprehensive logging for session persistence tracking
+        logger.info({
+          sessionId: session.id,
+          executionPath: 'executeDecomposition',
+          persistedTasksArrayLength: persistedTasks.length,
+          sessionPersistedTasksLength: session.persistedTasks?.length || 0,
+          totalDecomposedTasksGenerated: result.subTasks.length,
+          persistedTaskIds: persistedTasks.map(t => t.id),
+          sessionPersistedTaskIds: session.persistedTasks?.map(t => t.id) || []
+        }, 'DEBUG: Session persistence tracking in executeDecomposition');
+
         // NEW: Store rich results for MCP response
         session.richResults = {
           tasks: persistedTasks,
@@ -504,6 +872,14 @@ export class DecompositionService {
       session.progress = 100;
       session.status = 'completed';
       session.endTime = new Date();
+
+      // Emit decomposition_progress event at 100%
+      this.emitProgressEvent(session, request, 100, 'decomposition_completed', 'DECOMPOSITION', {
+        totalSubTasks: result.subTasks?.length || 0,
+        isAtomic: result.isAtomic,
+        depth: result.depth,
+        persistedTasks: session.persistedTasks?.length || 0
+      });
 
       // Complete decomposition phase
       await this.workflowStateManager.transitionWorkflow(
@@ -553,11 +929,73 @@ export class DecompositionService {
         }, 'Error generating decomposition session summary');
       }
 
+      // DEBUG: Final verification before orchestration trigger
+      logger.info({
+        sessionId: session.id,
+        projectId: session.projectId,
+        finalSessionPersistedTasksLength: session.persistedTasks?.length || 0,
+        finalSessionPersistedTasksIds: session.persistedTasks?.map(t => t.id) || [],
+        sessionStatus: session.status,
+        sessionProgress: session.progress
+      }, 'DEBUG: Final session state before orchestration trigger');
+
       // Trigger orchestration workflow after successful decomposition
       await this.triggerOrchestrationWorkflow(session);
 
+      // Emit decomposition_completed event
+      const completedEvent: DecompositionCompletedEvent = {
+        sessionId: session.id,
+        projectId: session.projectId,
+        taskId: session.taskId,
+        agentId: request.agentId || 'unknown',
+        timestamp: new Date(),
+        results: {
+          totalTasks: session.persistedTasks?.length || session.totalTasks,
+          isAtomic: session.results[0]?.isAtomic || false,
+          depth: session.results[0]?.depth || session.currentDepth,
+          persistedTasks: session.persistedTasks?.length || 0
+        },
+        duration: session.endTime!.getTime() - session.startTime.getTime(),
+        status: 'completed',
+        metadata: {
+          hasResearchContext: !!(session as any).researchInsights,
+          summaryGenerated: true,
+          orchestrationTriggered: true
+        }
+      };
+      this.emit('decomposition_completed', completedEvent);
+
+      logger.info({
+        event: 'decomposition_completed',
+        sessionId: session.id,
+        taskId: session.taskId,
+        projectId: session.projectId,
+        agentId: request.agentId,
+        totalTasks: completedEvent.results.totalTasks,
+        isAtomic: completedEvent.results.isAtomic,
+        depth: completedEvent.results.depth,
+        persistedTasks: completedEvent.results.persistedTasks,
+        duration: completedEvent.duration,
+        status: completedEvent.status,
+        hasResearchContext: completedEvent.metadata?.hasResearchContext || false,
+        summaryGenerated: completedEvent.metadata?.summaryGenerated || false,
+        orchestrationTriggered: completedEvent.metadata?.orchestrationTriggered || false,
+        timestamp: completedEvent.timestamp.toISOString()
+      }, 'EventEmitter: decomposition_completed event emitted');
+
     } catch (error) {
       logger.error({ err: error, sessionId: session.id }, 'Decomposition execution failed');
+
+      // Update session status
+      session.status = 'failed';
+      session.error = error instanceof Error ? error.message : String(error);
+      session.endTime = new Date();
+
+      // Emit decomposition_failed event
+      this.emitFailedEvent(session, request, error, {
+        phase: 'decomposition',
+        step: 'execution_failed'
+      });
 
       // Mark workflow as failed
       try {
@@ -742,6 +1180,110 @@ export class DecompositionService {
   }
 
   /**
+   * Emit decomposition progress event
+   */
+  private emitProgressEvent(
+    session: DecompositionSession,
+    request: DecompositionRequest,
+    progress: number,
+    step: string,
+    phase: string,
+    additionalMetadata?: Record<string, any>
+  ): void {
+    const progressEvent: DecompositionProgressEvent = {
+      sessionId: session.id,
+      projectId: session.projectId,
+      taskId: session.taskId,
+      agentId: request.agentId || 'unknown',
+      timestamp: new Date(),
+      progress,
+      step,
+      phase,
+      metadata: {
+        currentDepth: session.currentDepth,
+        maxDepth: session.maxDepth,
+        totalTasks: session.totalTasks,
+        processedTasks: session.processedTasks,
+        ...additionalMetadata
+      }
+    };
+
+    this.emit('decomposition_progress', progressEvent);
+
+    logger.info({
+      event: 'decomposition_progress',
+      sessionId: session.id,
+      projectId: session.projectId,
+      taskId: session.taskId,
+      agentId: request.agentId,
+      progress,
+      step,
+      phase,
+      currentDepth: progressEvent.metadata?.currentDepth || 0,
+      maxDepth: progressEvent.metadata?.maxDepth || 5,
+      totalTasks: progressEvent.metadata?.totalTasks || 0,
+      processedTasks: progressEvent.metadata?.processedTasks || 0,
+      timestamp: progressEvent.timestamp.toISOString(),
+      additionalMetadata: additionalMetadata || {}
+    }, 'EventEmitter: decomposition_progress event emitted');
+  }
+
+  /**
+   * Emit decomposition failed event
+   */
+  private emitFailedEvent(
+    session: DecompositionSession,
+    request: DecompositionRequest,
+    error: Error | unknown,
+    additionalMetadata?: Record<string, any>
+  ): void {
+    const failedEvent: DecompositionFailedEvent = {
+      sessionId: session.id,
+      projectId: session.projectId,
+      taskId: session.taskId,
+      agentId: request.agentId || 'unknown',
+      timestamp: new Date(),
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        type: error instanceof Error ? error.constructor.name : 'UnknownError',
+        retryable: error instanceof EnhancedError ? error.retryable : false
+      },
+      duration: session.endTime ? session.endTime.getTime() - session.startTime.getTime() : Date.now() - session.startTime.getTime(),
+      status: 'failed',
+      metadata: {
+        currentDepth: session.currentDepth,
+        maxDepth: session.maxDepth,
+        totalTasks: session.totalTasks,
+        processedTasks: session.processedTasks,
+        progress: session.progress,
+        ...additionalMetadata
+      }
+    };
+
+    this.emit('decomposition_failed', failedEvent);
+
+    logger.error({
+      event: 'decomposition_failed',
+      sessionId: session.id,
+      taskId: session.taskId,
+      projectId: session.projectId,
+      agentId: request.agentId,
+      errorType: failedEvent.error.type,
+      errorMessage: failedEvent.error.message,
+      retryable: failedEvent.error.retryable,
+      duration: failedEvent.duration,
+      status: failedEvent.status,
+      currentDepth: failedEvent.metadata?.currentDepth || 0,
+      maxDepth: failedEvent.metadata?.maxDepth || 5,
+      totalTasks: failedEvent.metadata?.totalTasks || 0,
+      processedTasks: failedEvent.metadata?.processedTasks || 0,
+      progress: failedEvent.metadata?.progress || 0,
+      timestamp: failedEvent.timestamp.toISOString(),
+      additionalMetadata: additionalMetadata || {}
+    }, 'EventEmitter: decomposition_failed event emitted');
+  }
+
+  /**
    * Calculate session statistics
    */
   private calculateSessionStats(session: DecompositionSession): void {
@@ -901,6 +1443,7 @@ export class DecompositionService {
         id: sessionId,
         taskId: `task-list-${taskList.metadata.projectName}`,
         projectId,
+        agentId: 'task-list-decomposition',
         status: 'pending',
         startTime: new Date(),
         progress: 0,
@@ -982,6 +1525,7 @@ export class DecompositionService {
         id: session.id,
         taskId: session.taskId,
         projectId: session.projectId,
+        agentId: session.agentId,
         status: session.status,
         startTime: session.startTime,
         endTime: session.endTime,
@@ -1025,6 +1569,76 @@ export class DecompositionService {
       const persistedTasks: AtomicTask[] = [];
       const taskFiles: string[] = [];
 
+      // Create mock request for event emission
+      const mockRequest: DecompositionRequest = {
+        task: {
+          id: session.taskId,
+          title: `Task List: ${taskList.metadata.projectName}`,
+          description: `Task list decomposition for ${taskList.metadata.filePath}`,
+          type: 'development',
+          status: 'in_progress',
+          priority: 'medium',
+          projectId,
+          epicId: 'task-list-epic',
+          estimatedHours: 0,
+          actualHours: 0,
+          dependencies: [],
+          dependents: [],
+          filePaths: [],
+          acceptanceCriteria: [],
+          testingRequirements: { unitTests: [], integrationTests: [], performanceTests: [], coverageTarget: 80 },
+          performanceCriteria: {},
+          qualityCriteria: { codeQuality: [], documentation: [], typeScript: true, eslint: true },
+          integrationCriteria: { compatibility: [], patterns: [] },
+          validationMethods: { automated: [], manual: [] },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: 'task-list-decomposition',
+          tags: ['task-list'],
+          metadata: { createdAt: new Date(), updatedAt: new Date(), createdBy: 'task-list-decomposition', tags: ['task-list'] }
+        },
+        context: {
+          projectId,
+          languages: [],
+          frameworks: [],
+          tools: [],
+          existingTasks: [],
+          codebaseSize: 'medium' as const,
+          teamSize: 1,
+          complexity: 'medium' as const
+        },
+        agentId: 'task-list-decomposition'
+      };
+
+      // Emit task_list_started event
+      const taskListStartedEvent = {
+        sessionId: session.id,
+        projectId,
+        taskId: session.taskId,
+        agentId: 'task-list-decomposition',
+        timestamp: new Date(),
+        metadata: {
+          taskListPath: taskList.metadata.filePath,
+          totalTasks: taskList.metadata.totalTasks,
+          phaseCount: taskList.metadata.phaseCount,
+          projectName: taskList.metadata.projectName
+        }
+      };
+      this.emit('task_list_started', taskListStartedEvent);
+
+      logger.info({
+        event: 'task_list_started',
+        sessionId: session.id,
+        projectId,
+        taskId: session.taskId,
+        agentId: 'task-list-decomposition',
+        taskListPath: taskListStartedEvent.metadata.taskListPath,
+        totalTasks: taskListStartedEvent.metadata.totalTasks,
+        phaseCount: taskListStartedEvent.metadata.phaseCount,
+        projectName: taskListStartedEvent.metadata.projectName,
+        timestamp: taskListStartedEvent.timestamp.toISOString()
+      }, 'EventEmitter: task_list_started event emitted');
+
       logger.info({
         sessionId: session.id,
         projectId,
@@ -1033,6 +1647,9 @@ export class DecompositionService {
       }, 'Processing task list decomposition');
 
       session.progress = 20;
+
+      // Emit task_list_progress event at 20%
+      this.emitProgressEvent(session, mockRequest, 20, 'task_list_processing_started', 'TASK_LIST_DECOMPOSITION');
 
       // Process each phase and its tasks
       for (const phase of taskList.phases) {
@@ -1116,6 +1733,14 @@ export class DecompositionService {
 
             session.processedTasks++;
             session.progress = 20 + (session.processedTasks / session.totalTasks) * 60;
+
+            // Emit task_list_progress event for each processed task
+            this.emitProgressEvent(session, mockRequest, session.progress, 'task_processing', 'TASK_LIST_DECOMPOSITION', {
+              processedTasks: session.processedTasks,
+              totalTasks: session.totalTasks,
+              currentTaskTitle: taskItem.title,
+              currentPhase: phase.name
+            });
 
           } catch (error) {
             logger.error({
@@ -1268,6 +1893,51 @@ export class DecompositionService {
       // Trigger orchestration workflow after successful task list decomposition
       await this.triggerOrchestrationWorkflow(session);
 
+      // Emit task_list_completed event
+      const taskListCompletedEvent = {
+        sessionId: session.id,
+        projectId,
+        taskId: session.taskId,
+        agentId: 'task-list-decomposition',
+        timestamp: new Date(),
+        results: {
+          totalTasks: persistedTasks.length,
+          totalHours: session.richResults!.summary.totalHours,
+          successfullyPersisted: persistedTasks.length,
+          totalGenerated: taskList.metadata.totalTasks
+        },
+        duration: session.endTime!.getTime() - session.startTime.getTime(),
+        status: 'completed' as const,
+        metadata: {
+          taskListPath: taskList.metadata.filePath,
+          projectName: taskList.metadata.projectName,
+          phaseCount: taskList.metadata.phaseCount,
+          summaryGenerated: true,
+          orchestrationTriggered: true
+        }
+      };
+      this.emit('task_list_completed', taskListCompletedEvent);
+
+      logger.info({
+        event: 'task_list_completed',
+        sessionId: session.id,
+        projectId,
+        taskId: session.taskId,
+        agentId: 'task-list-decomposition',
+        totalTasks: taskListCompletedEvent.results.totalTasks,
+        totalHours: taskListCompletedEvent.results.totalHours,
+        successfullyPersisted: taskListCompletedEvent.results.successfullyPersisted,
+        totalGenerated: taskListCompletedEvent.results.totalGenerated,
+        duration: taskListCompletedEvent.duration,
+        status: taskListCompletedEvent.status,
+        taskListPath: taskListCompletedEvent.metadata.taskListPath,
+        projectName: taskListCompletedEvent.metadata.projectName,
+        phaseCount: taskListCompletedEvent.metadata.phaseCount,
+        summaryGenerated: taskListCompletedEvent.metadata.summaryGenerated,
+        orchestrationTriggered: taskListCompletedEvent.metadata.orchestrationTriggered,
+        timestamp: taskListCompletedEvent.timestamp.toISOString()
+      }, 'EventEmitter: task_list_completed event emitted');
+
     } catch (error) {
       logger.error({
         err: error,
@@ -1278,6 +1948,56 @@ export class DecompositionService {
       session.status = 'failed';
       session.error = error instanceof Error ? error.message : 'Unknown error';
       session.endTime = new Date();
+
+      // Emit decomposition_failed event for task list decomposition
+      // Create a mock request since this method doesn't have access to the original request
+      const mockRequest: DecompositionRequest = {
+        task: {
+          id: session.taskId,
+          title: `Task List: ${taskList.metadata.projectName}`,
+          description: `Task list decomposition for ${taskList.metadata.filePath}`,
+          type: 'development',
+          status: 'failed',
+          priority: 'medium',
+          projectId,
+          epicId: 'task-list-epic',
+          estimatedHours: 0,
+          actualHours: 0,
+          dependencies: [],
+          dependents: [],
+          filePaths: [],
+          acceptanceCriteria: [],
+          testingRequirements: { unitTests: [], integrationTests: [], performanceTests: [], coverageTarget: 80 },
+          performanceCriteria: {},
+          qualityCriteria: { codeQuality: [], documentation: [], typeScript: true, eslint: true },
+          integrationCriteria: { compatibility: [], patterns: [] },
+          validationMethods: { automated: [], manual: [] },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: 'task-list-decomposition',
+          tags: ['task-list'],
+          metadata: { createdAt: new Date(), updatedAt: new Date(), createdBy: 'task-list-decomposition', tags: ['task-list'] }
+        },
+        context: {
+          projectId,
+          languages: [],
+          frameworks: [],
+          tools: [],
+          existingTasks: [],
+          codebaseSize: 'medium' as const,
+          teamSize: 1,
+          complexity: 'medium' as const
+        },
+        agentId: 'task-list-decomposition'
+      };
+
+      this.emitFailedEvent(session, mockRequest, error, {
+        phase: 'task_list_decomposition',
+        step: 'execution_failed',
+        taskListPath: taskList.metadata.filePath,
+        totalTasks: taskList.metadata.totalTasks
+      });
+
       throw error;
     }
   }
@@ -1542,24 +2262,24 @@ Focus on logical dependencies such as:
       const jsonGraph = JSON.stringify(dependencyGraph, null, 2);
 
       // Save to dependency-graphs directory
-      const { getVibeTaskManagerConfig } = await import('../utils/config-loader.js');
+      const { getVibeTaskManagerConfig, getVibeTaskManagerOutputDir } = await import('../utils/config-loader.js');
       const config = await getVibeTaskManagerConfig();
-      const outputDir = config?.taskManager?.dataDirectory || './VibeCoderOutput/vibe-task-manager';
+      const outputDir = config?.taskManager?.dataDirectory || getVibeTaskManagerOutputDir();
 
       const dependencyGraphsDir = `${outputDir}/dependency-graphs`;
-      const fs = await import('fs-extra');
+      const { FileUtils } = await import('../utils/file-utils.js');
 
       // Ensure directory exists
-      await fs.ensureDir(dependencyGraphsDir);
+      await FileUtils.ensureDirectory(dependencyGraphsDir);
 
       // Save files with project-specific names
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const baseFileName = `${session.projectId}-${timestamp}`;
 
       await Promise.all([
-        fs.writeFile(`${dependencyGraphsDir}/${baseFileName}-mermaid.md`, mermaidDiagram),
-        fs.writeFile(`${dependencyGraphsDir}/${baseFileName}-summary.md`, textSummary),
-        fs.writeFile(`${dependencyGraphsDir}/${baseFileName}-graph.json`, jsonGraph)
+        FileUtils.writeFile(`${dependencyGraphsDir}/${baseFileName}-mermaid.md`, mermaidDiagram),
+        FileUtils.writeFile(`${dependencyGraphsDir}/${baseFileName}-summary.md`, textSummary),
+        FileUtils.writeFile(`${dependencyGraphsDir}/${baseFileName}-graph.json`, jsonGraph)
       ]);
 
       logger.info({
@@ -1753,6 +2473,17 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
    */
   private async triggerOrchestrationWorkflow(session: DecompositionSession): Promise<void> {
     try {
+      // DEBUG: Add comprehensive logging for orchestration trigger
+      logger.info({
+        sessionId: session.id,
+        projectId: session.projectId,
+        sessionPersistedTasksExists: !!session.persistedTasks,
+        sessionPersistedTasksLength: session.persistedTasks?.length || 0,
+        sessionPersistedTasksArray: session.persistedTasks?.map(t => ({ id: t.id, title: t.title })) || [],
+        sessionRichResultsExists: !!session.richResults,
+        sessionRichResultsTasksLength: session.richResults?.tasks?.length || 0
+      }, 'DEBUG: Orchestration trigger - checking persisted tasks');
+
       // Only trigger orchestration if we have persisted tasks
       if (!session.persistedTasks || session.persistedTasks.length === 0) {
         logger.info({
@@ -1762,7 +2493,23 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
         return;
       }
 
-      // Transition to orchestration phase
+      // Transition to orchestration phase (first to PENDING, then to IN_PROGRESS)
+      await this.workflowStateManager.transitionWorkflow(
+        session.id,
+        WorkflowPhase.ORCHESTRATION,
+        WorkflowState.PENDING,
+        {
+          reason: 'Orchestration workflow queued',
+          progress: 0,
+          triggeredBy: 'DecompositionService',
+          metadata: {
+            taskCount: session.persistedTasks.length,
+            projectId: session.projectId
+          }
+        }
+      );
+
+      // Then transition to IN_PROGRESS
       await this.workflowStateManager.transitionWorkflow(
         session.id,
         WorkflowPhase.ORCHESTRATION,
@@ -1914,7 +2661,10 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
         sessionId: session.id,
         projectId: session.projectId,
         tasksProcessed: readyTasks.length
-      }, 'Orchestration workflow triggered successfully');
+      }, 'Orchestration workflow completed successfully');
+
+      // Finalize the entire workflow by transitioning to COMPLETED phase
+      await this.finalizeWorkflow(session);
 
     } catch (error) {
       logger.error({
@@ -1923,8 +2673,21 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
         projectId: session.projectId
       }, 'Failed to trigger orchestration workflow after decomposition');
 
-      // Mark orchestration as failed
+      // Mark orchestration as failed (first transition to PENDING, then to FAILED)
       try {
+        // First transition to orchestration:pending if not already there
+        await this.workflowStateManager.transitionWorkflow(
+          session.id,
+          WorkflowPhase.ORCHESTRATION,
+          WorkflowState.PENDING,
+          {
+            reason: 'Orchestration workflow queued before failure',
+            triggeredBy: 'DecompositionService',
+            metadata: { error: error instanceof Error ? error.message : String(error) }
+          }
+        );
+
+        // Then transition to failed
         await this.workflowStateManager.transitionWorkflow(
           session.id,
           WorkflowPhase.ORCHESTRATION,
@@ -2280,6 +3043,157 @@ Total Research Results: ${researchResults.length}`;
   }
 
   /**
+   * Generate project-specific epics for decomposed tasks
+   */
+  private async generateProjectEpics(session: DecompositionSession, tasks: any[]): Promise<void> {
+    try {
+      const { getEpicContextResolver } = await import('./epic-context-resolver.js');
+      const contextResolver = getEpicContextResolver();
+
+      // Group tasks by functional area to create appropriate epics
+      const functionalAreaGroups = new Map<string, any[]>();
+      const unassignedTasks: any[] = [];
+
+      // Analyze tasks and group by functional area
+      for (const task of tasks) {
+        const taskContext = {
+          title: task.title,
+          description: task.description,
+          type: task.type || 'development',
+          tags: task.tags || []
+        };
+
+        const functionalArea = contextResolver.extractFunctionalArea(taskContext);
+
+        if (functionalArea) {
+          if (!functionalAreaGroups.has(functionalArea)) {
+            functionalAreaGroups.set(functionalArea, []);
+          }
+          functionalAreaGroups.get(functionalArea)!.push(task);
+        } else {
+          unassignedTasks.push(task);
+        }
+      }
+
+      logger.debug({
+        sessionId: session.id,
+        functionalAreas: Array.from(functionalAreaGroups.keys()),
+        functionalAreaCounts: Object.fromEntries(
+          Array.from(functionalAreaGroups.entries()).map(([area, tasks]) => [area, tasks.length])
+        ),
+        unassignedTasksCount: unassignedTasks.length
+      }, 'Tasks grouped by functional area for epic generation');
+
+      // Create epics for each functional area
+      const epicMapping = new Map<string, string>(); // functionalArea -> epicId
+
+      for (const [functionalArea, areaTasks] of functionalAreaGroups) {
+        try {
+          const resolverParams = {
+            projectId: session.projectId,
+            functionalArea,
+            taskContext: {
+              title: areaTasks[0].title,
+              description: areaTasks[0].description,
+              type: areaTasks[0].type || 'development',
+              tags: areaTasks[0].tags || []
+            }
+          };
+
+          const contextResult = await contextResolver.resolveEpicContext(resolverParams);
+          epicMapping.set(functionalArea, contextResult.epicId);
+
+          logger.info({
+            functionalArea,
+            epicId: contextResult.epicId,
+            source: contextResult.source,
+            created: contextResult.created,
+            taskCount: areaTasks.length
+          }, 'Epic resolved for functional area');
+
+          // Update tasks with resolved epic ID
+          for (const task of areaTasks) {
+            task.epicId = contextResult.epicId;
+          }
+
+        } catch (error) {
+          logger.warn({
+            err: error,
+            functionalArea,
+            taskCount: areaTasks.length
+          }, 'Failed to resolve epic for functional area, using fallback');
+
+          // Fallback epic ID
+          const fallbackEpicId = `${session.projectId}-${functionalArea}-epic`;
+          epicMapping.set(functionalArea, fallbackEpicId);
+
+          for (const task of areaTasks) {
+            task.epicId = fallbackEpicId;
+          }
+        }
+      }
+
+      // Handle unassigned tasks with main epic
+      if (unassignedTasks.length > 0) {
+        try {
+          const resolverParams = {
+            projectId: session.projectId,
+            taskContext: {
+              title: 'Main Project Tasks',
+              description: 'General project implementation tasks',
+              type: 'development' as const,
+              tags: ['main', 'general']
+            }
+          };
+
+          const contextResult = await contextResolver.resolveEpicContext(resolverParams);
+
+          logger.info({
+            epicId: contextResult.epicId,
+            source: contextResult.source,
+            created: contextResult.created,
+            unassignedTaskCount: unassignedTasks.length
+          }, 'Main epic resolved for unassigned tasks');
+
+          // Update unassigned tasks with main epic ID
+          for (const task of unassignedTasks) {
+            task.epicId = contextResult.epicId;
+          }
+
+        } catch (error) {
+          logger.warn({
+            err: error,
+            unassignedTaskCount: unassignedTasks.length
+          }, 'Failed to resolve main epic for unassigned tasks, using fallback');
+
+          // Fallback main epic ID
+          const fallbackMainEpicId = `${session.projectId}-main-epic`;
+          for (const task of unassignedTasks) {
+            task.epicId = fallbackMainEpicId;
+          }
+        }
+      }
+
+      logger.info({
+        sessionId: session.id,
+        projectId: session.projectId,
+        totalTasks: tasks.length,
+        functionalAreaCount: functionalAreaGroups.size,
+        epicsCreated: epicMapping.size,
+        unassignedTasks: unassignedTasks.length
+      }, 'Epic generation phase completed');
+
+    } catch (error) {
+      logger.error({
+        err: error,
+        sessionId: session.id,
+        projectId: session.projectId
+      }, 'Epic generation phase failed');
+      throw error;
+    }
+  }
+
+  /**
    * Resolve epic ID using dynamic epic resolution
    */
   private async resolveEpicId(
@@ -2294,7 +3208,7 @@ Total Research Results: ${researchResults.length}`;
       }
 
       // Use epic context resolver to determine appropriate epic
-      const { getEpicContextResolver } = await import('../services/epic-context-resolver.js');
+      const { getEpicContextResolver } = await import('./epic-context-resolver.js');
       const contextResolver = getEpicContextResolver();
 
       // Extract context from tasks to determine functional area
@@ -2351,5 +3265,68 @@ Total Research Results: ${researchResults.length}`;
       type: types[0] || 'development',
       tags: [...new Set(allTags)] // Remove duplicates
     };
+  }
+
+  /**
+   * Finalize the entire workflow by transitioning to COMPLETED phase
+   */
+  private async finalizeWorkflow(session: DecompositionSession): Promise<void> {
+    try {
+      logger.info({
+        sessionId: session.id,
+        projectId: session.projectId,
+        totalTasks: session.persistedTasks?.length || 0,
+        sessionStatus: session.status
+      }, 'Finalizing workflow - transitioning to COMPLETED phase');
+
+      // Transition to the final COMPLETED phase
+      await this.workflowStateManager.transitionWorkflow(
+        session.id,
+        WorkflowPhase.COMPLETED,
+        WorkflowState.COMPLETED,
+        {
+          reason: 'Entire workflow completed successfully',
+          progress: 100,
+          triggeredBy: 'DecompositionService',
+          metadata: {
+            totalTasks: session.persistedTasks?.length || 0,
+            sessionDuration: session.endTime ? session.endTime.getTime() - session.startTime.getTime() : 0,
+            projectId: session.projectId,
+            finalStatus: session.status
+          }
+        }
+      );
+
+      logger.info({
+        sessionId: session.id,
+        projectId: session.projectId,
+        totalTasks: session.persistedTasks?.length || 0
+      }, 'Workflow finalized successfully - entire decomposition and orchestration process completed');
+
+    } catch (error) {
+      logger.error({
+        err: error,
+        sessionId: session.id,
+        projectId: session.projectId
+      }, 'Failed to finalize workflow');
+
+      // Transition to failed state if finalization fails
+      await this.workflowStateManager.transitionWorkflow(
+        session.id,
+        WorkflowPhase.FAILED,
+        WorkflowState.FAILED,
+        {
+          reason: `Workflow finalization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          progress: 0,
+          triggeredBy: 'DecompositionService',
+          metadata: {
+            failedPhase: 'finalization',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }
+        }
+      );
+
+      throw error;
+    }
   }
 }

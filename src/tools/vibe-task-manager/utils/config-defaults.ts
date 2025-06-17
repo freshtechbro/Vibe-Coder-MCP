@@ -189,6 +189,15 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     validation: (value: number) => value >= 1000 && value <= 3600000
   },
 
+  VIBE_RECURSIVE_TASK_DECOMPOSITION_TIMEOUT: {
+    key: 'VIBE_RECURSIVE_TASK_DECOMPOSITION_TIMEOUT',
+    defaultValue: 720000, // 12 minutes (shorter than initial decomposition)
+    type: 'number',
+    required: false,
+    description: 'Recursive task decomposition timeout in milliseconds',
+    validation: (value: number) => value >= 1000 && value <= 3600000
+  },
+
   VIBE_TASK_REFINEMENT_TIMEOUT: {
     key: 'VIBE_TASK_REFINEMENT_TIMEOUT',
     defaultValue: 180000,

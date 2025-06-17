@@ -4,15 +4,18 @@ import { getLLMModelForOperation } from '../utils/config-loader.js';
 import { AtomicTask, TaskType, TaskPriority } from '../types/task.js';
 import { AtomicTaskDetector, AtomicityAnalysis, ProjectContext } from './atomic-detector.js';
 import { getPrompt } from '../services/prompt-service.js';
+import { getTimeoutManager } from '../utils/timeout-manager.js';
 import logger from '../../../logger.js';
 
 /**
  * Decomposition result for a single task
+ * Note: subTasks field contains the decomposed atomic tasks (not sub-tasks in the traditional sense)
  */
 export interface DecompositionResult {
   success: boolean;
   isAtomic: boolean;
   originalTask: AtomicTask;
+  /** Decomposed atomic tasks (named subTasks for backward compatibility) */
   subTasks: AtomicTask[];
   analysis: AtomicityAnalysis;
   error?: string;
@@ -37,12 +40,13 @@ export class RDDEngine {
   private config: OpenRouterConfig;
   private atomicDetector: AtomicTaskDetector;
   private rddConfig: RDDConfig;
+  private activeOperations: Map<string, { startTime: Date; operation: string; taskId: string }> = new Map();
 
   constructor(config: OpenRouterConfig, rddConfig?: Partial<RDDConfig>) {
     this.config = config;
     this.atomicDetector = new AtomicTaskDetector(config);
     this.rddConfig = {
-      maxDepth: 5,
+      maxDepth: 3, // Reduced from 5 to prevent excessive recursion and improve performance
       maxSubTasks: 48, // Increased to allow for more atomic tasks (8 hours / 10 minutes = 48 max tasks)
       minConfidence: 0.8, // Increased confidence threshold for stricter atomic detection
       enableParallelDecomposition: false,
@@ -58,7 +62,10 @@ export class RDDEngine {
     context: ProjectContext,
     depth: number = 0
   ): Promise<DecompositionResult> {
-    logger.info({ taskId: task.id, depth }, 'Starting RDD decomposition');
+    const operationId = `decompose-${task.id}-${Date.now()}`;
+    this.trackOperation(operationId, 'decomposition', task.id);
+
+    logger.info({ taskId: task.id, depth, operationId }, 'Starting RDD decomposition');
 
     try {
       // Check depth limit
@@ -80,6 +87,7 @@ export class RDDEngine {
       // If atomic with high confidence, return as-is
       if (analysis.isAtomic && analysis.confidence >= this.rddConfig.minConfidence) {
         logger.info({ taskId: task.id, confidence: analysis.confidence }, 'Task determined to be atomic');
+        this.completeOperation(operationId);
         return {
           success: true,
           isAtomic: true,
@@ -95,6 +103,7 @@ export class RDDEngine {
 
       if (subTasks.length === 0) {
         logger.warn({ taskId: task.id }, 'No sub-tasks generated, treating as atomic');
+        this.completeOperation(operationId);
         return {
           success: true,
           isAtomic: true,
@@ -105,15 +114,17 @@ export class RDDEngine {
         };
       }
 
-      // MERGE: Process sub-tasks recursively if needed
-      const processedSubTasks = await this.processSubTasks(subTasks, context, depth + 1);
+      // MERGE: Process decomposed tasks recursively if needed
+      const processedSubTasks = await this.processDecomposedTasks(subTasks, context, depth + 1);
 
       logger.info({
         taskId: task.id,
-        subTaskCount: processedSubTasks.length,
-        depth
+        decomposedTaskCount: processedSubTasks.length,
+        depth,
+        operationId
       }, 'RDD decomposition completed');
 
+      this.completeOperation(operationId);
       return {
         success: true,
         isAtomic: false,
@@ -124,25 +135,43 @@ export class RDDEngine {
       };
 
     } catch (error) {
-      logger.error({ err: error, taskId: task.id, depth }, 'RDD decomposition failed');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('timed out');
 
-      // Create a fallback analysis to avoid calling the failing atomic detector again
+      if (isTimeout) {
+        logger.error({
+          err: error,
+          taskId: task.id,
+          depth,
+          timeout: true,
+          operation: 'task_decomposition'
+        }, 'RDD decomposition timed out - treating task as atomic');
+      } else {
+        logger.error({ err: error, taskId: task.id, depth }, 'RDD decomposition failed');
+      }
+
+      // Create a fallback analysis with timeout-specific reasoning
       const fallbackAnalysis = {
         isAtomic: true,
-        confidence: 0.5,
-        reasoning: 'Fallback analysis due to decomposition failure',
+        confidence: isTimeout ? 0.8 : 0.5, // Higher confidence for timeout fallback
+        reasoning: isTimeout
+          ? 'Task treated as atomic due to decomposition timeout - likely complex task requiring manual breakdown'
+          : 'Fallback analysis due to decomposition failure',
         estimatedHours: task.estimatedHours,
-        complexityFactors: ['decomposition_error'],
-        recommendations: ['Manual review required']
+        complexityFactors: isTimeout ? ['timeout_complexity', 'llm_timeout'] : ['decomposition_error'],
+        recommendations: isTimeout
+          ? ['Manual task breakdown recommended', 'Consider simplifying task scope', 'Review task complexity']
+          : ['Manual review required']
       };
 
+      this.completeOperation(operationId);
       return {
-        success: false,
-        isAtomic: false,
+        success: true, // Mark as success to continue workflow, but treat as atomic
+        isAtomic: true, // Force atomic to prevent further decomposition attempts
         originalTask: task,
         subTasks: [],
         analysis: fallbackAnalysis,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         depth
       };
     }
@@ -162,64 +191,97 @@ export class RDDEngine {
       const splitPrompt = this.buildSplitPrompt(task, context, analysis);
       const systemPrompt = await getPrompt('decomposition');
 
-      const response = await performFormatAwareLlmCall(
-        splitPrompt,
-        systemPrompt,
-        this.config,
-        'task_decomposition',
-        'json', // Explicitly specify JSON format for task decomposition
-        undefined, // Schema will be inferred from task name
-        0.2 // Slightly higher temperature for creativity
+      // Perform LLM call with centralized timeout protection
+      const timeoutManager = getTimeoutManager();
+      const response = await timeoutManager.raceWithTimeout(
+        'llmRequest',
+        performFormatAwareLlmCall(
+          splitPrompt,
+          systemPrompt,
+          this.config,
+          'task_decomposition',
+          'json', // Explicitly specify JSON format for task decomposition
+          undefined, // Schema will be inferred from task name
+          0.2 // Slightly higher temperature for creativity
+        )
       );
 
       const subTasks = this.parseSplitResponse(response, task);
 
-      // Validate and limit sub-tasks
-      const validatedSubTasks = this.validateSubTasks(subTasks, task);
+      // Validate and limit decomposed tasks
+      const validatedSubTasks = this.validateDecomposedTasks(subTasks, task);
 
       logger.info({
         taskId: task.id,
-        subTaskCount: validatedSubTasks.length
+        decomposedTaskCount: validatedSubTasks.length
       }, 'Task split completed');
 
       return validatedSubTasks;
 
     } catch (error) {
-      logger.error({ err: error, taskId: task.id }, 'Failed to split task');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('timed out');
+
+      if (isTimeout) {
+        logger.error({
+          err: error,
+          taskId: task.id,
+          timeout: true,
+          operation: 'task_splitting'
+        }, 'Task splitting timed out - LLM call exceeded timeout limit');
+      } else {
+        logger.error({ err: error, taskId: task.id }, 'Failed to split task');
+      }
+
+      // Return empty array to trigger fallback to atomic task handling
       return [];
     }
   }
 
   /**
-   * Process sub-tasks recursively if they need further decomposition
+   * Process decomposed tasks recursively if they need further decomposition
    */
-  private async processSubTasks(
-    subTasks: AtomicTask[],
+  private async processDecomposedTasks(
+    decomposedTasks: AtomicTask[],
     context: ProjectContext,
     depth: number
   ): Promise<AtomicTask[]> {
     const processedTasks: AtomicTask[] = [];
 
-    for (const subTask of subTasks) {
-      // Quick atomic check for sub-tasks
-      const quickAnalysis = await this.atomicDetector.analyzeTask(subTask, context);
+    for (const task of decomposedTasks) {
+      // Quick atomic check for decomposed tasks
+      const quickAnalysis = await this.atomicDetector.analyzeTask(task, context);
 
       if (quickAnalysis.isAtomic && quickAnalysis.confidence >= this.rddConfig.minConfidence) {
-        // Sub-task is atomic, add as-is
-        processedTasks.push(subTask);
+        // Task is atomic, add as-is
+        processedTasks.push(task);
       } else if (depth < this.rddConfig.maxDepth) {
-        // Sub-task needs further decomposition
-        const decompositionResult = await this.decomposeTask(subTask, context, depth);
+        // Task needs further decomposition with centralized timeout protection
+        try {
+          const timeoutManager = getTimeoutManager();
+          const decompositionResult = await timeoutManager.raceWithTimeout(
+            'recursiveTaskDecomposition',
+            this.decomposeTask(task, context, depth)
+          );
 
-        if (decompositionResult.success && decompositionResult.subTasks.length > 0) {
-          processedTasks.push(...decompositionResult.subTasks);
-        } else {
-          // Decomposition failed, keep original sub-task
-          processedTasks.push(subTask);
+          if (decompositionResult.success && decompositionResult.subTasks.length > 0) {
+            processedTasks.push(...decompositionResult.subTasks);
+          } else {
+            // Decomposition failed, keep original task
+            processedTasks.push(task);
+          }
+        } catch (error) {
+          logger.warn({
+            err: error,
+            taskId: task.id,
+            depth,
+            isRecursiveCall: true
+          }, 'Recursive task decomposition failed or timed out, keeping task as atomic');
+          processedTasks.push(task);
         }
       } else {
         // Max depth reached, keep as-is
-        processedTasks.push(subTask);
+        processedTasks.push(task);
       }
     }
 
@@ -338,10 +400,10 @@ CRITICAL REMINDER:
       }
 
       return tasksArray.map((taskData: any, index: number) => {
-        const subTaskId = `${originalTask.id}-${String(index + 1).padStart(2, '0')}`;
+        const decomposedTaskId = `${originalTask.id}-${String(index + 1).padStart(2, '0')}`;
 
         return {
-          id: subTaskId,
+          id: decomposedTaskId,
           title: taskData.title || '',
           description: taskData.description || '',
           type: this.validateTaskType(taskData.type) || originalTask.type,
@@ -399,11 +461,11 @@ CRITICAL REMINDER:
   }
 
   /**
-   * Validate and limit tasks with atomic constraints
+   * Validate and limit decomposed tasks with atomic constraints
    */
-  private validateSubTasks(subTasks: AtomicTask[], originalTask: AtomicTask): AtomicTask[] {
+  private validateDecomposedTasks(decomposedTasks: AtomicTask[], originalTask: AtomicTask): AtomicTask[] {
     // Limit number of tasks
-    const limitedTasks = subTasks.slice(0, this.rddConfig.maxSubTasks);
+    const limitedTasks = decomposedTasks.slice(0, this.rddConfig.maxSubTasks);
 
     // Calculate total time for epic constraint validation
     const totalEstimatedHours = limitedTasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0);
@@ -478,5 +540,75 @@ CRITICAL REMINDER:
   private validateTaskPriority(priority: string): TaskPriority | null {
     const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
     return validPriorities.includes(priority as TaskPriority) ? priority as TaskPriority : null;
+  }
+
+  /**
+   * Track active operation for health monitoring
+   */
+  private trackOperation(operationId: string, operation: string, taskId: string): void {
+    this.activeOperations.set(operationId, {
+      startTime: new Date(),
+      operation,
+      taskId
+    });
+  }
+
+  /**
+   * Complete operation tracking
+   */
+  private completeOperation(operationId: string): void {
+    this.activeOperations.delete(operationId);
+  }
+
+  /**
+   * Get health status of RDD engine operations
+   */
+  getHealthStatus(): { healthy: boolean; activeOperations: number; longRunningOperations: Array<{ operationId: string; operation: string; taskId: string; duration: number }> } {
+    const now = new Date();
+    const longRunningThreshold = 300000; // 5 minutes
+    const longRunningOperations: Array<{ operationId: string; operation: string; taskId: string; duration: number }> = [];
+
+    for (const [operationId, info] of this.activeOperations.entries()) {
+      const duration = now.getTime() - info.startTime.getTime();
+      if (duration > longRunningThreshold) {
+        longRunningOperations.push({
+          operationId,
+          operation: info.operation,
+          taskId: info.taskId,
+          duration
+        });
+      }
+    }
+
+    return {
+      healthy: longRunningOperations.length === 0,
+      activeOperations: this.activeOperations.size,
+      longRunningOperations
+    };
+  }
+
+  /**
+   * Clean up stale operations (operations that have been running too long)
+   */
+  cleanupStaleOperations(): number {
+    const now = new Date();
+    const staleThreshold = 900000; // 15 minutes
+    let cleanedCount = 0;
+
+    for (const [operationId, info] of this.activeOperations.entries()) {
+      const duration = now.getTime() - info.startTime.getTime();
+      if (duration > staleThreshold) {
+        logger.warn({
+          operationId,
+          operation: info.operation,
+          taskId: info.taskId,
+          duration
+        }, 'Cleaning up stale RDD operation');
+        this.activeOperations.delete(operationId);
+        cleanedCount++;
+      }
+    }
+
+    return cleanedCount;
   }
 }

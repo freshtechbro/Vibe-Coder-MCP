@@ -3,6 +3,7 @@ import { getStorageManager } from '../core/storage/storage-manager.js';
 import { getTaskOperations } from '../core/operations/task-operations.js';
 import { getIdGenerator } from '../utils/id-generator.js';
 import { FileOperationResult } from '../utils/file-utils.js';
+import { InitializationMonitor } from '../../../utils/initialization-monitor.js';
 import logger from '../../../logger.js';
 
 /**
@@ -74,7 +75,24 @@ export class EpicService {
    */
   static getInstance(): EpicService {
     if (!EpicService.instance) {
-      EpicService.instance = new EpicService();
+      const monitor = InitializationMonitor.getInstance();
+      monitor.startServiceInitialization('EpicService', [
+        'StorageManager',
+        'TaskOperations',
+        'IdGenerator'
+      ]);
+
+      try {
+        monitor.startPhase('EpicService', 'constructor');
+        EpicService.instance = new EpicService();
+        monitor.endPhase('EpicService', 'constructor');
+
+        monitor.endServiceInitialization('EpicService');
+      } catch (error) {
+        monitor.endPhase('EpicService', 'constructor', error as Error);
+        monitor.endServiceInitialization('EpicService', error as Error);
+        throw error;
+      }
     }
     return EpicService.instance;
   }

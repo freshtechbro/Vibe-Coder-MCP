@@ -142,15 +142,14 @@ export class ProjectOperations {
 
       const projectId = idResult.id!;
 
+      // Determine optimal agent configuration based on project characteristics
+      const agentConfig = await this.determineOptimalAgentConfig(params, config);
+
       // Create default project configuration
       const defaultConfig: ProjectConfig = {
         maxConcurrentTasks: config.taskManager.maxConcurrentTasks,
         defaultTaskTemplate: config.taskManager.defaultTaskTemplate,
-        agentConfig: {
-          maxAgents: config.taskManager.agentSettings.maxAgents,
-          defaultAgent: config.taskManager.agentSettings.defaultAgent,
-          agentCapabilities: {}
-        },
+        agentConfig,
         performanceTargets: {
           maxResponseTime: config.taskManager.performanceTargets.maxResponseTime,
           maxMemoryUsage: config.taskManager.performanceTargets.maxMemoryUsage,
@@ -366,17 +365,68 @@ export class ProjectOperations {
     try {
       logger.info({ projectName: prdData.metadata?.projectName, createdBy }, 'Creating project from PRD');
 
-      // Extract project information from PRD
+      // Extract initial tech stack from PRD
+      let languages = prdData.technical?.techStack || [];
+      let frameworks = prdData.technical?.architecturalPatterns || [];
+      let tools: string[] = [];
+
+      // Use ProjectAnalyzer as fallback if PRD tech stack is insufficient
+      if (languages.length === 0 || frameworks.length === 0) {
+        logger.info({
+          prdLanguages: languages.length,
+          prdFrameworks: frameworks.length
+        }, 'PRD tech stack insufficient, using ProjectAnalyzer for detection');
+
+        try {
+          const { ProjectAnalyzer } = await import('../../utils/project-analyzer.js');
+          const projectAnalyzer = ProjectAnalyzer.getInstance();
+          const projectPath = this.resolveProjectRootPath(); // Use proper project path resolution
+
+          // Detect missing tech stack components
+          if (languages.length === 0) {
+            languages = await projectAnalyzer.detectProjectLanguages(projectPath);
+            logger.debug({ detectedLanguages: languages }, 'Languages detected by ProjectAnalyzer');
+          }
+
+          if (frameworks.length === 0) {
+            frameworks = await projectAnalyzer.detectProjectFrameworks(projectPath);
+            logger.debug({ detectedFrameworks: frameworks }, 'Frameworks detected by ProjectAnalyzer');
+          }
+
+          // Always detect tools since PRD rarely includes them
+          tools = await projectAnalyzer.detectProjectTools(projectPath);
+          logger.debug({ detectedTools: tools }, 'Tools detected by ProjectAnalyzer');
+
+        } catch (analyzerError) {
+          logger.warn({
+            err: analyzerError,
+            projectName: prdData.metadata?.projectName
+          }, 'ProjectAnalyzer detection failed, using fallback values');
+
+          // Fallback to sensible defaults
+          if (languages.length === 0) languages = ['typescript', 'javascript'];
+          if (frameworks.length === 0) frameworks = ['node.js'];
+          if (tools.length === 0) tools = ['git', 'npm'];
+        }
+      }
+
+      // Extract project information from PRD with enhanced tech stack
       const projectParams: CreateProjectParams = {
         name: prdData.metadata?.projectName || 'Untitled Project',
         description: prdData.overview?.description || 'Project created from PRD',
         tags: ['prd-generated'],
         techStack: {
-          languages: prdData.technical?.techStack || [],
-          frameworks: prdData.technical?.architecturalPatterns || [],
-          tools: []
+          languages,
+          frameworks,
+          tools
         }
       };
+
+      logger.info({
+        projectName: projectParams.name,
+        techStack: projectParams.techStack,
+        source: 'PRD + ProjectAnalyzer'
+      }, 'Enhanced project tech stack for PRD project creation');
 
       // Create the project using the standard method
       return await this.createProject(projectParams, createdBy);
@@ -593,6 +643,259 @@ export class ProjectOperations {
   }
 
 
+
+  /**
+   * Determine optimal agent configuration based on project characteristics
+   */
+  private async determineOptimalAgentConfig(
+    params: CreateProjectParams,
+    config: any
+  ): Promise<{ maxAgents: number; defaultAgent: string; agentCapabilities: Record<string, any> }> {
+    try {
+      logger.debug({
+        projectName: params.name,
+        techStack: params.techStack
+      }, 'Determining optimal agent configuration');
+
+      // Use ProjectAnalyzer if tech stack is insufficient
+      let languages = params.techStack?.languages || [];
+      let frameworks = params.techStack?.frameworks || [];
+      let tools = params.techStack?.tools || [];
+
+      if (languages.length === 0 || frameworks.length === 0) {
+        try {
+          const { ProjectAnalyzer } = await import('../../utils/project-analyzer.js');
+          const projectAnalyzer = ProjectAnalyzer.getInstance();
+          const projectPath = this.resolveProjectRootPath(params.rootPath);
+
+          if (languages.length === 0) {
+            languages = await projectAnalyzer.detectProjectLanguages(projectPath);
+          }
+          if (frameworks.length === 0) {
+            frameworks = await projectAnalyzer.detectProjectFrameworks(projectPath);
+          }
+          if (tools.length === 0) {
+            tools = await projectAnalyzer.detectProjectTools(projectPath);
+          }
+
+          logger.debug({
+            detectedLanguages: languages,
+            detectedFrameworks: frameworks,
+            detectedTools: tools
+          }, 'ProjectAnalyzer enhanced tech stack for agent configuration');
+
+        } catch (analyzerError) {
+          logger.warn({
+            err: analyzerError,
+            projectName: params.name
+          }, 'ProjectAnalyzer failed for agent configuration, using defaults');
+        }
+      }
+
+      // Determine optimal agent based on project characteristics
+      const optimalAgent = this.selectOptimalAgent(languages, frameworks, tools);
+
+      // Determine agent capabilities based on tech stack
+      const agentCapabilities = this.buildAgentCapabilities(languages, frameworks, tools);
+
+      // Determine optimal number of agents based on project complexity
+      const maxAgents = this.calculateOptimalAgentCount(languages, frameworks, tools, config);
+
+      logger.info({
+        projectName: params.name,
+        selectedAgent: optimalAgent,
+        maxAgents,
+        agentCapabilities: Object.keys(agentCapabilities),
+        techStackBasis: { languages, frameworks, tools }
+      }, 'Optimal agent configuration determined');
+
+      return {
+        maxAgents,
+        defaultAgent: optimalAgent,
+        agentCapabilities
+      };
+
+    } catch (error) {
+      logger.warn({
+        err: error,
+        projectName: params.name
+      }, 'Failed to determine optimal agent configuration, using defaults');
+
+      // Fallback to default configuration
+      return {
+        maxAgents: config.taskManager.agentSettings.maxAgents,
+        defaultAgent: config.taskManager.agentSettings.defaultAgent,
+        agentCapabilities: {}
+      };
+    }
+  }
+
+  /**
+   * Select optimal agent based on project tech stack
+   */
+  private selectOptimalAgent(languages: string[], frameworks: string[], tools: string[]): string {
+    // Agent specialization mapping
+    const agentSpecializations = {
+      'frontend-specialist': {
+        languages: ['javascript', 'typescript', 'html', 'css'],
+        frameworks: ['react', 'vue', 'angular', 'svelte', 'next.js', 'nuxt.js'],
+        tools: ['webpack', 'vite', 'rollup', 'tailwind'],
+        score: 0
+      },
+      'backend-specialist': {
+        languages: ['javascript', 'typescript', 'python', 'java', 'csharp', 'go'],
+        frameworks: ['node.js', 'express', 'fastapi', 'django', 'spring', 'dotnet'],
+        tools: ['docker', 'kubernetes', 'nginx'],
+        score: 0
+      },
+      'fullstack-developer': {
+        languages: ['javascript', 'typescript', 'python'],
+        frameworks: ['react', 'node.js', 'next.js', 'django', 'fastapi'],
+        tools: ['docker', 'git', 'npm', 'yarn'],
+        score: 0
+      },
+      'mobile-specialist': {
+        languages: ['javascript', 'typescript', 'swift', 'kotlin', 'dart'],
+        frameworks: ['react-native', 'flutter', 'ionic'],
+        tools: ['xcode', 'android-studio'],
+        score: 0
+      },
+      'devops-specialist': {
+        languages: ['bash', 'python', 'yaml'],
+        frameworks: ['terraform', 'ansible'],
+        tools: ['docker', 'kubernetes', 'jenkins', 'github-actions'],
+        score: 0
+      },
+      'data-specialist': {
+        languages: ['python', 'r', 'sql'],
+        frameworks: ['pandas', 'tensorflow', 'pytorch'],
+        tools: ['jupyter', 'docker'],
+        score: 0
+      }
+    };
+
+    // Calculate scores for each agent specialization
+    for (const [agentType, spec] of Object.entries(agentSpecializations)) {
+      // Language match score (40% weight)
+      const languageMatches = languages.filter(lang =>
+        spec.languages.some(specLang => lang.toLowerCase().includes(specLang))
+      ).length;
+      const languageScore = (languageMatches / Math.max(languages.length, 1)) * 0.4;
+
+      // Framework match score (35% weight)
+      const frameworkMatches = frameworks.filter(fw =>
+        spec.frameworks.some(specFw => fw.toLowerCase().includes(specFw))
+      ).length;
+      const frameworkScore = (frameworkMatches / Math.max(frameworks.length, 1)) * 0.35;
+
+      // Tools match score (25% weight)
+      const toolMatches = tools.filter(tool =>
+        spec.tools.some(specTool => tool.toLowerCase().includes(specTool))
+      ).length;
+      const toolScore = (toolMatches / Math.max(tools.length, 1)) * 0.25;
+
+      spec.score = languageScore + frameworkScore + toolScore;
+    }
+
+    // Find the best matching agent
+    const bestAgent = Object.entries(agentSpecializations)
+      .sort(([, a], [, b]) => b.score - a.score)[0];
+
+    // Use specialized agent if score is above threshold, otherwise use fullstack
+    const selectedAgent = bestAgent[1].score > 0.3 ? bestAgent[0] : 'fullstack-developer';
+
+    logger.debug({
+      agentScores: Object.fromEntries(
+        Object.entries(agentSpecializations).map(([name, spec]) => [name, spec.score])
+      ),
+      selectedAgent,
+      threshold: 0.3
+    }, 'Agent selection analysis completed');
+
+    return selectedAgent;
+  }
+
+  /**
+   * Build agent capabilities based on tech stack
+   */
+  private buildAgentCapabilities(languages: string[], frameworks: string[], tools: string[]): Record<string, any> {
+    const capabilities: Record<string, any> = {};
+
+    // Language capabilities
+    if (languages.length > 0) {
+      capabilities.languages = languages;
+      capabilities.primaryLanguage = languages[0];
+    }
+
+    // Framework capabilities
+    if (frameworks.length > 0) {
+      capabilities.frameworks = frameworks;
+      capabilities.primaryFramework = frameworks[0];
+    }
+
+    // Tool capabilities
+    if (tools.length > 0) {
+      capabilities.tools = tools;
+      capabilities.buildTools = tools.filter(tool =>
+        ['npm', 'yarn', 'pnpm', 'webpack', 'vite', 'rollup'].includes(tool)
+      );
+      capabilities.deploymentTools = tools.filter(tool =>
+        ['docker', 'kubernetes', 'jenkins'].includes(tool)
+      );
+    }
+
+    // Derived capabilities
+    capabilities.isFullStack = languages.includes('javascript') || languages.includes('typescript');
+    capabilities.isMobile = frameworks.some(fw => ['react-native', 'flutter', 'ionic'].includes(fw));
+    capabilities.isBackend = frameworks.some(fw => ['node.js', 'express', 'django', 'fastapi', 'spring'].includes(fw));
+    capabilities.isFrontend = frameworks.some(fw => ['react', 'vue', 'angular', 'svelte'].includes(fw));
+
+    return capabilities;
+  }
+
+  /**
+   * Calculate optimal agent count based on project complexity
+   */
+  private calculateOptimalAgentCount(
+    languages: string[],
+    frameworks: string[],
+    tools: string[],
+    config: any
+  ): number {
+    const baseAgents = config.taskManager.agentSettings.maxAgents;
+
+    // Complexity factors
+    let complexityScore = 0;
+
+    // Language diversity (more languages = more complexity)
+    complexityScore += Math.min(languages.length * 0.5, 2);
+
+    // Framework diversity
+    complexityScore += Math.min(frameworks.length * 0.3, 1.5);
+
+    // Tool sophistication
+    const sophisticatedTools = tools.filter(tool =>
+      ['docker', 'kubernetes', 'webpack', 'vite', 'jenkins', 'terraform'].includes(tool)
+    );
+    complexityScore += Math.min(sophisticatedTools.length * 0.2, 1);
+
+    // Calculate optimal agent count (between 1 and maxAgents)
+    const optimalCount = Math.max(1, Math.min(
+      Math.ceil(baseAgents * (0.5 + complexityScore * 0.1)),
+      baseAgents
+    ));
+
+    logger.debug({
+      complexityScore,
+      languageCount: languages.length,
+      frameworkCount: frameworks.length,
+      sophisticatedToolCount: sophisticatedTools.length,
+      baseAgents,
+      optimalCount
+    }, 'Agent count calculation completed');
+
+    return optimalCount;
+  }
 
   /**
    * Validate project creation parameters

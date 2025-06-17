@@ -65,6 +65,7 @@ export interface UnifiedAgent {
  */
 export class AgentIntegrationBridge {
   private static instance: AgentIntegrationBridge;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
   private agentRegistry: any;
   private agentOrchestrator: any;
   private syncEnabled = true;
@@ -76,10 +77,50 @@ export class AgentIntegrationBridge {
   }
 
   static getInstance(): AgentIntegrationBridge {
+    if (AgentIntegrationBridge.isInitializing) {
+      logger.warn('Circular initialization detected in AgentIntegrationBridge, using safe fallback');
+      return AgentIntegrationBridge.createSafeFallback();
+    }
+
     if (!AgentIntegrationBridge.instance) {
-      AgentIntegrationBridge.instance = new AgentIntegrationBridge();
+      AgentIntegrationBridge.isInitializing = true;
+      try {
+        AgentIntegrationBridge.instance = new AgentIntegrationBridge();
+      } finally {
+        AgentIntegrationBridge.isInitializing = false;
+      }
     }
     return AgentIntegrationBridge.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentIntegrationBridge {
+    const fallback = Object.create(AgentIntegrationBridge.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.agentRegistry = null;
+    fallback.agentOrchestrator = null;
+    fallback.syncEnabled = false;
+    fallback.registrationInProgress = new Set();
+
+    // Provide safe no-op methods
+    fallback.registerAgent = async () => {
+      logger.warn('AgentIntegrationBridge fallback: registerAgent called during initialization');
+    };
+    fallback.synchronizeAgents = async () => {
+      logger.warn('AgentIntegrationBridge fallback: synchronizeAgents called during initialization');
+    };
+    fallback.getUnifiedAgent = async () => {
+      logger.warn('AgentIntegrationBridge fallback: getUnifiedAgent called during initialization');
+      return null;
+    };
+    fallback.startAutoSync = () => {
+      logger.warn('AgentIntegrationBridge fallback: startAutoSync called during initialization');
+    };
+
+    return fallback;
   }
 
   /**

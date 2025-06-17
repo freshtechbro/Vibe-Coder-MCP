@@ -12,6 +12,7 @@ import { getTaskOperations } from '../../core/operations/task-operations.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
 import { AtomicTask, TaskType, TaskPriority } from '../../types/task.js';
 import { ProjectAnalyzer } from '../../utils/project-analyzer.js';
+import { getPathResolver } from '../../utils/path-resolver.js';
 import logger from '../../../../logger.js';
 
 /**
@@ -142,6 +143,14 @@ async function createCompleteAtomicTask(partialTask: Partial<AtomicTask> & { id:
 export class DecomposeTaskHandler implements CommandHandler {
   intent: Intent = 'decompose_task';
 
+  /**
+   * Resolve project path using centralized path resolver
+   */
+  private resolveProjectPath(context: CommandExecutionContext): string {
+    const pathResolver = getPathResolver();
+    return pathResolver.resolveProjectPathFromContext(context);
+  }
+
   async handle(
     recognizedIntent: RecognizedIntent,
     toolParams: Record<string, unknown>,
@@ -195,7 +204,7 @@ export class DecomposeTaskHandler implements CommandHandler {
 
       // Get project analyzer for dynamic detection
       const projectAnalyzer = ProjectAnalyzer.getInstance();
-      const projectPath = process.cwd(); // Default to current working directory
+      const projectPath = this.resolveProjectPath(context); // Use proper path resolution
 
       // Detect project characteristics dynamically
       let languages: string[];
@@ -467,6 +476,14 @@ export class DecomposeTaskHandler implements CommandHandler {
 export class DecomposeProjectHandler implements CommandHandler {
   intent: Intent = 'decompose_project';
 
+  /**
+   * Resolve project path using centralized path resolver
+   */
+  private resolveProjectPath(context: CommandExecutionContext): string {
+    const pathResolver = getPathResolver();
+    return pathResolver.resolveProjectPathFromContext(context);
+  }
+
   async handle(
     recognizedIntent: RecognizedIntent,
     toolParams: Record<string, unknown>,
@@ -535,7 +552,7 @@ export class DecomposeProjectHandler implements CommandHandler {
 
       // Get project analyzer for dynamic detection
       const projectAnalyzer = ProjectAnalyzer.getInstance();
-      const projectPath = process.cwd(); // Default to current working directory
+      const projectPath = this.resolveProjectPath(context); // Use proper path resolution
 
       // Detect project characteristics dynamically with fallbacks
       let languages: string[];

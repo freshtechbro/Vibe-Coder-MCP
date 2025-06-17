@@ -11,6 +11,7 @@ import { WorkflowStateManager, WorkflowPhase, WorkflowState } from './workflow-s
 import { DecompositionService } from './decomposition-service.js';
 import { getTimeoutManager } from '../utils/timeout-manager.js';
 import { createErrorContext, ValidationError } from '../utils/enhanced-errors.js';
+import { InitializationMonitor } from '../../../utils/initialization-monitor.js';
 import logger from '../../../logger.js';
 
 /**
@@ -91,9 +92,9 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   private static instance: WorkflowAwareAgentManager | null = null;
   private config: WorkflowTimeoutConfig;
   private agentStates = new Map<string, WorkflowAwareAgentState>();
-  private agentOrchestrator: AgentOrchestrator;
+  private agentOrchestrator: AgentOrchestrator | null = null;
   private workflowStateManager: WorkflowStateManager;
-  private decompositionService: DecompositionService;
+  private decompositionService: DecompositionService | null = null;
   
   private monitoringInterval: NodeJS.Timeout | null = null;
   private isMonitoring = false;
@@ -102,28 +103,75 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   private constructor(config: Partial<WorkflowTimeoutConfig> = {}) {
     super();
     this.config = { ...DEFAULT_WORKFLOW_TIMEOUT_CONFIG, ...config };
-    this.agentOrchestrator = AgentOrchestrator.getInstance();
 
-    // Initialize workflow state manager and decomposition service with fallbacks
+    // AgentOrchestrator will be initialized lazily to prevent circular dependency
+
+    // Initialize workflow state manager and decomposition service with proper getInstance calls
     try {
-      this.workflowStateManager = (WorkflowStateManager as any).getInstance();
+      this.workflowStateManager = WorkflowStateManager.getInstance();
     } catch (error) {
       logger.warn({ err: error }, 'WorkflowStateManager getInstance not available, using fallback');
       this.workflowStateManager = { on: () => {}, emit: () => {} } as any;
     }
 
-    try {
-      this.decompositionService = (DecompositionService as any).getInstance();
-    } catch (error) {
-      logger.warn({ err: error }, 'DecompositionService getInstance not available, using fallback');
-      this.decompositionService = { on: () => {}, emit: () => {} } as any;
-    }
-    
-    this.setupEventListeners();
-    
+    // Initialize decomposition service with config (following TaskRefinementService pattern)
+    // Use async initialization pattern to prevent timing issues
+    this.scheduleAsyncInitialization();
+
     logger.info('Workflow-aware agent manager initialized', {
       config: this.config
     });
+  }
+
+  /**
+   * Schedule async initialization to prevent timing issues
+   */
+  private scheduleAsyncInitialization(): void {
+    process.nextTick(() => {
+      this.initializeDecompositionService().then(() => {
+        this.setupEventListeners();
+      }).catch(error => {
+        logger.warn({ err: error }, 'DecompositionService initialization failed, setting up event listeners with fallback');
+        this.setupEventListeners(); // Still setup with null service
+      });
+    });
+  }
+
+  /**
+   * Initialize decomposition service with config
+   */
+  private async initializeDecompositionService(): Promise<void> {
+    try {
+      const { getVibeTaskManagerConfig } = await import('../utils/config-loader.js');
+      const config = await getVibeTaskManagerConfig();
+      if (!config) {
+        throw new Error('Failed to load task manager configuration');
+      }
+      // Convert LLMConfig to OpenRouterConfig format
+      const openRouterConfig = {
+        baseUrl: 'https://openrouter.ai/api/v1',
+        apiKey: process.env.OPENROUTER_API_KEY || '',
+        model: 'anthropic/claude-3-sonnet',
+        geminiModel: 'gemini-pro',
+        perplexityModel: 'llama-3.1-sonar-small-128k-online'
+      };
+      this.decompositionService = DecompositionService.getInstance(openRouterConfig);
+    } catch (error) {
+      logger.warn({ err: error }, 'DecompositionService initialization failed, using fallback');
+      this.decompositionService = null;
+    }
+  }
+
+  /**
+   * Lazily initialize AgentOrchestrator to prevent circular dependency
+   */
+  private async getAgentOrchestrator(): Promise<AgentOrchestrator> {
+    if (!this.agentOrchestrator) {
+      // Use dynamic import to break circular dependency
+      const { AgentOrchestrator } = await import('./agent-orchestrator.js');
+      this.agentOrchestrator = AgentOrchestrator.getInstance();
+    }
+    return this.agentOrchestrator;
   }
 
   /**
@@ -131,7 +179,23 @@ export class WorkflowAwareAgentManager extends EventEmitter {
    */
   static getInstance(config?: Partial<WorkflowTimeoutConfig>): WorkflowAwareAgentManager {
     if (!WorkflowAwareAgentManager.instance) {
-      WorkflowAwareAgentManager.instance = new WorkflowAwareAgentManager(config);
+      const monitor = InitializationMonitor.getInstance();
+      monitor.startServiceInitialization('WorkflowAwareAgentManager', [
+        'WorkflowStateManager',
+        'DecompositionService'
+      ], { config });
+
+      try {
+        monitor.startPhase('WorkflowAwareAgentManager', 'constructor');
+        WorkflowAwareAgentManager.instance = new WorkflowAwareAgentManager(config);
+        monitor.endPhase('WorkflowAwareAgentManager', 'constructor');
+
+        monitor.endServiceInitialization('WorkflowAwareAgentManager');
+      } catch (error) {
+        monitor.endPhase('WorkflowAwareAgentManager', 'constructor', error as Error);
+        monitor.endServiceInitialization('WorkflowAwareAgentManager', error as Error);
+        throw error;
+      }
     }
     return WorkflowAwareAgentManager.instance;
   }
@@ -303,7 +367,13 @@ export class WorkflowAwareAgentManager extends EventEmitter {
     });
 
     // Update orchestrator heartbeat
-    this.agentOrchestrator.updateAgentHeartbeat(agentId, 'available');
+    this.getAgentOrchestrator().then(orchestrator => {
+      if (orchestrator && typeof orchestrator.updateAgentHeartbeat === 'function') {
+        orchestrator.updateAgentHeartbeat(agentId, 'available');
+      }
+    }).catch(error => {
+      logger.warn({ err: error, agentId }, 'Failed to update agent heartbeat');
+    });
   }
 
   /**
@@ -436,7 +506,7 @@ export class WorkflowAwareAgentManager extends EventEmitter {
     // Listen to decomposition events (with fallback for services that don't support events)
     try {
       const decompositionServiceAny = this.decompositionService as any;
-      if (typeof decompositionServiceAny.on === 'function') {
+      if (decompositionServiceAny && typeof decompositionServiceAny.on === 'function') {
         decompositionServiceAny.on('decomposition_started', (data: any) => {
           this.handleDecompositionStarted(data).catch(error => {
             logger.error({ err: error, data }, 'Error handling decomposition started');
@@ -594,7 +664,13 @@ export class WorkflowAwareAgentManager extends EventEmitter {
     });
 
     // Mark agent as offline in orchestrator
-    this.agentOrchestrator.updateAgentHeartbeat(agentState.agentId, 'offline');
+    this.getAgentOrchestrator().then(orchestrator => {
+      if (orchestrator && typeof orchestrator.updateAgentHeartbeat === 'function') {
+        orchestrator.updateAgentHeartbeat(agentState.agentId, 'offline');
+      }
+    }).catch(error => {
+      logger.warn({ err: error, agentId: agentState.agentId }, 'Failed to update agent heartbeat to offline');
+    });
 
     // Remove from our tracking
     this.agentStates.delete(agentState.agentId);

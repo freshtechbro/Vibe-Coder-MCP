@@ -297,6 +297,14 @@ export const CONFIG_SCHEMA: Record<string, SchemaField> = {
             default: 600000,
             description: 'Task decomposition timeout in milliseconds'
           },
+          recursiveTaskDecomposition: {
+            type: 'number',
+            required: true,
+            min: 1000,
+            max: 3600000,
+            default: 720000,
+            description: 'Recursive task decomposition timeout in milliseconds'
+          },
           taskRefinement: {
             type: 'number',
             required: true,

@@ -5,10 +5,12 @@
  * complete workflow lifecycle with proper state validation and recovery.
  */
 
+import path from 'path';
 import { EventEmitter } from 'events';
 import logger from '../../../logger.js';
 import { FileUtils } from '../utils/file-utils.js';
 import { createErrorContext } from '../utils/enhanced-errors.js';
+import { getVibeTaskManagerOutputDir } from '../utils/config-loader.js';
 
 /**
  * Workflow phases in the decomposition → orchestration → execution flow
@@ -193,6 +195,7 @@ const VALID_TRANSITIONS: Map<string, Set<string>> = new Map([
  * Workflow State Manager
  */
 export class WorkflowStateManager extends EventEmitter {
+  private static instance: WorkflowStateManager | null = null;
   private workflows: Map<string, WorkflowStateSnapshot> = new Map();
   private persistenceEnabled: boolean = true;
   private persistenceDirectory: string;
@@ -200,7 +203,19 @@ export class WorkflowStateManager extends EventEmitter {
 
   constructor(persistenceDirectory?: string) {
     super();
-    this.persistenceDirectory = persistenceDirectory || './VibeCoderOutput/vibe-task-manager/workflow-states';
+    // Use absolute path by default instead of relative path
+    this.persistenceDirectory = persistenceDirectory ||
+      path.join(getVibeTaskManagerOutputDir(), 'workflow-states');
+  }
+
+  /**
+   * Get singleton instance
+   */
+  static getInstance(persistenceDirectory?: string): WorkflowStateManager {
+    if (!WorkflowStateManager.instance) {
+      WorkflowStateManager.instance = new WorkflowStateManager(persistenceDirectory);
+    }
+    return WorkflowStateManager.instance;
   }
 
   /**

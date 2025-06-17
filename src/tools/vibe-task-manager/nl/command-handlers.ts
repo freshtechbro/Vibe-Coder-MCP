@@ -11,6 +11,7 @@ import { extractProjectFromContext, extractEpicFromContext } from '../utils/cont
 import { DecomposeTaskHandler, DecomposeProjectHandler } from './handlers/decomposition-handlers.js';
 import { SearchFilesHandler, SearchContentHandler } from './handlers/search-handlers.js';
 import { ParsePRDHandler, ParseTasksHandler, ImportArtifactHandler } from './handlers/artifact-handlers.js';
+import { getPathResolver } from '../utils/path-resolver.js';
 import logger from '../../../logger.js';
 
 /**
@@ -634,6 +635,14 @@ export class ListTasksHandler implements CommandHandler {
 export class RunTaskHandler implements CommandHandler {
   intent: Intent = 'run_task';
 
+  /**
+   * Resolve project path using centralized path resolver
+   */
+  private resolveProjectPath(context: CommandExecutionContext): string {
+    const pathResolver = getPathResolver();
+    return pathResolver.resolveProjectPathFromContext(context);
+  }
+
   async handle(
     recognizedIntent: RecognizedIntent,
     toolParams: Record<string, unknown>,
@@ -675,7 +684,7 @@ export class RunTaskHandler implements CommandHandler {
       // Create dynamic project context for task execution using ProjectAnalyzer
       const { ProjectAnalyzer } = await import('../utils/project-analyzer.js');
       const projectAnalyzer = ProjectAnalyzer.getInstance();
-      const projectPath = process.cwd();
+      const projectPath = this.resolveProjectPath(context);
 
       // Detect project characteristics dynamically
       let languages: string[];

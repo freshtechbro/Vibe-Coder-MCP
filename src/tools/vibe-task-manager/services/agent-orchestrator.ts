@@ -23,6 +23,9 @@ import { transportManager } from '../../../services/transport-manager/index.js';
 import { getTimeoutManager, TaskComplexity } from '../utils/timeout-manager.js';
 import { AgentIntegrationBridge } from './agent-integration-bridge.js';
 import { WorkflowAwareAgentManager } from './workflow-aware-agent-manager.js';
+import { ImportCycleBreaker } from '../../../utils/import-cycle-breaker.js';
+import { OperationCircuitBreaker } from '../../../utils/operation-circuit-breaker.js';
+import { InitializationMonitor } from '../../../utils/initialization-monitor.js';
 import logger from '../../../logger.js';
 
 /**
@@ -211,12 +214,31 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
   private httpAgentAPI: any;
   private sseNotifier: any;
   private isInitialized: boolean = false;
+  private dependenciesPromise: Promise<void> | null = null;
 
   constructor() {
-    // Initialize dependencies asynchronously
-    this.initializeDependencies().catch(error => {
-      logger.error({ err: error }, 'Failed to initialize agent communication channel dependencies');
+    // Defer async initialization to prevent recursion during constructor
+    this.scheduleAsyncInitialization();
+  }
+
+  /**
+   * Schedule async initialization to prevent recursion during constructor
+   */
+  private scheduleAsyncInitialization(): void {
+    process.nextTick(() => {
+      this.dependenciesPromise = this.initializeDependencies().catch(error => {
+        logger.error({ err: error }, 'Failed to initialize UniversalAgentCommunicationChannel dependencies');
+      });
     });
+  }
+
+  /**
+   * Ensure dependencies are ready before any operation
+   */
+  private async ensureDependencies(): Promise<void> {
+    if (this.dependenciesPromise) {
+      await this.dependenciesPromise;
+    }
   }
 
   private async initializeDependencies(): Promise<void> {
@@ -236,17 +258,33 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
       // Log transport endpoint information using dynamic port allocation
       this.logTransportEndpoints();
 
-      // Try to import agent modules with fallbacks
+      // Try to import agent modules with safe imports to prevent circular dependencies
       try {
-        const { AgentRegistry } = await import('../../agent-registry/index.js');
-        const { AgentTaskQueue } = await import('../../agent-tasks/index.js');
-        const { AgentResponseProcessor } = await import('../../agent-response/index.js');
+        const AgentRegistryModule = await ImportCycleBreaker.safeImport<{ AgentRegistry: any }>('../tools/agent-registry/index.js');
+        const AgentTaskQueueModule = await ImportCycleBreaker.safeImport<{ AgentTaskQueue: any }>('../tools/agent-tasks/index.js');
+        const AgentResponseProcessorModule = await ImportCycleBreaker.safeImport<{ AgentResponseProcessor: any }>('../tools/agent-response/index.js');
 
-        this.agentRegistry = AgentRegistry.getInstance();
-        this.taskQueue = AgentTaskQueue.getInstance();
-        this.responseProcessor = AgentResponseProcessor.getInstance();
+        // Extract classes from modules
+        const AgentRegistry = AgentRegistryModule?.AgentRegistry;
+        const AgentTaskQueue = AgentTaskQueueModule?.AgentTaskQueue;
+        const AgentResponseProcessor = AgentResponseProcessorModule?.AgentResponseProcessor;
 
-        logger.info('Universal agent communication channel initialized with all transports and agent modules');
+        if (AgentRegistry && AgentTaskQueue && AgentResponseProcessor) {
+          this.agentRegistry = AgentRegistry.getInstance();
+          this.taskQueue = AgentTaskQueue.getInstance();
+          this.responseProcessor = AgentResponseProcessor.getInstance();
+
+          logger.info('Universal agent communication channel initialized with all transports and agent modules');
+        } else {
+          logger.warn('Some agent modules could not be imported due to circular dependencies, using fallback implementations');
+
+          // Use fallback implementations for missing modules
+          this.agentRegistry = AgentRegistry ? AgentRegistry.getInstance() : this.createFallbackAgentRegistry();
+          this.taskQueue = AgentTaskQueue ? AgentTaskQueue.getInstance() : this.createFallbackTaskQueue();
+          this.responseProcessor = AgentResponseProcessor ? AgentResponseProcessor.getInstance() : this.createFallbackResponseProcessor();
+
+          logger.info('Universal agent communication channel initialized with mixed agent modules and fallbacks');
+        }
       } catch (agentModuleError) {
         logger.warn({ err: agentModuleError }, 'Agent modules not available, using fallback implementations');
 
@@ -329,10 +367,8 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
   async sendTask(agentId: string, taskPayload: string): Promise<boolean> {
     try {
-      // Ensure dependencies are initialized
-      if (!this.isInitialized) {
-        await this.initializeDependencies();
-      }
+      // Ensure dependencies are ready before operation
+      await this.ensureDependencies();
 
       // Verify agent exists and is registered
       const agent = await this.agentRegistry.getAgent(agentId);
@@ -506,10 +542,8 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
   async receiveResponse(agentId: string, timeout: number = 30000): Promise<string> {
     try {
-      // Ensure dependencies are initialized
-      if (!this.isInitialized) {
-        await this.initializeDependencies();
-      }
+      // Ensure dependencies are ready before operation
+      await this.ensureDependencies();
 
       const startTime = Date.now();
 
@@ -547,10 +581,8 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
   async isAgentReachable(agentId: string): Promise<boolean> {
     try {
-      // Ensure dependencies are initialized
-      if (!this.isInitialized) {
-        await this.initializeDependencies();
-      }
+      // Ensure dependencies are ready before operation
+      await this.ensureDependencies();
 
       const agent = await this.agentRegistry.getAgent(agentId);
       if (!agent) {
@@ -826,6 +858,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
  */
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator | null = null;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
 
   private agents = new Map<string, AgentInfo>();
   private assignments = new Map<string, TaskAssignment>();
@@ -919,66 +952,135 @@ export class AgentOrchestrator {
    * Get singleton instance
    */
   static getInstance(config?: Partial<OrchestratorConfig>): AgentOrchestrator {
+    if (AgentOrchestrator.isInitializing) {
+      logger.warn('Circular initialization detected in AgentOrchestrator, using safe fallback');
+      return AgentOrchestrator.createSafeFallback();
+    }
+
     if (!AgentOrchestrator.instance) {
-      AgentOrchestrator.instance = new AgentOrchestrator(config);
+      const monitor = InitializationMonitor.getInstance();
+      monitor.startServiceInitialization('AgentOrchestrator', [
+        'TransportManager',
+        'MemoryManager',
+        'AgentIntegrationBridge',
+        'WorkflowAwareAgentManager'
+      ], { config });
+
+      AgentOrchestrator.isInitializing = true;
+      try {
+        monitor.startPhase('AgentOrchestrator', 'constructor');
+        AgentOrchestrator.instance = new AgentOrchestrator(config);
+        monitor.endPhase('AgentOrchestrator', 'constructor');
+
+        monitor.endServiceInitialization('AgentOrchestrator');
+      } catch (error) {
+        monitor.endPhase('AgentOrchestrator', 'constructor', error as Error);
+        monitor.endServiceInitialization('AgentOrchestrator', error as Error);
+        throw error;
+      } finally {
+        AgentOrchestrator.isInitializing = false;
+      }
     }
     return AgentOrchestrator.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentOrchestrator {
+    const fallback = Object.create(AgentOrchestrator.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.agents = new Map();
+    fallback.assignments = new Map();
+    fallback.taskQueue = [];
+    fallback.agentHeartbeatMisses = new Map();
+    fallback.isBridgeRegistration = false;
+
+    // Provide safe no-op methods
+    fallback.registerAgent = async () => {
+      logger.warn('AgentOrchestrator fallback: registerAgent called during initialization');
+    };
+    fallback.assignTask = async () => {
+      logger.warn('AgentOrchestrator fallback: assignTask called during initialization');
+      return null;
+    };
+    fallback.getAgents = async () => {
+      logger.warn('AgentOrchestrator fallback: getAgents called during initialization');
+      return [];
+    };
+
+    return fallback;
   }
 
   /**
    * Register a new agent (enhanced with integration bridge)
    */
   async registerAgent(agentInfo: Omit<AgentInfo, 'lastHeartbeat' | 'performance'>): Promise<void> {
-    try {
-      const fullAgentInfo: AgentInfo = {
-        ...agentInfo,
-        lastHeartbeat: new Date(),
-        performance: {
-          tasksCompleted: 0,
-          averageCompletionTime: 0,
-          successRate: 1.0
+    const result = await OperationCircuitBreaker.safeExecute(
+      `registerAgent_${agentInfo.id}`,
+      async () => {
+        const fullAgentInfo: AgentInfo = {
+          ...agentInfo,
+          lastHeartbeat: new Date(),
+          performance: {
+            tasksCompleted: 0,
+            averageCompletionTime: 0,
+            successRate: 1.0
+          }
+        };
+
+        this.agents.set(agentInfo.id, fullAgentInfo);
+
+        // Only trigger integration bridge if this is not already a bridge-initiated registration
+        if (!this.isBridgeRegistration) {
+          try {
+            await this.integrationBridge.registerAgent({
+              id: agentInfo.id,
+              name: agentInfo.name,
+              capabilities: agentInfo.capabilities.map(cap => cap.toString()),
+              status: agentInfo.status === 'available' ? 'online' : agentInfo.status as any,
+              maxConcurrentTasks: agentInfo.maxConcurrentTasks,
+              currentTasks: agentInfo.currentTasks,
+              transportType: agentInfo.metadata.preferences?.transportType || 'stdio',
+              sessionId: agentInfo.metadata.preferences?.sessionId,
+              pollingInterval: agentInfo.metadata.preferences?.pollingInterval,
+              registeredAt: Date.now(),
+              lastSeen: Date.now(),
+              lastHeartbeat: fullAgentInfo.lastHeartbeat,
+              performance: fullAgentInfo.performance,
+              httpEndpoint: agentInfo.metadata.preferences?.httpEndpoint,
+              httpAuthToken: agentInfo.metadata.preferences?.httpAuthToken,
+              metadata: agentInfo.metadata
+            });
+
+            logger.info({
+              agentId: agentInfo.id,
+              capabilities: agentInfo.capabilities
+            }, 'Agent registered in both orchestrator and registry via integration bridge');
+          } catch (bridgeError) {
+            logger.warn({ err: bridgeError, agentId: agentInfo.id }, 'Integration bridge registration failed, agent registered in orchestrator only');
+          }
         }
-      };
 
-      this.agents.set(agentInfo.id, fullAgentInfo);
+        // Trigger memory cleanup if needed
+        this.memoryManager.getMemoryStats();
 
-      // Only trigger integration bridge if this is not already a bridge-initiated registration
-      if (!this.isBridgeRegistration) {
-        try {
-          await this.integrationBridge.registerAgent({
-            id: agentInfo.id,
-            name: agentInfo.name,
-            capabilities: agentInfo.capabilities.map(cap => cap.toString()),
-            status: agentInfo.status === 'available' ? 'online' : agentInfo.status as any,
-            maxConcurrentTasks: agentInfo.maxConcurrentTasks,
-            currentTasks: agentInfo.currentTasks,
-            transportType: agentInfo.metadata.preferences?.transportType || 'stdio',
-            sessionId: agentInfo.metadata.preferences?.sessionId,
-            pollingInterval: agentInfo.metadata.preferences?.pollingInterval,
-            registeredAt: Date.now(),
-            lastSeen: Date.now(),
-            lastHeartbeat: fullAgentInfo.lastHeartbeat,
-            performance: fullAgentInfo.performance,
-            httpEndpoint: agentInfo.metadata.preferences?.httpEndpoint,
-            httpAuthToken: agentInfo.metadata.preferences?.httpAuthToken,
-            metadata: agentInfo.metadata
-          });
-
-          logger.info({
-            agentId: agentInfo.id,
-            capabilities: agentInfo.capabilities
-          }, 'Agent registered in both orchestrator and registry via integration bridge');
-        } catch (bridgeError) {
-          logger.warn({ err: bridgeError, agentId: agentInfo.id }, 'Integration bridge registration failed, agent registered in orchestrator only');
-        }
+        return true;
+      },
+      () => {
+        logger.warn({ agentId: agentInfo.id }, 'Agent registration failed due to circuit breaker, using fallback (agent not registered)');
+        return false;
+      },
+      {
+        failureThreshold: 3,
+        timeout: 30000,
+        operationTimeout: 10000
       }
+    );
 
-      // Trigger memory cleanup if needed
-      this.memoryManager.getMemoryStats();
-
-    } catch (error) {
-      logger.error({ err: error, agentId: agentInfo.id }, 'Failed to register agent');
-      throw new AppError('Agent registration failed', { cause: error });
+    if (!result.success && result.error) {
+      throw new AppError('Agent registration failed', { cause: result.error });
     }
   }
 

@@ -493,8 +493,11 @@ describe('RDDEngine', () => {
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
-      expect(result.success).toBe(false);
+      // Enhanced error recovery now returns success=true but treats task as atomic
+      expect(result.success).toBe(true);
+      expect(result.isAtomic).toBe(true);
       expect(result.error).toContain('Atomic detector failed');
+      expect(result.analysis.reasoning).toContain('Fallback analysis due to decomposition failure');
     });
 
     it('should handle invalid task types and priorities', async () => {
@@ -542,6 +545,132 @@ describe('RDDEngine', () => {
       // Should fall back to original task's type and priority
       expect(result.subTasks[0].type).toBe(mockTask.type);
       expect(result.subTasks[0].priority).toBe(mockTask.priority);
+    });
+  });
+
+  describe('timeout protection', () => {
+    it('should handle LLM timeout in splitTask gracefully', async () => {
+      // Test the timeout protection by directly testing the splitTask method behavior
+      // When splitTask fails (returns empty array), the task should be treated as atomic
+      mockAtomicDetector.analyzeTask.mockResolvedValue({
+        isAtomic: false, // Initially not atomic
+        confidence: 0.9,
+        reasoning: 'Task needs decomposition',
+        estimatedHours: 8,
+        complexityFactors: [],
+        recommendations: []
+      });
+
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      // Simulate timeout by rejecting the LLM call
+      vi.mocked(performFormatAwareLlmCall).mockRejectedValue(new Error('llmRequest operation timed out after 180000ms'));
+
+      const result = await engine.decomposeTask(mockTask, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(result.isAtomic).toBe(true); // Should fallback to atomic when splitTask fails
+      expect(result.subTasks).toHaveLength(0);
+      // When splitTask times out, it returns empty array and task is treated as atomic without error
+      expect(result.error).toBeUndefined();
+    });
+
+    it('should handle recursive decomposition timeout gracefully', async () => {
+      // First call succeeds, second call (recursive) times out
+      mockAtomicDetector.analyzeTask
+        .mockResolvedValueOnce({
+          isAtomic: false,
+          confidence: 0.9,
+          reasoning: 'Task needs decomposition',
+          estimatedHours: 8,
+          complexityFactors: [],
+          recommendations: []
+        })
+        .mockResolvedValueOnce({
+          isAtomic: false, // Sub-task also needs decomposition
+          confidence: 0.9,
+          reasoning: 'Sub-task needs further decomposition',
+          estimatedHours: 4,
+          complexityFactors: [],
+          recommendations: []
+        });
+
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      const mockSplitResponse = JSON.stringify({
+        tasks: [
+          {
+            title: 'Complex sub-task',
+            description: 'A complex task that will need further decomposition',
+            type: 'development',
+            priority: 'medium',
+            estimatedHours: 0.15,
+            filePaths: ['src/complex.ts'],
+            acceptanceCriteria: ['Complex task completed'],
+            tags: ['complex'],
+            dependencies: []
+          }
+        ]
+      });
+
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+
+      // Mock TimeoutManager to simulate timeout on recursive call
+      const mockTimeoutManager = {
+        raceWithTimeout: vi.fn()
+          .mockResolvedValueOnce(mockSplitResponse) // First call succeeds
+          .mockRejectedValueOnce(new Error('taskDecomposition operation timed out after 900000ms')) // Recursive call times out
+      };
+
+      vi.doMock('../utils/timeout-manager.js', () => ({
+        getTimeoutManager: () => mockTimeoutManager
+      }));
+
+      const result = await engine.decomposeTask(mockTask, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(result.subTasks).toHaveLength(1); // Should keep the original sub-task when recursive decomposition times out
+    });
+
+    it('should track operations for health monitoring', async () => {
+      mockAtomicDetector.analyzeTask.mockResolvedValue({
+        isAtomic: true,
+        confidence: 0.9,
+        reasoning: 'Task is atomic',
+        estimatedHours: 0.1,
+        complexityFactors: [],
+        recommendations: []
+      });
+
+      // Check health before operation
+      const healthBefore = engine.getHealthStatus();
+      expect(healthBefore.activeOperations).toBe(0);
+
+      // Start decomposition and verify it completes successfully
+      const result = await engine.decomposeTask(mockTask, mockContext);
+      expect(result.success).toBe(true);
+
+      // Check health after operation (should be cleaned up)
+      const healthAfter = engine.getHealthStatus();
+      expect(healthAfter.activeOperations).toBe(0);
+      expect(healthAfter.healthy).toBe(true);
+    });
+
+    it('should clean up stale operations', async () => {
+      // Manually add a stale operation for testing
+      const staleOperationId = 'test-stale-operation';
+      const staleStartTime = new Date(Date.now() - 1000000); // 16+ minutes ago
+
+      // Access private property for testing (not ideal but necessary for this test)
+      (engine as any).activeOperations.set(staleOperationId, {
+        startTime: staleStartTime,
+        operation: 'test_operation',
+        taskId: 'test-task'
+      });
+
+      const cleanedCount = engine.cleanupStaleOperations();
+      expect(cleanedCount).toBe(1);
+
+      const health = engine.getHealthStatus();
+      expect(health.activeOperations).toBe(0);
     });
   });
 });

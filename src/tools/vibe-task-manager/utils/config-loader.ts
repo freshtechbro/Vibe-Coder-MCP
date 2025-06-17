@@ -103,6 +103,7 @@ export interface VibeTaskManagerConfig {
     timeouts: {
       taskExecution: number; // ms
       taskDecomposition: number; // ms
+      recursiveTaskDecomposition: number; // ms
       taskRefinement: number; // ms
       agentCommunication: number; // ms
       llmRequest: number; // ms
@@ -439,6 +440,7 @@ export class ConfigLoader {
           timeouts: {
             taskExecution: getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_TASK_EXECUTION_TIMEOUT),
             taskDecomposition: getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_TASK_DECOMPOSITION_TIMEOUT),
+            recursiveTaskDecomposition: getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_RECURSIVE_TASK_DECOMPOSITION_TIMEOUT),
             taskRefinement: getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_TASK_REFINEMENT_TIMEOUT),
             agentCommunication: getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_AGENT_COMMUNICATION_TIMEOUT),
             llmRequest: getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_LLM_REQUEST_TIMEOUT),

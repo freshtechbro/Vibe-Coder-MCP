@@ -12,6 +12,7 @@ import logger from '../../../logger.js';
 export type TimeoutOperation =
   | 'taskExecution'
   | 'taskDecomposition'
+  | 'recursiveTaskDecomposition'
   | 'taskRefinement'
   | 'agentCommunication'
   | 'llmRequest'
@@ -84,6 +85,7 @@ export class TimeoutManager {
       const fallbacks: Record<TimeoutOperation, number> = {
         taskExecution: 1800000, // 30 minutes (increased from 5)
         taskDecomposition: 900000, // 15 minutes (increased from 10)
+        recursiveTaskDecomposition: 720000, // 12 minutes (shorter than initial decomposition)
         taskRefinement: 300000, // 5 minutes (increased from 3)
         agentCommunication: 60000, // 1 minute (increased from 30s)
         llmRequest: 180000, // 3 minutes (increased from 1)
@@ -367,6 +369,7 @@ export class TimeoutManager {
     const operations: TimeoutOperation[] = [
       'taskExecution',
       'taskDecomposition',
+      'recursiveTaskDecomposition',
       'taskRefinement',
       'agentCommunication',
       'llmRequest',

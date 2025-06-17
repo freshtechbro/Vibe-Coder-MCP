@@ -86,16 +86,21 @@ export class AtomicTaskDetector {
       const model = await getLLMModelForOperation('task_decomposition');
       logger.debug({ model, taskId: task.id }, 'Using LLM model for atomic analysis');
 
-      // Perform LLM analysis
-      const response = await performFormatAwareLlmCall(
-        analysisPrompt,
-        systemPrompt,
-        this.config,
-        'task_decomposition',
-        'json', // Explicitly specify JSON format for atomic analysis
-        undefined, // Schema will be inferred from task name
-        0.1 // Low temperature for consistent analysis
-      );
+      // Perform LLM analysis with timeout protection
+      const response = await Promise.race([
+        performFormatAwareLlmCall(
+          analysisPrompt,
+          systemPrompt,
+          this.config,
+          'task_decomposition',
+          'json', // Explicitly specify JSON format for atomic analysis
+          undefined, // Schema will be inferred from task name
+          0.1 // Low temperature for consistent analysis
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Atomic task analysis timeout after 60 seconds')), 60000)
+        )
+      ]);
 
       // Parse and validate response
       const analysis = this.parseAnalysisResponse(response);

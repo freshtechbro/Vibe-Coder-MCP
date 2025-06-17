@@ -229,14 +229,34 @@ export class EpicContextResolver {
       const epicTitle = `${functionalArea.charAt(0).toUpperCase() + functionalArea.slice(1)} Epic`;
       const epicDescription = `Epic for ${functionalArea} related tasks and features`;
 
-      const createResult = await epicService.createEpic({
+      const createParams = {
         title: epicTitle,
         description: epicDescription,
         projectId: params.projectId,
         priority: params.priority || 'medium',
         estimatedHours: params.estimatedHours || 40,
         tags: [functionalArea, 'auto-created']
-      }, 'epic-context-resolver');
+      };
+
+      logger.info({
+        functionalArea,
+        epicTitle,
+        projectId: params.projectId,
+        createParams
+      }, 'Attempting to create functional area epic');
+
+      const createResult = await epicService.createEpic(createParams, 'epic-context-resolver');
+
+      logger.info({
+        createResult: {
+          success: createResult.success,
+          error: createResult.error,
+          dataExists: !!createResult.data,
+          epicId: createResult.data?.id
+        },
+        functionalArea,
+        projectId: params.projectId
+      }, 'Epic creation result');
 
       if (createResult.success && createResult.data) {
         // Update project epic association

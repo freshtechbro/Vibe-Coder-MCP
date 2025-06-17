@@ -56,9 +56,9 @@ export class EntityExtractors {
       /["']([^"']+)["']\s+project/i,
       /for\s+["']([^"']+)["']/i,
       // Multi-word patterns without quotes (capture until end of string or common stop words)
-      /called\s+([A-Za-z0-9\s\-_]+?)(?:\s+(?:project|task|file|document|prd|tasks?|list)|\s*$)/i,
-      /project\s+([A-Za-z0-9\s\-_]+?)(?:\s+(?:project|task|file|document|prd|tasks?|list)|\s*$)/i,
-      /for\s+(?:the\s+)?([A-Za-z0-9\s\-_]+?)(?:\s+(?:project|task|file|document|prd|tasks?|list)|\s*$)/i,
+      /called\s+([A-Za-z0-9\s\-_]+?)(?:\s+(?:project|task|file|document|prd|tasks?|list|into|with|for|using|through|via|detailed|comprehensive|development)|\s*$)/i,
+      /project\s+([A-Za-z0-9\s\-_]+?)(?:\s+(?:project|task|file|document|prd|tasks?|list|into|with|for|using|through|via|detailed|comprehensive|development)|\s*$)/i,
+      /for\s+(?:the\s+)?([A-Za-z0-9\s\-_]+?)(?:\s+(?:project|task|file|document|prd|tasks?|list|into|with|for|using|through|via|detailed|comprehensive|development)|\s*$)/i,
       // Single word patterns (fallback)
       /called\s+(\w+)/i,
       /project\s+(\w+)/i,
@@ -72,7 +72,7 @@ export class EntityExtractors {
 
         // Clean up common artifacts
         projectName = projectName.replace(/\s+/g, ' '); // Normalize whitespace
-        projectName = projectName.replace(/\s+(project|task|file|document|prd|tasks?|list)$/i, ''); // Remove trailing keywords
+        projectName = projectName.replace(/\s+(project|task|file|document|prd|tasks?|list|into|with|for|using|through|via|detailed|comprehensive|development)$/i, ''); // Remove trailing keywords
 
         if (projectName.length > 0) {
           entities.projectName = projectName;
