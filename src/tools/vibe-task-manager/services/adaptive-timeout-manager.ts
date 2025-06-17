@@ -3,6 +3,7 @@
  * Implements progress-aware timeouts with cancellation tokens and exponential backoff
  */
 
+import { getTimeoutManager, TimeoutOperation } from '../utils/timeout-manager.js';
 import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
 
@@ -107,12 +108,16 @@ export class AdaptiveTimeoutManager extends EventEmitter {
     config: Partial<TimeoutConfig> = {},
     partialResultExtractor?: PartialResultExtractor<T>
   ): Promise<TimeoutResult<T>> {
+    // Get configurable timeout values from timeout manager
+    const timeoutManager = getTimeoutManager();
+    const retryConfig = timeoutManager.getRetryConfig();
+
     const fullConfig: TimeoutConfig = {
-      baseTimeoutMs: 30000, // 30 seconds base
-      maxTimeoutMs: 300000, // 5 minutes max
+      baseTimeoutMs: timeoutManager.getTimeout('taskExecution'), // Configurable base timeout
+      maxTimeoutMs: timeoutManager.getTimeout('taskExecution') * 2, // Configurable max timeout
       progressCheckIntervalMs: 5000, // Check progress every 5 seconds
-      exponentialBackoffFactor: 1.5,
-      maxRetries: 3,
+      exponentialBackoffFactor: retryConfig.backoffMultiplier, // Configurable backoff
+      maxRetries: retryConfig.maxRetries, // Configurable max retries
       partialResultThreshold: 0.3, // 30% progress for partial success
       ...config
     };

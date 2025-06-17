@@ -35,13 +35,49 @@ export interface AgentResponse {
 // Response processor singleton
 class AgentResponseProcessor {
   private static instance: AgentResponseProcessor;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
   private responseHistory = new Map<string, AgentResponse>(); // taskId -> response
 
   static getInstance(): AgentResponseProcessor {
+    if (AgentResponseProcessor.isInitializing) {
+      console.warn('Circular initialization detected in AgentResponseProcessor, using safe fallback');
+      return AgentResponseProcessor.createSafeFallback();
+    }
+
     if (!AgentResponseProcessor.instance) {
-      AgentResponseProcessor.instance = new AgentResponseProcessor();
+      AgentResponseProcessor.isInitializing = true;
+      try {
+        AgentResponseProcessor.instance = new AgentResponseProcessor();
+      } finally {
+        AgentResponseProcessor.isInitializing = false;
+      }
     }
     return AgentResponseProcessor.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentResponseProcessor {
+    const fallback = Object.create(AgentResponseProcessor.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.responseHistory = new Map();
+
+    // Provide safe no-op methods
+    fallback.processResponse = async () => {
+      console.warn('AgentResponseProcessor fallback: processResponse called during initialization');
+    };
+    fallback.getResponse = async () => {
+      console.warn('AgentResponseProcessor fallback: getResponse called during initialization');
+      return undefined;
+    };
+    fallback.getAllResponses = async () => {
+      console.warn('AgentResponseProcessor fallback: getAllResponses called during initialization');
+      return [];
+    };
+
+    return fallback;
   }
 
   async processResponse(response: AgentResponse): Promise<void> {

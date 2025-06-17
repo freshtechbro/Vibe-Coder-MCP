@@ -77,7 +77,7 @@ export class DataSanitizer {
   ];
 
   private readonly COMMAND_INJECTION_PATTERNS = [
-    /[;&|`$(){}[\]]/g,
+    /[;&|`${}[\]]/g, // Removed () to allow function calls in descriptions
     /\.\.\//g,
     /~\//g,
     /\/etc\//g,
@@ -89,6 +89,14 @@ export class DataSanitizer {
     /;\s*\w+/g, // Command separation
     /`[^`]*`/g, // Command substitution
     /\$\([^)]*\)/g // Command substitution
+  ];
+
+  // Whitelist for common development terms (following existing patterns)
+  private readonly DEVELOPMENT_WHITELIST = [
+    'e.g.', 'i.e.', 'etc.', 'API', 'UI', 'UX', 'DB', 'SQL', 'HTTP', 'HTTPS',
+    'JSON', 'XML', 'CSS', 'HTML', 'JS', 'TS', 'React', 'Vue', 'Angular',
+    'Node.js', 'Express', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis',
+    'Docker', 'Kubernetes', 'AWS', 'Azure', 'GCP', 'CI/CD', 'REST', 'GraphQL'
   ];
 
   private readonly SQL_INJECTION_PATTERNS = [
@@ -201,7 +209,23 @@ export class DataSanitizer {
   }
 
   /**
-   * Sanitize string input
+   * Check if field is a system identifier that should not be sanitized
+   */
+  private isSystemIdentifier(fieldName: string): boolean {
+    const systemIdFields = [
+      'id', 'taskId', 'epicId', 'projectId', 'dependencyId',
+      'createdBy', 'updatedBy', 'assignedAgent'
+    ];
+
+    // Check exact field name or if it's a nested ID field
+    return systemIdFields.includes(fieldName) ||
+           systemIdFields.some(field => fieldName.endsWith(field)) ||
+           fieldName.includes('.id') ||
+           fieldName.includes('Id');
+  }
+
+  /**
+   * Sanitize string input with development-friendly whitelist
    */
   private sanitizeString(
     input: string,
@@ -209,6 +233,11 @@ export class DataSanitizer {
     violations: SanitizationViolation[]
   ): string {
     if (!input || typeof input !== 'string') {
+      return input;
+    }
+
+    // Skip sanitization for system identifiers
+    if (this.isSystemIdentifier(fieldName)) {
       return input;
     }
 
@@ -227,8 +256,8 @@ export class DataSanitizer {
       sanitized = sanitized.substring(0, this.config.maxStringLength);
     }
 
-    // XSS protection
-    if (this.config.enableXssProtection) {
+    // XSS protection (skip for whitelisted terms)
+    if (this.config.enableXssProtection && !this.isWhitelistedContent(sanitized)) {
       const originalSanitized = sanitized;
       sanitized = this.removeXssPatterns(sanitized);
 
@@ -244,8 +273,8 @@ export class DataSanitizer {
       }
     }
 
-    // Command injection protection
-    if (this.config.enableCommandInjectionProtection) {
+    // Command injection protection (skip for whitelisted terms)
+    if (this.config.enableCommandInjectionProtection && !this.isWhitelistedContent(sanitized)) {
       const originalSanitized = sanitized;
       sanitized = this.removeCommandInjectionPatterns(sanitized);
 
@@ -261,8 +290,8 @@ export class DataSanitizer {
       }
     }
 
-    // SQL injection protection
-    if (this.config.enableSqlInjectionProtection) {
+    // SQL injection protection (skip for whitelisted terms)
+    if (this.config.enableSqlInjectionProtection && !this.isWhitelistedContent(sanitized)) {
       const originalSanitized = sanitized;
       sanitized = this.removeSqlInjectionPatterns(sanitized);
 
@@ -278,20 +307,32 @@ export class DataSanitizer {
       }
     }
 
-    // Encoding validation
-    const encodingViolations = this.detectEncodingAttacks(sanitized);
-    if (encodingViolations.length > 0) {
-      violations.push({
-        field: fieldName,
-        violationType: 'encoding',
-        originalValue: input,
-        sanitizedValue: sanitized,
-        severity: 'medium',
-        description: 'Suspicious encoding patterns detected'
-      });
+    // Encoding validation (skip for whitelisted terms)
+    if (!this.isWhitelistedContent(sanitized)) {
+      const encodingViolations = this.detectEncodingAttacks(sanitized);
+      if (encodingViolations.length > 0) {
+        violations.push({
+          field: fieldName,
+          violationType: 'encoding',
+          originalValue: input,
+          sanitizedValue: sanitized,
+          severity: 'medium',
+          description: 'Suspicious encoding patterns detected'
+        });
+      }
     }
 
     return sanitized;
+  }
+
+  /**
+   * Check if content contains whitelisted development terms
+   */
+  private isWhitelistedContent(content: string): boolean {
+    const lowerContent = content.toLowerCase();
+    return this.DEVELOPMENT_WHITELIST.some(term =>
+      lowerContent.includes(term.toLowerCase())
+    );
   }
 
   /**
@@ -393,7 +434,8 @@ export class DataSanitizer {
 
     const sanitized: any = {};
     for (const [key, value] of Object.entries(obj)) {
-      const sanitizedKey = this.sanitizeString(key, `${fieldName}.${key}`, violations);
+      // Don't sanitize object keys as they are typically property names
+      const sanitizedKey = key;
 
       if (typeof value === 'string') {
         sanitized[sanitizedKey] = this.sanitizeString(value, `${fieldName}.${key}`, violations);

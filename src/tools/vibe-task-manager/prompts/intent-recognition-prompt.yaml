@@ -15,6 +15,7 @@ system_prompt: |
   - **open_project**: View project details
   - **archive_project**: Archive a project
   - **update_project**: Modify project settings
+  - **decompose_project**: Break down complex project into tasks
 
   ### Task Management
   - **create_task**: Create a new task

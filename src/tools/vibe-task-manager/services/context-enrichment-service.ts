@@ -13,6 +13,9 @@ import type {
   FileReadOptions,
   FileReadResult
 } from '../../../services/file-search-service/index.js';
+import type { ParsedPRD, ParsedTaskList } from '../types/artifact-types.js';
+import type { ProjectContext } from '../core/atomic-detector.js';
+import type { AtomicTask } from '../types/task.js';
 
 /**
  * Context request for task decomposition
@@ -566,6 +569,370 @@ export class ContextEnrichmentService {
     }
 
     return contextSummary;
+  }
+
+  /**
+   * Extract context from parsed PRD
+   */
+  async extractContextFromPRD(prdData: ParsedPRD): Promise<ProjectContext> {
+    try {
+      logger.info({
+        projectName: prdData.metadata.projectName,
+        featureCount: prdData.features.length
+      }, 'Extracting context from PRD');
+
+      // Extract languages and frameworks from tech stack
+      const languages = this.extractLanguagesFromTechStack(prdData.technical.techStack);
+      const frameworks = this.extractFrameworksFromTechStack(prdData.technical.techStack);
+      const tools = this.extractToolsFromTechStack(prdData.technical.techStack);
+
+      // Determine project complexity based on features and requirements
+      const complexity = this.determineComplexityFromPRD(prdData);
+
+      // Extract team size from constraints
+      const teamSize = this.extractTeamSizeFromConstraints(prdData.constraints);
+
+      // Determine codebase size from project scope
+      const codebaseSize = this.estimateCodebaseSizeFromPRD(prdData);
+
+      const projectContext: ProjectContext = {
+        projectId: `prd-${prdData.metadata.projectName.toLowerCase().replace(/\s+/g, '-')}`,
+        languages,
+        frameworks,
+        tools,
+        existingTasks: [],
+        codebaseSize,
+        teamSize,
+        complexity
+      };
+
+      logger.info({
+        projectId: projectContext.projectId,
+        languages: languages.length,
+        frameworks: frameworks.length,
+        complexity,
+        featureCount: prdData.features.length
+      }, 'Successfully extracted context from PRD');
+
+      return projectContext;
+
+    } catch (error) {
+      logger.error({ err: error, prdPath: prdData.metadata.filePath }, 'Failed to extract context from PRD');
+      throw error;
+    }
+  }
+
+  /**
+   * Extract context from parsed task list
+   */
+  async extractContextFromTaskList(taskListData: ParsedTaskList): Promise<ProjectContext> {
+    try {
+      logger.info({
+        projectName: taskListData.metadata.projectName,
+        taskCount: taskListData.metadata.totalTasks,
+        phaseCount: taskListData.metadata.phaseCount
+      }, 'Extracting context from task list');
+
+      // Extract languages and frameworks from tech stack mentioned in overview
+      const languages = this.extractLanguagesFromTechStack(taskListData.overview.techStack);
+      const frameworks = this.extractFrameworksFromTechStack(taskListData.overview.techStack);
+      const tools = this.extractToolsFromTechStack(taskListData.overview.techStack);
+
+      // Determine project complexity based on task count and phases
+      const complexity = this.determineComplexityFromTaskList(taskListData);
+
+      // Estimate team size based on task distribution and estimated hours
+      const teamSize = this.estimateTeamSizeFromTaskList(taskListData);
+
+      // Determine codebase size from task scope and estimated hours
+      const codebaseSize = this.estimateCodebaseSizeFromTaskList(taskListData);
+
+      // Extract existing task information - simplified for context
+      const existingTasks: AtomicTask[] = [];
+
+      const projectContext: ProjectContext = {
+        projectId: `task-list-${taskListData.metadata.projectName.toLowerCase().replace(/\s+/g, '-')}`,
+        languages,
+        frameworks,
+        tools,
+        existingTasks,
+        codebaseSize,
+        teamSize,
+        complexity
+      };
+
+      logger.info({
+        projectId: projectContext.projectId,
+        languages: languages.length,
+        frameworks: frameworks.length,
+        complexity,
+        taskCount: taskListData.metadata.totalTasks,
+        totalHours: taskListData.statistics.totalEstimatedHours
+      }, 'Successfully extracted context from task list');
+
+      return projectContext;
+
+    } catch (error) {
+      logger.error({ err: error, taskListPath: taskListData.metadata.filePath }, 'Failed to extract context from task list');
+      throw error;
+    }
+  }
+
+  /**
+   * Helper methods for context extraction
+   */
+
+  /**
+   * Extract programming languages from tech stack
+   */
+  private extractLanguagesFromTechStack(techStack: string[]): string[] {
+    const languageKeywords = {
+      'javascript': ['javascript', 'js', 'node.js', 'nodejs'],
+      'typescript': ['typescript', 'ts'],
+      'python': ['python', 'py', 'django', 'flask', 'fastapi'],
+      'java': ['java', 'spring', 'maven', 'gradle'],
+      'csharp': ['c#', 'csharp', '.net', 'dotnet', 'asp.net'],
+      'php': ['php', 'laravel', 'symfony', 'composer'],
+      'ruby': ['ruby', 'rails', 'gem'],
+      'go': ['go', 'golang'],
+      'rust': ['rust', 'cargo'],
+      'swift': ['swift', 'ios'],
+      'kotlin': ['kotlin', 'android'],
+      'dart': ['dart', 'flutter'],
+      'scala': ['scala', 'sbt'],
+      'clojure': ['clojure', 'leiningen']
+    };
+
+    const detectedLanguages = new Set<string>();
+    const techStackLower = techStack.map(item => item.toLowerCase());
+
+    for (const [language, keywords] of Object.entries(languageKeywords)) {
+      if (keywords.some(keyword => techStackLower.some(item => item.includes(keyword)))) {
+        detectedLanguages.add(language);
+      }
+    }
+
+    return Array.from(detectedLanguages);
+  }
+
+  /**
+   * Extract frameworks from tech stack
+   */
+  private extractFrameworksFromTechStack(techStack: string[]): string[] {
+    const frameworkKeywords = {
+      'react': ['react', 'react.js', 'reactjs'],
+      'vue': ['vue', 'vue.js', 'vuejs'],
+      'angular': ['angular', 'angularjs'],
+      'svelte': ['svelte', 'sveltekit'],
+      'next.js': ['next.js', 'nextjs', 'next'],
+      'nuxt.js': ['nuxt.js', 'nuxtjs', 'nuxt'],
+      'express': ['express', 'express.js'],
+      'fastify': ['fastify'],
+      'nestjs': ['nestjs', 'nest.js'],
+      'django': ['django'],
+      'flask': ['flask'],
+      'fastapi': ['fastapi'],
+      'spring': ['spring', 'spring boot'],
+      'laravel': ['laravel'],
+      'rails': ['rails', 'ruby on rails'],
+      'gin': ['gin'],
+      'fiber': ['fiber'],
+      'actix': ['actix'],
+      'rocket': ['rocket']
+    };
+
+    const detectedFrameworks = new Set<string>();
+    const techStackLower = techStack.map(item => item.toLowerCase());
+
+    for (const [framework, keywords] of Object.entries(frameworkKeywords)) {
+      if (keywords.some(keyword => techStackLower.some(item => item.includes(keyword)))) {
+        detectedFrameworks.add(framework);
+      }
+    }
+
+    return Array.from(detectedFrameworks);
+  }
+
+  /**
+   * Extract tools from tech stack
+   */
+  private extractToolsFromTechStack(techStack: string[]): string[] {
+    const toolKeywords = {
+      'docker': ['docker', 'dockerfile', 'container'],
+      'kubernetes': ['kubernetes', 'k8s', 'kubectl'],
+      'redis': ['redis'],
+      'postgresql': ['postgresql', 'postgres', 'pg'],
+      'mysql': ['mysql'],
+      'mongodb': ['mongodb', 'mongo'],
+      'elasticsearch': ['elasticsearch', 'elastic'],
+      'nginx': ['nginx'],
+      'apache': ['apache'],
+      'webpack': ['webpack'],
+      'vite': ['vite'],
+      'babel': ['babel'],
+      'eslint': ['eslint'],
+      'prettier': ['prettier'],
+      'jest': ['jest'],
+      'cypress': ['cypress'],
+      'playwright': ['playwright'],
+      'git': ['git', 'github', 'gitlab'],
+      'aws': ['aws', 'amazon web services'],
+      'gcp': ['gcp', 'google cloud'],
+      'azure': ['azure', 'microsoft azure']
+    };
+
+    const detectedTools = new Set<string>();
+    const techStackLower = techStack.map(item => item.toLowerCase());
+
+    for (const [tool, keywords] of Object.entries(toolKeywords)) {
+      if (keywords.some(keyword => techStackLower.some(item => item.includes(keyword)))) {
+        detectedTools.add(tool);
+      }
+    }
+
+    return Array.from(detectedTools);
+  }
+
+  /**
+   * Determine project complexity from PRD
+   */
+  private determineComplexityFromPRD(prdData: ParsedPRD): 'low' | 'medium' | 'high' {
+    let complexityScore = 0;
+
+    // Feature count factor
+    if (prdData.features.length > 10) complexityScore += 2;
+    else if (prdData.features.length > 5) complexityScore += 1;
+
+    // Technical requirements factor
+    if (prdData.technical.techStack.length > 8) complexityScore += 2;
+    else if (prdData.technical.techStack.length > 4) complexityScore += 1;
+
+    // Architecture patterns factor
+    if (prdData.technical.architecturalPatterns.length > 3) complexityScore += 1;
+
+    // Performance requirements factor
+    if (prdData.technical.performanceRequirements.length > 3) complexityScore += 1;
+
+    // Security requirements factor
+    if (prdData.technical.securityRequirements.length > 3) complexityScore += 1;
+
+    // Constraints factor
+    const totalConstraints = prdData.constraints.timeline.length +
+                           prdData.constraints.budget.length +
+                           prdData.constraints.resources.length +
+                           prdData.constraints.technical.length;
+    if (totalConstraints > 6) complexityScore += 1;
+
+    if (complexityScore >= 5) return 'high';
+    if (complexityScore >= 3) return 'medium';
+    return 'low';
+  }
+
+  /**
+   * Determine project complexity from task list
+   */
+  private determineComplexityFromTaskList(taskListData: ParsedTaskList): 'low' | 'medium' | 'high' {
+    let complexityScore = 0;
+
+    // Task count factor
+    if (taskListData.metadata.totalTasks > 20) complexityScore += 2;
+    else if (taskListData.metadata.totalTasks > 10) complexityScore += 1;
+
+    // Phase count factor
+    if (taskListData.metadata.phaseCount > 5) complexityScore += 1;
+
+    // Total estimated hours factor
+    if (taskListData.statistics.totalEstimatedHours > 100) complexityScore += 2;
+    else if (taskListData.statistics.totalEstimatedHours > 50) complexityScore += 1;
+
+    // High priority tasks factor
+    const highPriorityTasks = (taskListData.statistics.tasksByPriority.high || 0) +
+                             (taskListData.statistics.tasksByPriority.critical || 0);
+    if (highPriorityTasks > 5) complexityScore += 1;
+
+    // Tech stack factor
+    if (taskListData.overview.techStack.length > 5) complexityScore += 1;
+
+    if (complexityScore >= 5) return 'high';
+    if (complexityScore >= 3) return 'medium';
+    return 'low';
+  }
+
+  /**
+   * Extract team size from PRD constraints
+   */
+  private extractTeamSizeFromConstraints(constraints: ParsedPRD['constraints']): number {
+    // Look for team size mentions in resource constraints
+    for (const resource of constraints.resources) {
+      const teamMatch = resource.match(/(\d+)\s*(?:developers?|engineers?|people|team members?)/i);
+      if (teamMatch) {
+        return parseInt(teamMatch[1], 10);
+      }
+    }
+
+    // Default team size based on project scope
+    return 3; // Default small team
+  }
+
+  /**
+   * Estimate team size from task list
+   */
+  private estimateTeamSizeFromTaskList(taskListData: ParsedTaskList): number {
+    const totalHours = taskListData.statistics.totalEstimatedHours;
+    const totalTasks = taskListData.metadata.totalTasks;
+
+    // Estimate based on workload (assuming 40 hours per week per developer)
+    if (totalHours > 200) return Math.min(Math.ceil(totalHours / 160), 8); // Max 8 developers
+    if (totalHours > 80) return Math.min(Math.ceil(totalHours / 80), 5); // Max 5 developers
+    if (totalTasks > 15) return Math.min(Math.ceil(totalTasks / 8), 4); // Max 4 developers
+
+    return Math.max(1, Math.ceil(totalTasks / 10)); // At least 1 developer
+  }
+
+  /**
+   * Estimate codebase size from PRD
+   */
+  private estimateCodebaseSizeFromPRD(prdData: ParsedPRD): 'small' | 'medium' | 'large' {
+    let sizeScore = 0;
+
+    // Feature count factor
+    if (prdData.features.length > 15) sizeScore += 2;
+    else if (prdData.features.length > 8) sizeScore += 1;
+
+    // Tech stack complexity factor
+    if (prdData.technical.techStack.length > 10) sizeScore += 2;
+    else if (prdData.technical.techStack.length > 5) sizeScore += 1;
+
+    // Architecture complexity factor
+    if (prdData.technical.architecturalPatterns.some(pattern =>
+        pattern.toLowerCase().includes('microservice') ||
+        pattern.toLowerCase().includes('distributed'))) {
+      sizeScore += 2;
+    }
+
+    if (sizeScore >= 4) return 'large';
+    if (sizeScore >= 2) return 'medium';
+    return 'small';
+  }
+
+  /**
+   * Estimate codebase size from task list
+   */
+  private estimateCodebaseSizeFromTaskList(taskListData: ParsedTaskList): 'small' | 'medium' | 'large' {
+    const totalHours = taskListData.statistics.totalEstimatedHours;
+    const totalTasks = taskListData.metadata.totalTasks;
+
+    if (totalHours > 150 || totalTasks > 25) return 'large';
+    if (totalHours > 75 || totalTasks > 15) return 'medium';
+    return 'small';
+  }
+
+  /**
+   * Extract hours from effort string (reused from task list integration)
+   */
+  private extractHoursFromEffort(effort: string): number {
+    const match = effort.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)/i);
+    return match ? parseFloat(match[1]) : 0;
   }
 
   /**

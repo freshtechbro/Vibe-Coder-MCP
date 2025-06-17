@@ -8,6 +8,7 @@ import { agentCommand } from './agent.js';
 import { decomposeCommand } from './decompose.js';
 import { searchCommand } from './search.js';
 import { contextCommand } from './context.js';
+import { parseCommand } from './parse.js';
 import logger from '../../../../logger.js';
 
 /**
@@ -62,6 +63,7 @@ export function createVibeTasksCLI(): Command {
   program.addCommand(decomposeCommand);
   program.addCommand(searchCommand);
   program.addCommand(contextCommand);
+  program.addCommand(parseCommand);
 
   // Handle unknown commands
   program.on('command:*', (operands) => {

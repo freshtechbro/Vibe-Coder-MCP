@@ -326,6 +326,166 @@ describe('PromptService', () => {
     });
   });
 
+  describe('Enhanced Decomposition Prompt Features', () => {
+    it('should load enhanced decomposition prompt with atomic task requirements', async () => {
+      const enhancedPromptConfig = {
+        system_prompt: `
+          ## ATOMIC TASK REQUIREMENTS
+
+          ### PROHIBITED PATTERNS
+          - **NO "AND" OPERATORS**: Tasks must NOT contain "and", "or", "then" in titles or descriptions
+          - **NO COMPOUND ACTIONS**: Each task must perform exactly ONE action
+          - **NO MULTIPLE OUTCOMES**: Each task must have exactly ONE deliverable
+          - **NO SEQUENTIAL STEPS**: Tasks requiring "first do X, then do Y" are NOT atomic
+
+          ### REQUIRED PATTERNS
+          - **SINGLE ACTION VERBS**: Use Add, Create, Write, Update, Import, Export, Delete
+          - **SPECIFIC TARGETS**: Target exactly ONE file, component, or function
+          - **CLEAR BOUNDARIES**: Task scope must be unambiguous and measurable
+        `,
+        version: '2.0',
+        last_updated: '2024-01-20',
+        compatibility: ['enhanced-atomic-detection']
+      };
+
+      mockReadFile.mockResolvedValue('enhanced yaml content');
+      mockYamlParse.mockReturnValue(enhancedPromptConfig);
+
+      const prompt = await promptService.getPrompt('decomposition');
+
+      expect(prompt).toContain('ATOMIC TASK REQUIREMENTS');
+      expect(prompt).toContain('PROHIBITED PATTERNS');
+      expect(prompt).toContain('NO "AND" OPERATORS');
+      expect(prompt).toContain('REQUIRED PATTERNS');
+      expect(prompt).toContain('SINGLE ACTION VERBS');
+    });
+
+    it('should load enhanced validation checklist', async () => {
+      const enhancedPromptConfig = {
+        system_prompt: `
+          **AUTOMATIC REJECTION CRITERIA:**
+          - Any task containing "and", "or", "then" will be automatically rejected
+          - Any task with multiple acceptance criteria will be automatically rejected
+          - Any task estimated over 10 minutes will be automatically rejected
+
+          ## ATOMIC TASK EXAMPLES
+
+          ### ✅ GOOD (Atomic):
+          - "Add user authentication middleware to Express app"
+          - "Create UserProfile component in React"
+          - "Write unit test for calculateTotal function"
+          - "Update database schema for users table"
+
+          ### ❌ BAD (Non-Atomic):
+          - "Add authentication and authorization middleware" (contains "and")
+          - "Create user profile component and add styling" (multiple actions)
+          - "Setup database and configure connection" (compound action)
+          - "Implement login functionality and error handling" (sequential steps)
+        `,
+        version: '2.0',
+        last_updated: '2024-01-20',
+        compatibility: ['enhanced-validation']
+      };
+
+      mockReadFile.mockResolvedValue('enhanced validation yaml content');
+      mockYamlParse.mockReturnValue(enhancedPromptConfig);
+
+      const prompt = await promptService.getPrompt('decomposition');
+
+      expect(prompt).toContain('AUTOMATIC REJECTION CRITERIA');
+      expect(prompt).toContain('automatically rejected');
+      expect(prompt).toContain('ATOMIC TASK EXAMPLES');
+      expect(prompt).toContain('✅ GOOD (Atomic)');
+      expect(prompt).toContain('❌ BAD (Non-Atomic)');
+      expect(prompt).toContain('contains "and"');
+    });
+
+    it('should load conversion examples for non-atomic tasks', async () => {
+      const enhancedPromptConfig = {
+        system_prompt: `
+          ### 🔄 CONVERSION EXAMPLES:
+          **Non-Atomic**: "Create user registration form and add validation"
+          **Atomic Split**:
+          1. "Create user registration form component"
+          2. "Add client-side validation to registration form"
+
+          **Non-Atomic**: "Setup database connection and create user model"
+          **Atomic Split**:
+          1. "Configure database connection settings"
+          2. "Create User model class"
+        `,
+        version: '2.0',
+        last_updated: '2024-01-20',
+        compatibility: ['conversion-examples']
+      };
+
+      mockReadFile.mockResolvedValue('conversion examples yaml content');
+      mockYamlParse.mockReturnValue(enhancedPromptConfig);
+
+      const prompt = await promptService.getPrompt('decomposition');
+
+      expect(prompt).toContain('🔄 CONVERSION EXAMPLES');
+      expect(prompt).toContain('Non-Atomic');
+      expect(prompt).toContain('Atomic Split');
+      expect(prompt).toContain('Create user registration form component');
+      expect(prompt).toContain('Configure database connection settings');
+    });
+
+    it('should validate enhanced prompt configuration', async () => {
+      const enhancedConfig = {
+        system_prompt: 'Enhanced prompt with atomic task requirements',
+        atomic_detection_prompt: 'Enhanced atomic detection with "and" operator rules',
+        version: '2.0',
+        last_updated: '2024-01-20',
+        compatibility: ['enhanced-atomic-detection', 'validation-rules']
+      };
+
+      mockReadFile.mockResolvedValue('enhanced yaml content');
+      mockYamlParse.mockReturnValue(enhancedConfig);
+
+      const prompt = await promptService.getPrompt('decomposition');
+      const metadata = await promptService.getPromptMetadata('decomposition');
+
+      expect(prompt).toBe(enhancedConfig.system_prompt);
+      expect(metadata.version).toBe('2.0');
+      expect(metadata.compatibility).toContain('enhanced-atomic-detection');
+      expect(metadata.compatibility).toContain('validation-rules');
+    });
+
+    it('should handle enhanced prompt loading errors gracefully', async () => {
+      mockReadFile.mockRejectedValue(new Error('Enhanced prompt file not found'));
+
+      const prompt = await promptService.getPrompt('decomposition');
+
+      // Should fall back to default prompt
+      expect(prompt).toContain('expert software development task decomposition specialist');
+      expect(prompt).not.toContain('ATOMIC TASK REQUIREMENTS');
+    });
+
+    it('should cache enhanced prompts correctly', async () => {
+      const enhancedConfig = {
+        system_prompt: 'Enhanced cached prompt',
+        version: '2.0',
+        last_updated: '2024-01-20',
+        compatibility: ['enhanced-caching']
+      };
+
+      mockReadFile.mockResolvedValue('enhanced cached yaml content');
+      mockYamlParse.mockReturnValue(enhancedConfig);
+
+      // First call should read file
+      const prompt1 = await promptService.getPrompt('decomposition');
+      expect(mockReadFile).toHaveBeenCalledTimes(1);
+
+      // Second call should use cache
+      const prompt2 = await promptService.getPrompt('decomposition');
+      expect(mockReadFile).toHaveBeenCalledTimes(1);
+
+      expect(prompt1).toBe(prompt2);
+      expect(prompt1).toBe(enhancedConfig.system_prompt);
+    });
+  });
+
   describe('convenience functions', () => {
     it('should work with getPrompt convenience function', async () => {
       const mockConfig = {

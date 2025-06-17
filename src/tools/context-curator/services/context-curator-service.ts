@@ -316,7 +316,25 @@ export class ContextCuratorService {
         enablePermissionChecking: true,
         enableBlacklist: true,
         enableExtensionFiltering: true,
-        maxPathLength: 4096
+        maxPathLength: 4096,
+        // Code-map-generator compatibility aliases
+        allowedDir: allowedReadDirectory,
+        outputDir: allowedWriteDirectory,
+        // Service-specific boundaries for all services
+        serviceBoundaries: {
+          vibeTaskManager: {
+            readDir: allowedReadDirectory,
+            writeDir: allowedWriteDirectory
+          },
+          codeMapGenerator: {
+            allowedDir: allowedReadDirectory,
+            outputDir: allowedWriteDirectory
+          },
+          contextCurator: {
+            readDir: allowedReadDirectory,
+            outputDir: allowedWriteDirectory
+          }
+        }
       };
 
       // Create security boundary validator with proper read/write directories
@@ -328,7 +346,7 @@ export class ContextCuratorService {
       logger.info({
         allowedReadDirectory,
         allowedWriteDirectory,
-        securityMode: context.securityConfig.securityMode,
+        securityMode: context.securityConfig?.securityMode || 'strict',
         configSource: process.env.CODE_MAP_ALLOWED_DIR ? 'CODE_MAP_ALLOWED_DIR' :
                      process.env.VIBE_TASK_MANAGER_READ_DIR ? 'VIBE_TASK_MANAGER_READ_DIR' :
                      context.input.projectPath ? 'input.projectPath' : 'process.cwd()'

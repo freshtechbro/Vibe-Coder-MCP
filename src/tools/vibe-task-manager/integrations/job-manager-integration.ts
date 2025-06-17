@@ -1,4 +1,5 @@
 import { jobManager, Job, JobStatus } from '../../../services/job-manager/index.js';
+import { getTimeoutManager, TimeoutOperation } from '../utils/timeout-manager.js';
 import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
 
@@ -89,6 +90,10 @@ export class JobManagerIntegrationService extends EventEmitter {
 
   private constructor(config?: Partial<JobQueueConfig>) {
     super();
+
+    // Get timeout manager for configurable timeout values
+    const timeoutManager = getTimeoutManager();
+
     this.config = {
       maxConcurrentJobs: 5,
       priorityWeights: {
@@ -103,14 +108,14 @@ export class JobManagerIntegrationService extends EventEmitter {
         initialDelayMs: 1000
       },
       timeoutPolicy: {
-        defaultTimeoutMs: 300000, // 5 minutes
+        defaultTimeoutMs: timeoutManager.getTimeout('taskExecution'), // Configurable default
         operationTimeouts: {
-          'decomposition': 600000, // 10 minutes
-          'execution': 1800000, // 30 minutes
-          'validation': 120000, // 2 minutes
-          'analysis': 300000, // 5 minutes
-          'codemap': 900000, // 15 minutes
-          'context_enrichment': 180000 // 3 minutes
+          'decomposition': timeoutManager.getTimeout('taskDecomposition'), // Configurable
+          'execution': timeoutManager.getTimeout('taskExecution'), // Configurable
+          'validation': timeoutManager.getTimeout('databaseOperations'), // Configurable
+          'analysis': timeoutManager.getTimeout('taskRefinement'), // Configurable
+          'codemap': timeoutManager.getTimeout('fileOperations'), // Configurable
+          'context_enrichment': timeoutManager.getTimeout('taskRefinement') // Configurable
         }
       },
       resourceLimits: {

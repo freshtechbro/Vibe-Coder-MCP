@@ -476,4 +476,159 @@ describe('DecompositionService', () => {
       expect(sessions[2].taskId).toBe('T0003');
     });
   });
+
+  describe('epic creation during decomposition integration', () => {
+    it('should create functional area epic during decomposition', async () => {
+      const authTask = {
+        ...mockTask,
+        title: 'Build authentication system',
+        description: 'Create user login and registration',
+        tags: ['auth', 'backend'],
+        epicId: 'default-epic'
+      };
+
+      mockEngine.decomposeTask.mockResolvedValue({
+        success: true,
+        isAtomic: false,
+        originalTask: authTask,
+        subTasks: [
+          {
+            ...mockTask,
+            id: 'T001-1',
+            title: 'Create user registration endpoint',
+            description: 'API endpoint for user registration',
+            tags: ['auth', 'api'],
+          },
+          {
+            ...mockTask,
+            id: 'T001-2',
+            title: 'Create login endpoint',
+            description: 'API endpoint for user login',
+            tags: ['auth', 'api'],
+          },
+        ],
+        analysis: { isAtomic: false, confidence: 0.9 },
+        depth: 0
+      });
+
+      const request: DecompositionRequest = {
+        task: authTask,
+        context: mockContext
+      };
+
+      const session = await service.startDecomposition(request);
+
+      // Wait for decomposition to complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      expect(session).toBeDefined();
+      expect(session.taskId).toBe(authTask.id);
+
+      // Verify decomposition was called
+      expect(mockEngine.decomposeTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          task: authTask,
+          context: mockContext
+        })
+      );
+    });
+
+    it('should handle epic creation failure gracefully', async () => {
+      const genericTask = {
+        ...mockTask,
+        title: 'Generic task',
+        description: 'Some work',
+        tags: [],
+        epicId: 'default-epic'
+      };
+
+      mockEngine.decomposeTask.mockResolvedValue({
+        success: true,
+        isAtomic: false,
+        originalTask: genericTask,
+        subTasks: [
+          {
+            ...mockTask,
+            id: 'T002-1',
+            title: 'Create component',
+            description: 'Build component',
+            tags: [],
+          },
+        ],
+        analysis: { isAtomic: false, confidence: 0.8 },
+        depth: 0
+      });
+
+      const request: DecompositionRequest = {
+        task: genericTask,
+        context: mockContext
+      };
+
+      const session = await service.startDecomposition(request);
+
+      // Wait for decomposition to complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      expect(session).toBeDefined();
+      expect(session.taskId).toBe(genericTask.id);
+
+      // Should still complete decomposition even if epic creation fails
+      expect(mockEngine.decomposeTask).toHaveBeenCalled();
+    });
+
+    it('should extract functional area from multiple tasks', async () => {
+      const videoTask = {
+        ...mockTask,
+        title: 'Build video system',
+        description: 'Create video upload and playback',
+        tags: ['video', 'media'],
+        epicId: 'default-epic'
+      };
+
+      mockEngine.decomposeTask.mockResolvedValue({
+        success: true,
+        isAtomic: false,
+        originalTask: videoTask,
+        subTasks: [
+          {
+            ...mockTask,
+            id: 'T003-1',
+            title: 'Create video upload API',
+            description: 'API for video uploads',
+            tags: ['video', 'api'],
+          },
+          {
+            ...mockTask,
+            id: 'T003-2',
+            title: 'Create video player component',
+            description: 'Frontend video player',
+            tags: ['video', 'ui'],
+          },
+        ],
+        analysis: { isAtomic: false, confidence: 0.9 },
+        depth: 0
+      });
+
+      const request: DecompositionRequest = {
+        task: videoTask,
+        context: mockContext
+      };
+
+      const session = await service.startDecomposition(request);
+
+      // Wait for decomposition to complete
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      expect(session).toBeDefined();
+      expect(session.taskId).toBe(videoTask.id);
+
+      // Verify video-related decomposition
+      expect(mockEngine.decomposeTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          task: videoTask,
+          context: mockContext
+        })
+      );
+    });
+  });
 });

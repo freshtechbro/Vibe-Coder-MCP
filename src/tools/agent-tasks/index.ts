@@ -11,30 +11,87 @@ import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
 import { z } from 'zod';
 
-// Task assignment interface
+// Unified task assignment interface (compatible with agent-orchestrator)
 export interface TaskAssignment {
+  /** Assignment ID */
+  id?: string;
+
+  /** Task ID being assigned */
   taskId: string;
+
+  /** Agent ID receiving the assignment */
   agentId: string;
+
+  /** Sentinel protocol payload for agent communication */
   sentinelPayload: string;
+
+  /** Assignment timestamp (number for backward compatibility) */
   assignedAt: number;
+
+  /** Assignment priority */
   priority: 'low' | 'normal' | 'high' | 'urgent';
+
+  /** Estimated duration in milliseconds */
   estimatedDuration?: number;
+
+  /** Assignment deadline */
   deadline?: number;
+
+  /** Assignment metadata */
   metadata?: Record<string, any>;
 }
 
 // Task queue manager singleton
 class AgentTaskQueue {
   private static instance: AgentTaskQueue;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
   private queues = new Map<string, TaskAssignment[]>(); // agentId -> tasks
   private taskHistory = new Map<string, TaskAssignment>(); // taskId -> task
   private assignmentCounter = 0;
 
   static getInstance(): AgentTaskQueue {
+    if (AgentTaskQueue.isInitializing) {
+      console.warn('Circular initialization detected in AgentTaskQueue, using safe fallback');
+      return AgentTaskQueue.createSafeFallback();
+    }
+
     if (!AgentTaskQueue.instance) {
-      AgentTaskQueue.instance = new AgentTaskQueue();
+      AgentTaskQueue.isInitializing = true;
+      try {
+        AgentTaskQueue.instance = new AgentTaskQueue();
+      } finally {
+        AgentTaskQueue.isInitializing = false;
+      }
     }
     return AgentTaskQueue.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentTaskQueue {
+    const fallback = Object.create(AgentTaskQueue.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.queues = new Map();
+    fallback.taskHistory = new Map();
+    fallback.assignmentCounter = 0;
+
+    // Provide safe no-op methods
+    fallback.assignTask = async () => {
+      console.warn('AgentTaskQueue fallback: assignTask called during initialization');
+      return null;
+    };
+    fallback.getTasks = async () => {
+      console.warn('AgentTaskQueue fallback: getTasks called during initialization');
+      return [];
+    };
+    fallback.getQueueLength = async () => {
+      console.warn('AgentTaskQueue fallback: getQueueLength called during initialization');
+      return 0;
+    };
+
+    return fallback;
   }
 
   async addTask(agentId: string, task: Omit<TaskAssignment, 'taskId' | 'assignedAt'>): Promise<string> {

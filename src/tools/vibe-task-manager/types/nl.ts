@@ -20,6 +20,9 @@ export type Intent =
   | 'refine_task'
   | 'assign_task'
   | 'get_help'
+  | 'parse_prd'
+  | 'parse_tasks'
+  | 'import_artifact'
   | 'unknown';
 
 /**

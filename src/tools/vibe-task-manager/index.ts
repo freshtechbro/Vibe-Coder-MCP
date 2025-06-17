@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { CallToolResult, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { OpenRouterConfig } from '../../types/workflow.js';
 import { registerTool, ToolDefinition, ToolExecutor, ToolExecutionContext } from '../../services/routing/toolRegistry.js';
-import { getBaseOutputDir, getVibeTaskManagerOutputDir } from './utils/config-loader.js';
+import { getBaseOutputDir, getVibeTaskManagerOutputDir, getVibeTaskManagerConfig } from './utils/config-loader.js';
+import { getTimeoutManager } from './utils/timeout-manager.js';
 import logger from '../../logger.js';
 import { AgentOrchestrator } from './services/agent-orchestrator.js';
 import { ProjectOperations } from './core/operations/project-operations.js';
@@ -85,17 +86,69 @@ async function handleNaturalLanguageInput(
       };
     }
 
-    // For now, return a success message with the recognized intent
-    return {
-      content: [{
-        type: "text",
-        text: `✅ Command processed successfully!\n\n` +
-              `Intent: ${result.intent.intent}\n` +
-              `Confidence: ${Math.round(result.intent.confidence * 100)}%\n` +
-              `Parameters: ${JSON.stringify(result.toolParams, null, 2)}\n\n` +
-              `This natural language processing is working! The command was recognized and parsed correctly.`
-      }]
-    };
+    // Execute the actual command using the recognized parameters
+    const { command, projectName, taskId, description, options } = result.toolParams;
+
+    // Route to appropriate command handler based on the recognized command
+    switch (command) {
+      case 'create':
+        return await handleCreateCommand(
+          projectName as string,
+          description as string,
+          options as Record<string, unknown>,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      case 'list':
+        return await handleListCommand(
+          options as Record<string, unknown>,
+          context?.sessionId || 'default'
+        );
+
+      case 'run':
+        return await handleRunCommand(
+          taskId as string,
+          options as Record<string, unknown>,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      case 'status':
+        return await handleStatusCommand(
+          projectName as string,
+          taskId as string,
+          context?.sessionId || 'default'
+        );
+
+      case 'refine':
+        return await handleRefineCommand(
+          taskId as string,
+          description as string,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      case 'decompose':
+        return await handleDecomposeCommand(
+          taskId as string || projectName as string,
+          description as string,
+          config,
+          context?.sessionId || 'default'
+        );
+
+      default:
+        return {
+          content: [{
+            type: "text",
+            text: `❌ Unsupported command '${command}' from natural language processing.\n\n` +
+                  `Recognized intent: ${result.intent.intent}\n` +
+                  `Confidence: ${Math.round(result.intent.confidence * 100)}%\n\n` +
+                  `Please try a different command or contact support.`
+          }],
+          isError: true
+        };
+    }
 
   } catch (error) {
     logger.error({ err: error, input }, 'Failed to process natural language input');
@@ -115,6 +168,28 @@ async function handleNaturalLanguageInput(
 }
 
 /**
+ * Initialize Vibe Task Manager configuration and core services
+ */
+async function initializeVibeTaskManagerConfig(): Promise<void> {
+  try {
+    // Load configuration
+    const config = await getVibeTaskManagerConfig();
+
+    if (config?.taskManager) {
+      // Initialize timeout manager with configuration
+      const timeoutManager = getTimeoutManager();
+      timeoutManager.initialize(config.taskManager);
+
+      logger.debug('Vibe Task Manager configuration initialized successfully');
+    } else {
+      logger.warn('Vibe Task Manager configuration not available, services will use fallback values');
+    }
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to initialize Vibe Task Manager configuration, services will use fallback values');
+  }
+}
+
+/**
  * Main executor function for the Vibe Task Manager tool
  * Implements AI-agent-native task management with recursive decomposition
  */
@@ -127,6 +202,9 @@ export const vibeTaskManagerExecutor: ToolExecutor = async (
 
   try {
     logger.info({ sessionId, params }, 'Vibe Task Manager execution started');
+
+    // Initialize configuration and timeout manager before any service usage
+    await initializeVibeTaskManagerConfig();
 
     // Auto-register agent session if not already registered
     await ensureAgentRegistration(sessionId, context);
@@ -587,13 +665,55 @@ async function handleRunCommand(
             const project = projectResult.data;
 
             // Create project context from real project data
+            // Use project techStack if available, otherwise use dynamic detection
+            const { ProjectAnalyzer } = await import('./utils/project-analyzer.js');
+            const projectAnalyzer = ProjectAnalyzer.getInstance();
+            const projectPath = project.rootPath || process.cwd();
+
+            let languages: string[];
+            let frameworks: string[];
+            let tools: string[];
+
+            if (project.techStack?.languages?.length) {
+              languages = project.techStack.languages;
+            } else {
+              try {
+                languages = await projectAnalyzer.detectProjectLanguages(projectPath);
+              } catch (error) {
+                logger.warn({ error, projectId: project.id }, 'Language detection failed, using fallback');
+                languages = ['typescript']; // fallback
+              }
+            }
+
+            if (project.techStack?.frameworks?.length) {
+              frameworks = project.techStack.frameworks;
+            } else {
+              try {
+                frameworks = await projectAnalyzer.detectProjectFrameworks(projectPath);
+              } catch (error) {
+                logger.warn({ error, projectId: project.id }, 'Framework detection failed, using fallback');
+                frameworks = ['node.js']; // fallback
+              }
+            }
+
+            if (project.techStack?.tools?.length) {
+              tools = project.techStack.tools;
+            } else {
+              try {
+                tools = await projectAnalyzer.detectProjectTools(projectPath);
+              } catch (error) {
+                logger.warn({ error, projectId: project.id }, 'Tools detection failed, using fallback');
+                tools = ['npm']; // fallback
+              }
+            }
+
             projectContext = {
-              projectPath: project.rootPath || process.cwd(),
+              projectPath,
               projectName: project.name,
               description: project.description || 'No description available',
-              languages: project.techStack?.languages || ['typescript'],
-              frameworks: project.techStack?.frameworks || ['node.js'],
-              buildTools: project.techStack?.tools || ['npm'],
+              languages, // Dynamic detection with project preference
+              frameworks, // Dynamic detection with project preference
+              buildTools: tools, // Dynamic detection with project preference
               configFiles: ['package.json'],
               entryPoints: ['src/index.ts'],
               architecturalPatterns: ['mvc'],
@@ -612,71 +732,19 @@ async function handleRunCommand(
                 createdAt: project.metadata.createdAt,
                 updatedAt: project.metadata.updatedAt,
                 version: '1.0.0',
-                source: 'manual' as const
+                source: 'hybrid' as const // Hybrid of project data and dynamic detection
               }
             };
           } else {
-            // Fallback to basic context if project not found
-            logger.warn({ taskId, projectId: task.projectId }, 'Project not found, using fallback context');
-            projectContext = {
-              projectPath: process.cwd(),
-              projectName: task.projectId,
-              description: 'Project context not available',
-              languages: ['typescript'],
-              frameworks: ['node.js'],
-              buildTools: ['npm'],
-              configFiles: ['package.json'],
-              entryPoints: ['src/index.ts'],
-              architecturalPatterns: ['mvc'],
-              structure: {
-                sourceDirectories: ['src'],
-                testDirectories: ['tests'],
-                docDirectories: ['docs'],
-                buildDirectories: ['dist']
-              },
-              dependencies: {
-                production: [],
-                development: [],
-                external: []
-              },
-              metadata: {
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                version: '1.0.0',
-                source: 'manual' as const
-              }
-            };
+            // Fallback to dynamic context if project not found
+            logger.warn({ taskId, projectId: task.projectId }, 'Project not found, using dynamic detection');
+            projectContext = await createDynamicProjectContext(process.cwd());
+            projectContext.projectName = task.projectId; // Use task's project ID as name
+            projectContext.description = 'Project context dynamically detected';
           }
         } else {
-          // No project ID available, use basic context
-          projectContext = {
-            projectPath: process.cwd(),
-            projectName: 'Unknown Project',
-            description: 'No project context available',
-            languages: ['typescript'],
-            frameworks: ['node.js'],
-            buildTools: ['npm'],
-            configFiles: ['package.json'],
-            entryPoints: ['src/index.ts'],
-            architecturalPatterns: ['mvc'],
-            structure: {
-              sourceDirectories: ['src'],
-              testDirectories: ['tests'],
-              docDirectories: ['docs'],
-              buildDirectories: ['dist']
-            },
-            dependencies: {
-              production: [],
-              development: [],
-              external: []
-            },
-            metadata: {
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              version: '1.0.0',
-              source: 'manual' as const
-            }
-          };
+          // No project ID available, use dynamic detection
+          projectContext = await createDynamicProjectContext(process.cwd());
         }
 
         // Execute task using real AgentOrchestrator
@@ -1103,6 +1171,113 @@ async function handleRefineCommand(
 }
 
 /**
+ * Validate project existence and readiness for decomposition
+ */
+async function validateProjectForDecomposition(project: any): Promise<{
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  recommendations: string[];
+}> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const recommendations: string[] = [];
+
+  // Check basic project structure
+  if (!project.id) {
+    errors.push('Project missing required ID field');
+  }
+
+  if (!project.name || project.name.trim().length === 0) {
+    errors.push('Project missing required name field');
+  }
+
+  if (!project.description || project.description.trim().length === 0) {
+    warnings.push('Project missing description - decomposition may be less accurate');
+    recommendations.push('Add a detailed project description for better task generation');
+  }
+
+  // Check tech stack information
+  if (!project.techStack) {
+    warnings.push('Project missing tech stack information');
+    recommendations.push('Add tech stack details (languages, frameworks, tools) for more accurate decomposition');
+  } else {
+    if (!project.techStack.languages || project.techStack.languages.length === 0) {
+      warnings.push('No programming languages specified in tech stack');
+      recommendations.push('Specify programming languages for language-specific task generation');
+    }
+
+    if (!project.techStack.frameworks || project.techStack.frameworks.length === 0) {
+      warnings.push('No frameworks specified in tech stack');
+      recommendations.push('Specify frameworks for framework-specific task generation');
+    }
+
+    if (!project.techStack.tools || project.techStack.tools.length === 0) {
+      warnings.push('No development tools specified in tech stack');
+      recommendations.push('Specify development tools for tool-specific task generation');
+    }
+  }
+
+  // Check project metadata
+  if (!project.metadata) {
+    warnings.push('Project missing metadata');
+  } else {
+    if (!project.metadata.tags || project.metadata.tags.length === 0) {
+      warnings.push('Project has no tags for categorization');
+      recommendations.push('Add relevant tags to help with task categorization');
+    }
+
+    if (!project.metadata.createdAt) {
+      warnings.push('Project missing creation timestamp');
+    }
+  }
+
+  // Check project status
+  if (project.status === 'archived') {
+    errors.push('Cannot decompose archived project');
+  }
+
+  if (project.status === 'deleted') {
+    errors.push('Cannot decompose deleted project');
+  }
+
+  // Check for existing decompositions
+  if (project.metadata?.lastDecomposition) {
+    const lastDecomposition = new Date(project.metadata.lastDecomposition);
+    const daysSinceLastDecomposition = (Date.now() - lastDecomposition.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (daysSinceLastDecomposition < 1) {
+      warnings.push('Project was decomposed recently (less than 24 hours ago)');
+      recommendations.push('Consider reviewing existing decomposition before creating a new one');
+    }
+  }
+
+  // Validate project size and complexity indicators
+  if (project.metadata?.estimatedComplexity === 'very_high') {
+    warnings.push('Project marked as very high complexity - decomposition may take longer');
+    recommendations.push('Consider breaking down into smaller sub-projects first');
+  }
+
+  const isValid = errors.length === 0;
+
+  logger.debug({
+    projectId: project.id,
+    projectName: project.name,
+    isValid,
+    errorCount: errors.length,
+    warningCount: warnings.length,
+    recommendationCount: recommendations.length
+  }, 'Project validation completed');
+
+  return {
+    isValid,
+    errors,
+    warnings,
+    recommendations
+  };
+}
+
+/**
  * Handle task decomposition command
  */
 async function handleDecomposeCommand(
@@ -1133,6 +1308,48 @@ async function handleDecomposeCommand(
     // Start decomposition asynchronously
     setTimeout(async () => {
       try {
+        // Look up the actual project ID from storage
+        const { getStorageManager } = await import('./core/storage/storage-manager.js');
+        const storageManager = await getStorageManager();
+
+        // Find project by ID or name
+        const projects = await storageManager.listProjects();
+        const matchingProject = projects.data?.find(p =>
+          p.id === target || p.name.toLowerCase() === target.toLowerCase()
+        );
+
+        if (!matchingProject) {
+          throw new Error(`Project "${target}" not found. Please create the project first using the 'create project' command.`);
+        }
+
+        // Validate project existence and readiness for decomposition
+        const validation = await validateProjectForDecomposition(matchingProject);
+
+        if (!validation.isValid) {
+          const errorMessage = `❌ **Project Validation Failed**\n\n` +
+            `**Errors:**\n${validation.errors.map(e => `• ${e}`).join('\n')}\n\n` +
+            (validation.warnings.length > 0 ?
+              `**Warnings:**\n${validation.warnings.map(w => `• ${w}`).join('\n')}\n\n` : '') +
+            (validation.recommendations.length > 0 ?
+              `**Recommendations:**\n${validation.recommendations.map(r => `• ${r}`).join('\n')}\n\n` : '') +
+            `Please fix these issues before attempting decomposition.`;
+
+          throw new Error(errorMessage);
+        }
+
+        // Log validation results for successful validation
+        if (validation.warnings.length > 0 || validation.recommendations.length > 0) {
+          logger.info({
+            projectId: matchingProject.id,
+            warnings: validation.warnings,
+            recommendations: validation.recommendations
+          }, 'Project validation passed with warnings/recommendations');
+        } else {
+          logger.info({
+            projectId: matchingProject.id
+          }, 'Project validation passed without issues');
+        }
+
         // Create proper AtomicTask from target description
         const task: AtomicTask = {
           id: `task-${Date.now()}`,
@@ -1141,8 +1358,8 @@ async function handleDecomposeCommand(
           type: 'development',
           priority: 'medium',
           status: 'pending',
-          projectId: target.toLowerCase().replace(/\s+/g, '-'),
-          epicId: `epic-${Date.now()}`,
+          projectId: matchingProject.id, // Use the actual project ID from storage
+          epicId: 'default-epic', // Use existing default epic instead of dynamic ID
           estimatedHours: 8,
           actualHours: 0,
           filePaths: [],
@@ -1186,12 +1403,43 @@ async function handleDecomposeCommand(
           }
         };
 
+        // Get project analyzer for dynamic detection
+        const { ProjectAnalyzer } = await import('./utils/project-analyzer.js');
+        const projectAnalyzer = ProjectAnalyzer.getInstance();
+        const projectPath = process.cwd(); // Default to current working directory
+
+        // Detect project characteristics dynamically
+        let languages: string[];
+        let frameworks: string[];
+        let tools: string[];
+
+        try {
+          languages = await projectAnalyzer.detectProjectLanguages(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Language detection failed in main index, using fallback');
+          languages = ['typescript', 'javascript']; // fallback
+        }
+
+        try {
+          frameworks = await projectAnalyzer.detectProjectFrameworks(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Framework detection failed in main index, using fallback');
+          frameworks = ['react', 'node.js']; // fallback
+        }
+
+        try {
+          tools = await projectAnalyzer.detectProjectTools(projectPath);
+        } catch (error) {
+          logger.warn({ error, projectPath }, 'Tools detection failed in main index, using fallback');
+          tools = ['vscode', 'git']; // fallback
+        }
+
         // Create project context using the atomic-detector ProjectContext interface
         const projectContext: AtomicProjectContext = {
-          projectId: target.toLowerCase().replace(/\s+/g, '-'),
-          languages: ['typescript', 'javascript'],
-          frameworks: ['react', 'node.js'],
-          tools: ['vscode', 'git'],
+          projectId: matchingProject.id, // Use the actual project ID from storage
+          languages, // Dynamic detection using existing 35+ language infrastructure
+          frameworks, // Dynamic detection using existing language handler methods
+          tools, // Dynamic detection using Context Curator patterns
           existingTasks: [],
           codebaseSize: 'medium' as const,
           teamSize: 1,
@@ -1291,28 +1539,70 @@ ${subTasksList}
           decompositionSessionId: decompositionSession.id
         }, 'Real decomposition files saved successfully');
 
-        jobManager.setJobResult(jobId, {
-          content: [{
-            type: "text",
-            text: `✅ **Real AI-Powered Decomposition Completed** for "${target}"!\n\n` +
-                  `🤖 **Method**: RDD Engine (Recursive Decomposition Design)\n` +
-                  `📋 **Decomposition ID**: ${jobId}\n` +
-                  `🔗 **Session ID**: ${decompositionSession.id}\n` +
-                  `📊 **Total Sub-tasks**: ${results.length}\n` +
-                  `⏱️ **Total Estimated Hours**: ${results.reduce((sum, task) => sum + task.estimatedHours, 0)}h\n` +
-                  `📁 **Output Directory**: ${decompositionOutputPath}\n\n` +
-                  `**Generated Files:**\n` +
-                  `• ${decompositionFile}\n` +
-                  `• ${markdownFile}\n\n` +
-                  `**AI-Generated Tasks:**\n${subTasksList}\n\n` +
-                  `✨ **Next Steps:**\n` +
-                  `• Review and refine the generated tasks\n` +
-                  `• Use 'refine' command to modify tasks if needed\n` +
-                  `• Start with high-priority tasks\n` +
-                  `• Use 'run' command to execute individual tasks\n\n` +
-                  `🎉 **Success!** The RDD engine has intelligently broken down your project into manageable, actionable tasks using real AI analysis!`
-          }]
-        });
+        // NEW: Enhanced job result with rich content
+        const session = decompositionService.getSession(decompositionSession.id);
+        if (session?.richResults && session.persistedTasks) {
+          const { tasks, files, summary } = session.richResults;
+
+          jobManager.setJobResult(jobId, {
+            content: [{
+              type: "text",
+              text: `✅ **AI-Powered Decomposition Completed Successfully!**\n\n` +
+                    `🎯 **Project**: ${target}\n` +
+                    `🤖 **Method**: RDD Engine (Recursive Decomposition Design)\n` +
+                    `📋 **Generated Tasks**: ${summary.totalTasks}\n` +
+                    `⏱️ **Total Estimated Hours**: ${summary.totalHours}h\n` +
+                    `📁 **Output Directory**: VibeCoderOutput/vibe-task-manager/\n\n` +
+
+                    `**📋 Created Tasks:**\n` +
+                    tasks.map(task =>
+                      `• **${task.title}** (${task.estimatedHours}h)\n` +
+                      `  ${task.description}\n` +
+                      `  Priority: ${task.priority} | Type: ${task.type}\n` +
+                      `  Files: ${task.filePaths?.join(', ') || 'N/A'}\n`
+                    ).join('\n') +
+
+                    `\n**📁 Generated Files:**\n` +
+                    files.map(file => `• ${file}`).join('\n') +
+
+                    `\n\n**✨ Next Steps:**\n` +
+                    `• Review tasks: Use 'list' command to see all tasks\n` +
+                    `• Run tasks: Use 'run' command to execute specific tasks\n` +
+                    `• Refine tasks: Use 'refine' command to modify if needed\n` +
+                    `• Check status: Use 'status' command for progress updates\n\n` +
+                    `🎉 **Success!** The RDD engine has intelligently broken down your project into ${summary.totalTasks} manageable, actionable tasks!`
+            }],
+            // NEW: Include structured data for programmatic access
+            taskData: tasks,
+            fileReferences: files,
+            projectSummary: summary,
+            actionableItems: [
+              { action: 'list', description: 'View all generated tasks' },
+              { action: 'run', description: 'Execute specific tasks' },
+              { action: 'refine', description: 'Modify tasks if needed' }
+            ]
+          });
+        } else {
+          // Fallback for cases without rich results
+          jobManager.setJobResult(jobId, {
+            content: [{
+              type: "text",
+              text: `✅ **Real AI-Powered Decomposition Completed** for "${target}"!\n\n` +
+                    `🤖 **Method**: RDD Engine (Recursive Decomposition Design)\n` +
+                    `📋 **Decomposition ID**: ${jobId}\n` +
+                    `🔗 **Session ID**: ${decompositionSession.id}\n` +
+                    `📊 **Total Sub-tasks**: ${results.length}\n` +
+                    `⏱️ **Total Estimated Hours**: ${results.reduce((sum, task) => sum + task.estimatedHours, 0)}h\n` +
+                    `📁 **Output Directory**: ${decompositionOutputPath}\n\n` +
+                    `**Generated Files:**\n` +
+                    `• ${decompositionFile}\n` +
+                    `• ${markdownFile}\n\n` +
+                    `**AI-Generated Tasks:**\n${subTasksList}\n\n` +
+                    `⚠️ **Note**: Task data may be incomplete. Please check the output directory.`
+            }],
+            isError: false
+          });
+        }
 
       } catch (error) {
         logger.error({ err: error, jobId, target }, 'Decomposition failed');
@@ -1399,7 +1689,162 @@ async function ensureAgentRegistration(sessionId: string, context?: ToolExecutio
   }
 }
 
+/**
+ * Create dynamic project context using existing project detection utilities
+ */
+async function createDynamicProjectContext(projectPath: string): Promise<ProjectContext> {
+  try {
+    // Try to detect project information dynamically
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    // Basic project info
+    const projectName = path.basename(projectPath);
+
+    // Try to read package.json for Node.js projects
+    let detectedLanguages = ['typescript']; // fallback
+    let detectedFrameworks = ['node.js']; // fallback
+    let detectedBuildTools = ['npm']; // fallback
+    let detectedConfigFiles = ['package.json']; // fallback
+    let detectedEntryPoints = ['src/index.ts']; // fallback
+
+    try {
+      const packageJsonPath = path.join(projectPath, 'package.json');
+      const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageJsonContent);
+
+      // Detect languages from dependencies and devDependencies
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+      // Language detection
+      if (allDeps['typescript'] || allDeps['@types/node']) {
+        detectedLanguages = ['typescript', 'javascript'];
+      } else if (allDeps['@babel/core'] || packageJson.main?.endsWith('.js')) {
+        detectedLanguages = ['javascript'];
+      }
+
+      // Framework detection
+      const frameworks = [];
+      if (allDeps['react'] || allDeps['@types/react']) frameworks.push('react');
+      if (allDeps['vue'] || allDeps['@vue/cli']) frameworks.push('vue');
+      if (allDeps['angular'] || allDeps['@angular/core']) frameworks.push('angular');
+      if (allDeps['express'] || allDeps['@types/express']) frameworks.push('express');
+      if (allDeps['next'] || allDeps['nextjs']) frameworks.push('next.js');
+      if (allDeps['nuxt'] || allDeps['@nuxt/core']) frameworks.push('nuxt.js');
+      if (frameworks.length > 0) detectedFrameworks = frameworks;
+
+      // Build tools detection
+      const buildTools = [];
+      if (allDeps['webpack'] || allDeps['@webpack-cli/generators']) buildTools.push('webpack');
+      if (allDeps['vite'] || allDeps['@vitejs/plugin-react']) buildTools.push('vite');
+      if (allDeps['rollup'] || allDeps['@rollup/plugin-node-resolve']) buildTools.push('rollup');
+      if (packageJson.scripts?.build) buildTools.push('npm');
+      if (buildTools.length > 0) detectedBuildTools = buildTools;
+
+      // Entry points detection
+      if (packageJson.main) {
+        detectedEntryPoints = [packageJson.main];
+      } else if (packageJson.scripts?.start) {
+        // Try to extract entry point from start script
+        const startScript = packageJson.scripts.start;
+        if (startScript.includes('src/')) {
+          detectedEntryPoints = ['src/index.ts'];
+        }
+      }
+
+    } catch (error) {
+      // package.json not found or invalid, use fallbacks
+      logger.debug({ err: error, projectPath }, 'Could not read package.json, using fallbacks');
+    }
+
+    // Try to detect other config files
+    const configFiles = ['package.json'];
+    try {
+      const files = await fs.readdir(projectPath);
+      const commonConfigFiles = [
+        'tsconfig.json', 'webpack.config.js', 'vite.config.js', 'rollup.config.js',
+        '.eslintrc.js', '.eslintrc.json', 'jest.config.js', 'babel.config.js',
+        'tailwind.config.js', 'next.config.js', 'nuxt.config.js'
+      ];
+
+      for (const file of files) {
+        if (commonConfigFiles.includes(file)) {
+          configFiles.push(file);
+        }
+      }
+      detectedConfigFiles = configFiles;
+    } catch (error) {
+      logger.debug({ err: error, projectPath }, 'Could not read directory for config files');
+    }
+
+    return {
+      projectPath,
+      projectName,
+      description: `Dynamically detected project: ${projectName}`,
+      languages: detectedLanguages,
+      frameworks: detectedFrameworks,
+      buildTools: detectedBuildTools,
+      configFiles: detectedConfigFiles,
+      entryPoints: detectedEntryPoints,
+      architecturalPatterns: ['mvc'], // Default pattern
+      structure: {
+        sourceDirectories: ['src'],
+        testDirectories: ['tests', 'test', '__tests__'],
+        docDirectories: ['docs', 'documentation'],
+        buildDirectories: ['dist', 'build', 'out']
+      },
+      dependencies: {
+        production: [],
+        development: [],
+        external: []
+      },
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: '1.0.0',
+        source: 'auto-detected' as const
+      }
+    };
+
+  } catch (error) {
+    logger.warn({ err: error, projectPath }, 'Dynamic project detection failed, using basic fallback');
+
+    // Ultimate fallback
+    return {
+      projectPath,
+      projectName: 'Unknown Project',
+      description: 'No project context available',
+      languages: ['typescript'],
+      frameworks: ['node.js'],
+      buildTools: ['npm'],
+      configFiles: ['package.json'],
+      entryPoints: ['src/index.ts'],
+      architecturalPatterns: ['mvc'],
+      structure: {
+        sourceDirectories: ['src'],
+        testDirectories: ['tests'],
+        docDirectories: ['docs'],
+        buildDirectories: ['dist']
+      },
+      dependencies: {
+        production: [],
+        development: [],
+        external: []
+      },
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: '1.0.0',
+        source: 'manual' as const
+      }
+    };
+  }
+}
+
 // Register the tool with the central registry
 registerTool(vibeTaskManagerDefinition);
 
 logger.debug('Vibe Task Manager tool registered successfully');
+
+// Export functions for testing
+export { validateProjectForDecomposition };

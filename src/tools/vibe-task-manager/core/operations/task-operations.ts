@@ -14,7 +14,7 @@ export interface CreateTaskParams {
   title: string;
   description: string;
   projectId: string;
-  epicId: string;
+  epicId?: string; // Made optional - will be auto-resolved if not provided
   priority?: TaskPriority;
   type?: TaskType;
   estimatedHours?: number;
@@ -134,9 +134,31 @@ export class TaskOperations {
       }
       lockIds.push(projectLockResult.lock!.id);
 
+      // Resolve epic ID if not provided
+      let resolvedEpicId = params.epicId;
+      if (!resolvedEpicId) {
+        logger.debug({ taskTitle: params.title, projectId: params.projectId }, 'Epic ID not provided, resolving automatically');
+
+        const { getEpicContextResolver } = await import('../../services/epic-context-resolver.js');
+        const epicResolver = getEpicContextResolver();
+
+        const epicContext = await epicResolver.resolveEpicContext({
+          projectId: params.projectId,
+          taskContext: {
+            title: params.title,
+            description: params.description,
+            type: params.type || 'development',
+            tags: params.tags || []
+          }
+        });
+
+        resolvedEpicId = epicContext.epicId;
+        logger.debug({ resolvedEpicId, source: epicContext.source }, 'Epic ID resolved automatically');
+      }
+
       // Acquire epic lock to prevent concurrent modifications
       const epicLockResult = await this.accessManager.acquireLock(
-        `epic:${params.epicId}`,
+        `epic:${resolvedEpicId}`,
         createdBy,
         'write',
         {
@@ -163,9 +185,13 @@ export class TaskOperations {
       }
       lockIds.push(epicLockResult.lock!.id);
 
-      // Sanitize input parameters
+      // Sanitize input parameters with resolved epic ID
       const dataSanitizer = DataSanitizer.getInstance();
-      const sanitizationResult = await dataSanitizer.sanitizeInput(params);
+      const paramsWithEpicId = {
+        ...params,
+        epicId: resolvedEpicId
+      };
+      const sanitizationResult = await dataSanitizer.sanitizeInput(paramsWithEpicId);
 
       if (!sanitizationResult.success) {
         logger.error({
@@ -217,17 +243,37 @@ export class TaskOperations {
         };
       }
 
-      const epicExists = await storageManager.epicExists(sanitizedParams.epicId);
-      if (!epicExists) {
+      // Validate and ensure epic exists using epic validator
+      const { validateEpicForTask } = await import('../../utils/epic-validator.js');
+      const epicValidationResult = await validateEpicForTask({
+        epicId: sanitizedParams.epicId,
+        projectId: sanitizedParams.projectId,
+        title: sanitizedParams.title,
+        description: sanitizedParams.description,
+        type: sanitizedParams.type,
+        tags: sanitizedParams.tags
+      });
+
+      if (!epicValidationResult.valid) {
         return {
           success: false,
-          error: `Epic ${sanitizedParams.epicId} not found`,
+          error: `Epic validation failed: ${epicValidationResult.error || 'Unknown error'}`,
           metadata: {
             filePath: 'task-operations',
             operation: 'create_task',
             timestamp: new Date()
           }
         };
+      }
+
+      // Update epic ID if it was resolved to a different one
+      if (epicValidationResult.epicId !== sanitizedParams.epicId) {
+        logger.info({
+          originalEpicId: sanitizedParams.epicId,
+          resolvedEpicId: epicValidationResult.epicId,
+          created: epicValidationResult.created
+        }, 'Epic ID resolved during validation');
+        sanitizedParams.epicId = epicValidationResult.epicId;
       }
 
       // Generate unique task ID
@@ -323,6 +369,31 @@ export class TaskOperations {
           error: `Failed to save task: ${createResult.error}`,
           metadata: createResult.metadata
         };
+      }
+
+      // Add task to epic's taskIds array for proper relationship tracking
+      try {
+        const { getEpicService } = await import('../../services/epic-service.js');
+        const epicService = getEpicService();
+
+        const addTaskResult = await epicService.addTaskToEpic(sanitizedParams.epicId, taskId);
+        if (!addTaskResult.success) {
+          logger.warn({
+            taskId,
+            epicId: sanitizedParams.epicId,
+            error: addTaskResult.error
+          }, 'Failed to add task to epic taskIds array');
+          // Don't fail task creation if epic update fails - task is still valid
+        } else {
+          logger.debug({ taskId, epicId: sanitizedParams.epicId }, 'Task added to epic taskIds array');
+        }
+      } catch (error) {
+        logger.warn({
+          err: error,
+          taskId,
+          epicId: sanitizedParams.epicId
+        }, 'Error updating epic with new task');
+        // Don't fail task creation if epic update fails
       }
 
       logger.info({ taskId, taskTitle: params.title }, 'Task created successfully');

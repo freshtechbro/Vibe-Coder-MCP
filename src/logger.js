@@ -3,6 +3,7 @@ import { pino } from 'pino';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const isDevelopment = process.env.NODE_ENV === 'development';
+const isStdioTransport = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
 const effectiveLogLevel = process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
 // --- Calculate paths ---
 const __filename = fileURLToPath(import.meta.url);
@@ -13,8 +14,9 @@ const logFilePath = path.resolve(__dirname, '../server.log');
 // Log to file and also to the original console stream
 const streams = [
     { level: effectiveLogLevel, stream: pino.destination(logFilePath) },
-    // Redirect console output to stderr when not in development to avoid interfering with MCP stdio
-    { level: effectiveLogLevel, stream: isDevelopment ? process.stdout : process.stderr }
+    // Always use stderr when stdio transport is detected to avoid interfering with MCP JSON-RPC protocol
+    // In development, only use stdout if NOT using stdio transport
+    { level: effectiveLogLevel, stream: (isDevelopment && !isStdioTransport) ? process.stdout : process.stderr }
 ];
 // Configure the logger
 const configuredLogger = pino({
@@ -35,7 +37,8 @@ const configuredLogger = pino({
     },
     // --- End Redaction ---
     // Transport is applied *after* multistream, only affects console output here
-    transport: isDevelopment
+    // Only use pretty printing in development AND when not using stdio transport
+    transport: (isDevelopment && !isStdioTransport)
         ? {
             target: 'pino-pretty',
             options: {
@@ -44,7 +47,7 @@ const configuredLogger = pino({
                 ignore: 'pid,hostname', // Pretty print options
             },
         }
-        : undefined, // Use default JSON transport for console when not in development
+        : undefined, // Use default JSON transport for console when not in development or using stdio
 }, pino.multistream(streams) // Use multistream for output destinations
 );
 export default configuredLogger;
