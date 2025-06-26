@@ -1,8 +1,126 @@
-# Vibe Coder MCP Server
+# Vibe Coder MCP Server v2.4.0
 
 ![Test](https://github.com/freshtechbro/Vibe-Coder-MCP/actions/workflows/test.yml/badge.svg)
 
 Vibe Coder is an MCP (Model Context Protocol) server designed to supercharge your AI assistant (like Cursor, Cline AI, or Claude Desktop) with powerful tools for software development. It helps with research, planning, generating requirements, creating starter projects, and more!
+
+## 🆕 What's New in v2.4.0
+
+### Enhanced Configuration System
+- **Custom Build Integration**: Complete VibeCoder custom build system with update-safe configuration
+- **Smart Model Assignment**: Automatic model selection based on task type (code, general, reasoning, research)
+- **Free Model Optimization**: Pre-configured with the best free models available in 2025
+- **Environment Variable Switching**: Dynamic model switching via `.env` file
+- **Update-Safe Architecture**: Configurations survive VibeCoder updates with automatic restoration
+
+### Advanced Model Management
+- **Multi-Model Strategy**: Different models optimized for different task types
+- **Cost Optimization**: $0-5/month operation with primarily free models
+- **Intelligent Fallbacks**: Automatic fallback to alternative models when primary models are unavailable
+- **Real-Time Model Switching**: Change models without rebuilding, just restart Claude Desktop
+
+### Enhanced Documentation
+- **Complete Setup Guides**: Comprehensive documentation for custom build setup
+- **Update Procedures**: Step-by-step guide for maintaining configuration through updates
+- **Model Recommendations**: Curated list of best models for different development tasks
+- **Cost Analysis**: Detailed breakdown of usage costs and optimization strategies
+
+## 🚀 VibeCoder Custom Build System
+
+VibeCoder v2.4.0 includes a comprehensive custom build system that provides enhanced model management, cost optimization, and update-safe configuration. This system was developed to convert the standard VibeCoder setup into a more flexible, cost-effective solution with smart model assignment.
+
+### Key Benefits
+
+**🎯 Smart Model Assignment**
+- **Code Tasks**: DeepSeek R1 0528 (reasoning, debugging, complex logic)
+- **General Tasks**: Llama 3.3 70B (documentation, planning, user stories)
+- **Research Tasks**: Perplexity Sonar (web research, ~$0.02/query)
+- **Reasoning Tasks**: DeepSeek models (analysis, problem-solving)
+
+**💰 Cost Optimization**
+- **Monthly Cost**: $0-5 (primarily free models)
+- **Research Only**: Pay-per-use web research when needed
+- **Free Models**: Best available free models in 2025
+- **Smart Fallbacks**: Automatic model switching when limits reached
+
+**🔄 Update-Safe Architecture**
+- **Survives Updates**: Configuration persists through VibeCoder updates
+- **Automatic Restoration**: Scripts to restore custom configuration after updates
+- **Environment Switching**: Change models via `.env` file without rebuilding
+- **Backup System**: Automatic backups of custom configurations
+
+### Quick Start with Custom Build
+
+1. **Use the Enhanced Build Script**:
+   ```bash
+   # Windows
+   .\vibecoder-custom-build\build-and-test.bat
+   
+   # After VibeCoder updates
+   .\vibecoder-custom-build\restore-vibecoder-after-update.bat
+   ```
+
+2. **Configure Your Models**:
+   Edit `.env` file:
+   ```env
+   KIMI_MODEL="deepseek/deepseek-r1-0528:free"
+   LLAMA_MODEL="meta-llama/llama-3.3-70b-instruct:free"
+   DEEPSEEK_MODEL="deepseek/deepseek-r1-distill-llama-70b:free"
+   PERPLEXITY_MODEL="perplexity/sonar-deep-research"
+   ```
+
+3. **Restart Claude Desktop** to apply changes
+
+### Custom Build Documentation
+
+The `vibecoder-custom-build/` directory contains comprehensive documentation:
+
+- **[COMPLETE-VIBECODER-SETUP.md](vibecoder-custom-build/COMPLETE-VIBECODER-SETUP.md)** - Complete setup guide with all commands and model configurations
+- **[VIBECODER-UPDATE-GUIDE.md](vibecoder-custom-build/VIBECODER-UPDATE-GUIDE.md)** - Step-by-step update procedures to maintain custom configuration
+- **[vibecoder-new-version-guide.md](vibecoder-custom-build/vibecoder-new-version-guide.md)** - Comparison between old and new VibeCoder versions
+- **[vibecoder-guide.md](vibecoder-custom-build/vibecoder-guide.md)** - General usage guide and best practices
+
+### Available Scripts
+
+- **`build-and-test.bat`** - Enhanced build script with model configuration
+- **`restore-vibecoder-after-update.bat`** - Restore custom configuration after VibeCoder updates
+- **`rebuild-vibecoder.bat`** - Complete rebuild with custom configuration
+- **`test-vibecoder.bat`** - Test VibeCoder functionality
+
+### Model Configuration Files
+
+- **`enhanced-llm-config.json`** - Comprehensive LLM model mappings for all tools
+- **`my-llm-config.json`** - User-specific model configuration
+- **`enhanced-env-template`** - Template for environment variable configuration
+
+### Usage Examples with Custom Build
+
+```bash
+# Using optimized models for different tasks
+curate-context for fixing debug table display    # Uses DeepSeek R1 (code tasks)
+generate-prd productDescription="Task manager"   # Uses Llama 3.3 70B (general tasks)
+research query="React performance 2025"          # Uses Perplexity (research, small cost)
+vibe-task-manager create project "My App"       # Uses DeepSeek (reasoning tasks)
+```
+
+### Model Recommendations (2025)
+
+**Best Free Models Available:**
+- `deepseek/deepseek-r1-0528:free` - Approaches O3 performance, excellent for code
+- `meta-llama/llama-3.3-70b-instruct:free` - 70B parameters, great for general tasks
+- `deepseek/deepseek-r1-distill-llama-70b:free` - 94.5% MATH-500 benchmark
+- `moonshotai/kimi-dev-72b:free` - Software engineering optimized
+
+**Alternative Free Models:**
+- `google/gemini-2.0-flash:free` - Google's latest free model
+- `qwen/qwen3-30b-a3b:free` - Strong general performance
+- `nvidia/llama-3.3-nemotron-super-49b-v1:free` - Nvidia-optimized
+
+**Paid Upgrades (if needed):**
+- `google/gemini-2.5-flash` - $0.075/1K tokens (~$5-15/month)
+- `google/gemini-2.5-pro` - $0.3/1K tokens (~$10-25/month)
+
+
 
 ## Overview & Features
 
@@ -431,6 +549,19 @@ vibe-coder-mcp/
 ├── vitest.config.ts                  # Vitest (testing) configuration
 ├── workflows.json                    # Workflow definitions
 ├── build/                            # Compiled JavaScript (after build)
+├── debug/                            # Debug and troubleshooting scripts
+│   ├── README.md                     # Debug scripts documentation
+│   ├── fix-sharp-windows.bat         # Windows Sharp module fix (working solution)
+│   ├── *.bat, *.sh, *.js             # Various debug and fix scripts
+│   └── FIXES_APPLIED.md              # Complete history of applied fixes
+├── vibecoder-custom-build/           # 🆕 Enhanced configuration system
+│   ├── README.md                     # Complete setup, usage, and update guide
+│   ├── build-and-test.bat            # Enhanced build script with model configuration
+│   ├── restore-vibecoder-after-update.bat # Restore custom config after updates
+│   ├── vibecoder-utils.bat           # Multi-purpose utility script (build/test/rebuild)
+│   ├── my-llm-config.json            # Comprehensive LLM model mappings (48 task types)
+│   ├── enhanced-env-template         # Template for environment variable configuration
+│   └── *.bak                         # Backup files
 ├── docs/                             # Additional documentation
 │   ├── code-map-generator/           # Code Map Generator docs
 │   ├── handover/                     # Development handover docs
@@ -483,7 +614,7 @@ vibe-coder-mcp/
     │   └── workflow-runner/          # Workflow execution engine
     ├── types/                        # TypeScript type definitions
     └── utils/                        # Shared utilities
-        ├── configLoader.ts           # Configuration management
+        ├── configLoader.ts           # Configuration management (enhanced in v2.4.0)
         ├── errors.ts                 # Error handling
         └── llmHelper.ts              # LLM integration helpers
 ```

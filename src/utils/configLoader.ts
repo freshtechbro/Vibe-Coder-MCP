@@ -11,18 +11,16 @@ interface LlmConfigFile {
 }
 
 /**
- * Loads the LLM model mapping configuration from a JSON file.
- * 
- * Loads the LLM model mapping configuration from a JSON file, prioritizing an environment variable.
+ * Loads the LLM model mapping configuration from a JSON file and merges with .env preferences.
  * 
  * @param fileName The name of the configuration file. Defaults to 'llm_config.json'.
- * @returns An object containing the llm_mapping, or an empty mapping if loading fails.
+ * @returns An object containing the llm_mapping, with .env overrides applied.
  */
 export function loadLlmConfigMapping(
   fileName: string = 'llm_config.json'
 ): Record<string, string> {
   let filePath: string | null = null;
-  const defaultMapping: Record<string, string> = {};
+  let baseMapping: Record<string, string> = {};
 
   // 1. Check Environment Variable
   if (process.env.LLM_CONFIG_PATH) {
@@ -44,7 +42,7 @@ export function loadLlmConfigMapping(
     }
   }
 
-  // If a path was found, try loading from it
+  // Load base mapping from file
   if (filePath) {
     try {
       const fileContent = fs.readFileSync(filePath, 'utf-8');
@@ -59,20 +57,122 @@ export function loadLlmConfigMapping(
              delete parsedConfig.llm_mapping[key]; // Remove invalid entry
           }
         }
-        return parsedConfig.llm_mapping;
+        baseMapping = parsedConfig.llm_mapping;
       } else {
-        logger.error(`Invalid structure in ${filePath}. Expected 'llm_mapping' object. Using default empty mapping.`);
-        return defaultMapping;
+        logger.error(`Invalid structure in ${filePath}. Expected 'llm_mapping' object.`);
       }
     } catch (error) {
-      logger.error({ err: error, filePath }, `Failed to load or parse LLM config from ${filePath}. Using default empty mapping.`);
-      return defaultMapping;
+      logger.error({ err: error, filePath }, `Failed to load or parse LLM config from ${filePath}.`);
     }
-  } else {
-    // If no path worked after checking env var and CWD
-    logger.error(`LLM config file "${fileName}" not found via environment variable or in CWD (${process.cwd()}). Using default empty LLM mapping.`);
-    return defaultMapping;
   }
+
+  // 3. Apply .env overrides for ALL model preferences
+  const envOverrides: Record<string, string> = {};
+  
+  // Get model from env or use default fallback
+  const getModelFromEnv = (envVar: string, fallback: string): string => {
+    return process.env[envVar] || fallback;
+  };
+
+  // Define all models from .env
+  const models = {
+    gemini: getModelFromEnv('GEMINI_MODEL', 'google/gemini-2.5-flash-preview-05-20'),
+    deepseek: getModelFromEnv('DEEPSEEK_MODEL', 'deepseek/deepseek-r1-0528-qwen3-8b:free'),
+    qwen: getModelFromEnv('QWEN_MODEL', 'qwen/qwen3-30b-a3b:free'),
+    kimi: getModelFromEnv('KIMI_MODEL', 'moonshotai/kimi-dev-72b:free'),
+    llama: getModelFromEnv('LLAMA_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
+    deepseekV3: getModelFromEnv('DEEPSEEK_V3_MODEL', 'deepseek/deepseek-v3-base:free'),
+    minimax: getModelFromEnv('MINIMAX_MODEL', 'minimax/minimax-m1:free'),
+    nvidia: getModelFromEnv('NVIDIA_MODEL', 'nvidia/llama-3.3-nemotron-super-49b-v1:free'),
+    perplexity: getModelFromEnv('PERPLEXITY_MODEL', 'perplexity/sonar-deep-research')
+  };
+
+  // Apply models to specific task categories
+  
+  // Code-focused tasks use KIMI (software engineering optimized)
+  const codeTasks = [
+    'dependency_analysis',
+    'context_curator_intent_analysis',
+    'context_curator_file_discovery',
+    'context_curator_task_decomposition',
+    'rules_generation',
+    'task_validation',
+    'project_analysis',
+    'capability_matching'
+  ];
+  codeTasks.forEach(task => {
+    envOverrides[task] = models.kimi;
+  });
+
+  // General generation tasks use LLAMA (strong general performance)
+  const generalTasks = [
+    'prd_generation',
+    'user_stories_generation',
+    'task_list_initial_generation',
+    'task_list_decomposition',
+    'fullstack_starter_kit_generation',
+    'fullstack_starter_kit_module_selection',
+    'fullstack_starter_kit_dynamic_yaml_module_generation',
+    'context_curator_prompt_refinement',
+    'context_curator_relevance_scoring',
+    'context_curator_meta_prompt_generation',
+    'context_curator_architectural_analysis',
+    'agent_response_processing',
+    'task_orchestration',
+    'epic_generation',
+    'session_persistence',
+    'artifact_parsing',
+    'prd_integration',
+    'task_list_integration',
+    'default_generation'
+  ];
+  generalTasks.forEach(task => {
+    envOverrides[task] = models.llama;
+  });
+
+  // Reasoning tasks use DEEPSEEK (reasoning optimized)
+  const reasoningTasks = [
+    'sequential_thought_generation',
+    'intent_recognition',
+    'atomic_task_detection',
+    'dependency_graph_analysis',
+    'research_query_generation',
+    'research_enhancement',
+    'agent_task_assignment',
+    'agent_status_analysis',
+    'agent_health_monitoring',
+    'transport_optimization',
+    'error_recovery_analysis',
+    'orchestration_workflow',
+    'natural_language_processing',
+    'command_parsing',
+    'task_refinement',
+    'agent_coordination',
+    'workflow_step_execution'
+  ];
+  reasoningTasks.forEach(task => {
+    envOverrides[task] = models.deepseek;
+  });
+
+  // Research stays with Perplexity
+  envOverrides['research_query'] = models.perplexity;
+
+  // 4. Merge base mapping with environment overrides
+  const finalMapping = { ...baseMapping, ...envOverrides };
+  
+  logger.info({
+    baseConfigTasks: Object.keys(baseMapping).length,
+    envOverrides: Object.keys(envOverrides).length,
+    finalTasks: Object.keys(finalMapping).length,
+    modelsUsed: {
+      kimi: models.kimi,
+      llama: models.llama,
+      deepseek: models.deepseek,
+      perplexity: models.perplexity
+    }
+  }, 'LLM config loading complete with .env overrides');
+
+  return finalMapping;
 }
 
 /**

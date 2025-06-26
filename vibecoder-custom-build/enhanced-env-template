@@ -1,0 +1,174 @@
+# =============================================================================
+# VIBE CODER MCP SERVER ENVIRONMENT CONFIGURATION
+# =============================================================================
+# This file contains all environment variables used by the Vibe Coder MCP Server.
+# Copy this file to .env and configure the values according to your setup.
+
+# =============================================================================
+# REQUIRED CONFIGURATION
+# =============================================================================
+
+# OpenRouter API Configuration (REQUIRED)
+OPENROUTER_API_KEY=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
+# Get your API key from: https://openrouter.ai/
+
+# =============================================================================
+# MODEL SELECTION - JUNE 2025 OPTIMIZED
+# =============================================================================
+
+# OpenRouter Base URL (default: https://openrouter.ai/api/v1)
+OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
+
+# ===== CURRENT ACTIVE MODELS (JUNE 2025 BEST) =====
+# Only these 4 models are actually used by VibeCoder:
+
+# CODE/REASONING TASKS (best free reasoning model, approaches O3 performance)
+KIMI_MODEL="deepseek/deepseek-r1-0528:free"
+
+# GENERAL TASKS (best multimodal, 1M context, latest release)  
+LLAMA_MODEL="meta-llama/llama-4-maverick:free"
+
+# ANALYSIS TASKS (distilled from DeepSeek R1, excellent math/coding)
+DEEPSEEK_MODEL="deepseek/deepseek-r1-distill-llama-70b:free"
+
+# RESEARCH TASKS (web research - COSTS ~$0.02 per query)
+PERPLEXITY_MODEL="perplexity/sonar-deep-research"
+
+# ===== ALTERNATIVE FREE MODELS (TOP JUNE 2025) =====
+# To switch models: uncomment a line below and comment out the one above
+
+# Alternative REASONING (if DeepSeek R1-0528 is rate limited):
+# KIMI_MODEL="tng/deepseek-r1t-chimera:free"
+# KIMI_MODEL="deepseek/deepseek-r1-distill-qwen-14b:free"
+
+# Alternative GENERAL (if Llama 4 unavailable):
+# LLAMA_MODEL="meta-llama/llama-4-scout:free"
+# LLAMA_MODEL="meta-llama/llama-3.3-70b-instruct:free"
+
+# Alternative SOFTWARE ENGINEERING (best for your WordPress plugins):
+# DEEPSEEK_MODEL="moonshotai/kimi-dev-72b:free"
+# DEEPSEEK_MODEL="minimax/minimax-m1:free"
+
+# ===== PAID MODEL OPTIONS (if free models slow/limited) =====
+# Uncomment these if you want to pay for guaranteed performance:
+
+# PAID GENERAL (~$0.075/1K tokens = ~$5-15/month):
+# LLAMA_MODEL="google/gemini-2.5-flash"
+
+# PAID REASONING (~$0.3/1K tokens = ~$10-25/month):
+# KIMI_MODEL="google/gemini-2.5-pro"
+
+# ===== RESEARCH ALTERNATIVES =====
+# For 100% FREE (no research capabilities):
+# PERPLEXITY_MODEL=""
+
+# Free but limited research via Gemini (Google AI Studio only):
+# PERPLEXITY_MODEL="google/gemini-2.0-flash:free"
+
+# =============================================================================
+# COST SUMMARY (JUNE 2025)
+# =============================================================================
+#
+# CURRENT SETUP COST: $0-5/month
+# - All models: COMPLETELY FREE (best available June 2025)
+# - Research: ~$0.02 per query (only if you use research tool)
+#
+# PERFORMANCE: Current free models match/exceed previous paid models
+# - DeepSeek R1-0528: Approaches OpenAI O3 performance
+# - Llama 4 Maverick: 1M context, multimodal capabilities
+# - 70B Distill: 94.5% MATH-500, 70% AIME 2024
+#
+# =============================================================================
+
+# =============================================================================
+# SERVER CONFIGURATION
+# =============================================================================
+
+# Application Environment (development, production, test)
+# NODE_ENV="production"
+
+# Logging Configuration
+# LOG_LEVEL="info"
+
+# SSE Server Port (default: 3000)
+# SSE_PORT=3000
+
+# =============================================================================
+# DIRECTORY CONFIGURATION
+# =============================================================================
+
+# Base output directory for all tools (default: ./VibeCoderOutput)
+VIBE_CODER_OUTPUT_DIR="/Users/Ascension/Claude/root/vibe-coder-mcp/VibeCoderOutput"
+
+# LLM Configuration File Path (default: ./llm_config.json)
+LLM_CONFIG_PATH="/Users/Ascension/Claude/root/vibe-coder-mcp/llm_config.json"
+
+# Task Manager Read Directory (for file operations)
+VIBE_TASK_MANAGER_READ_DIR="/Users/Ascension/Claude/root/filesystem"
+
+# Code Map Allowed Directory (for code analysis)
+CODE_MAP_ALLOWED_DIR="/Users/Ascension/Claude/root/filesystem"
+
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+
+# Security Features
+# VIBE_SECURITY_ENABLED="true"
+# VIBE_SECURITY_STRICT_MODE="true"
+# VIBE_SECURITY_LOG_VIOLATIONS="true"
+
+# Path Security
+# VIBE_PATH_SECURITY_ENABLED="true"
+# VIBE_PATH_ALLOW_SYMLINKS="false"
+
+# Data Sanitization
+# VIBE_DATA_SANITIZATION_ENABLED="true"
+
+# Lock Management
+# VIBE_LOCK_TIMEOUT="30000"
+# VIBE_DEADLOCK_DETECTION="true"
+
+# Performance Monitoring
+# VIBE_SECURITY_PERFORMANCE_THRESHOLD="50"
+
+# =============================================================================
+# FEATURE FLAGS
+# =============================================================================
+
+# Code Map Generator Features
+ENHANCED_FUNCTION_DETECTION="true"
+CONTEXT_ANALYSIS="true"
+FRAMEWORK_DETECTION="true"
+ROLE_IDENTIFICATION="true"
+HEURISTIC_NAMING="true"
+MEMORY_OPTIMIZATION="true"
+
+# =============================================================================
+# DEVELOPMENT & DEBUGGING
+# =============================================================================
+
+# Development Mode Settings (uncomment for development)
+# NODE_ENV="development"
+# LOG_LEVEL="debug"
+
+# Performance Monitoring
+# ENABLE_PERFORMANCE_MONITORING="true"
+
+# =============================================================================
+# JUNE 2025 UPDATE NOTES
+# =============================================================================
+#
+# MAJOR CHANGES FROM PREVIOUS SETUP:
+# 1. DeepSeek R1-0528: Now matches OpenAI O3 performance (FREE!)
+# 2. Llama 4 Maverick: 1M context window, multimodal (FREE!)
+# 3. DeepSeek R1 Distill 70B: 94.5% MATH-500 benchmark (FREE!)
+# 4. Deprecated models removed (Gemini experimental versions)
+#
+# YOUR WORDPRESS DEVELOPMENT NOW GETS:
+# - O3-level reasoning for complex debugging
+# - 1M token context for entire plugin analysis
+# - State-of-the-art code generation
+# - All completely free!
+#
+# =============================================================================

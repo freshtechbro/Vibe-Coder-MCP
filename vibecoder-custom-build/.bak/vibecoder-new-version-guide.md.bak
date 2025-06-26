@@ -1,0 +1,152 @@
+# VibeCoder NEW VERSION - Complete Guide
+
+## 🔍 What NEW Version Has (16+ Tools)
+
+### **FREE TOOLS**
+1. **map-codebase** - Enhanced project mapping (35+ languages)
+2. **curate-context** - Smart file selection for specific tasks
+3. **vibe-task-manager** - AI-native task management with RDD methodology
+4. **get-job-result** - Check status of running jobs  
+5. **run-workflow** - Execute predefined tool sequences
+6. **process-request** - Smart routing to best tool
+7. **register-agent** - Register AI agents for coordination
+8. **get-agent-tasks** - Retrieve assigned tasks for agents
+9. **submit-task-response** - Submit completed task results
+
+### **PAID TOOLS (Need OpenRouter API)**
+10. **research** - Deep research using Perplexity Sonar
+11. **generate-prd** - Product Requirements Documents
+12. **generate-user-stories** - User stories with acceptance criteria
+13. **generate-task-list** - Development task breakdowns
+14. **generate-rules** - Development standards/guidelines
+15. **generate-fullstack-starter-kit** - Enhanced project boilerplate
+16. **Plus other advanced tools**
+
+## 📝 EXACT Commands to Type (NEW VERSION)
+
+### **Smart File Selection (FREE)**
+```
+curate-context for fixing the debug log table display in my tr-comments-import-export plugin
+```
+**What it does:** Analyzes codebase and finds only relevant files for your specific task
+**Output:** Direct response with focused file list and context
+**Use for:** Getting relevant files without reading entire project
+
+### **Enhanced Project Mapping (FREE)**
+```
+map-codebase target_directory="/Users/Ascension/Claude/root/filesystem/plugins/tr-comments-import-export"
+```
+**What it does:** Advanced project mapping with 35+ language support, 95% token reduction
+**Output:** Saved to VibeCoderOutput/code-map-generator/[timestamp]-code-map.md
+**Use for:** Comprehensive project understanding
+
+### **AI Task Management (FREE)**
+```
+vibe-task-manager create project called "DebugTableFix"
+vibe-task-manager list all projects
+vibe-task-manager create task "Fix debug table display" for project "DebugTableFix"
+vibe-task-manager list tasks for project "DebugTableFix"
+vibe-task-manager run task "task-id"
+```
+**What it does:** Manages projects and tasks across chat sessions
+**Output:** Persistent task tracking
+**Use for:** Maintaining project state, resuming work
+
+### **Smart Request Processing (FREE)**
+```
+process-request request="I need to fix the debug table display issue in my WordPress plugin"
+```
+**What it does:** Routes to best tool based on semantic matching
+**Use for:** When unsure which tool to use
+
+### **Agent Coordination (FREE)**
+```
+register-agent capability="frontend-development" name="FrontendAgent"
+get-agent-tasks agentId="agent-id"
+submit-task-response taskId="task-id" response="Task completed"
+```
+**What it does:** Coordinates multiple AI agents on projects
+**Use for:** Multi-agent development workflows
+
+### **All Paid Tools Same as Old Version**
+Research, PRD generation, user stories, etc. - same commands and pricing as old version.
+
+## 🔄 Complete Workflow for Debug Table Issue (NEW VERSION)
+
+### **Step 1: Smart Context Curation (FREE)**
+```
+curate-context for fixing the debug log table display in my tr-comments-import-export plugin
+```
+
+### **Step 2: Get Focused Results**
+New version gives you immediate focused file list - no need to read entire project map.
+
+### **Step 3: Optional Task Management (FREE)**
+```
+vibe-task-manager create project called "DebugTableFix"
+vibe-task-manager create task "Fix table display CSS" for project "DebugTableFix"
+```
+
+### **Step 4: Work on Suggested Files**
+Use the curated context to work on only relevant files.
+
+### **Step 5: Track Progress (FREE)**
+```
+vibe-task-manager update task "task-id" status "completed"
+```
+
+## 💰 Detailed Cost Comparison
+
+### **OLD VERSION Monthly Costs (5+ projects):**
+**Free usage:** map-codebase only
+**Paid features:** $5-25/month
+- Research: $1-5/month (20-50 queries)
+- Documents: $3-15/month (3-10 documents)  
+- Planning: $1-5/month (task lists, user stories)
+
+### **NEW VERSION Monthly Costs (5+ projects):**
+**Free usage:** Everything above PLUS smart file selection, task management, agent coordination
+**Paid features:** Same $5-25/month (identical pricing)
+
+### **Value Difference:**
+**Old Version:** Basic mapping + paid planning
+**New Version:** Smart automation + task tracking + paid planning
+
+## 🎯 Which Version Should You Use?
+
+### **Use OLD VERSION if:**
+- You want basic project mapping only
+- You don't mind manual file selection
+- You don't need task tracking across chats
+- You want proven stability
+
+### **Use NEW VERSION if:**
+- You want smart file selection (solves your context problems)
+- You need task management across chat sessions
+- You want agent coordination capabilities
+- You can handle occasional instability
+
+## 💡 ROI Analysis for Your Situation
+
+**Your Problems:**
+- Restarting chats, losing context
+- Large file issues
+- Manual flowcharts
+- Poor documentation
+- Resuming projects
+
+**OLD VERSION Solution:**
+- Partial: Basic mapping helps with documentation
+- Still manual file selection
+- No chat continuity help
+
+**NEW VERSION Solution:**
+- Full: curate-context solves file selection
+- vibe-task-manager solves chat continuity
+- Smart automation reduces manual work
+
+**Recommendation for $20 budget:**
+NEW VERSION with free tools only initially. Add paid features when needed.
+
+**Bottom Line:**
+NEW VERSION directly solves your workflow problems with free tools. OLD VERSION requires you to do most work manually.
