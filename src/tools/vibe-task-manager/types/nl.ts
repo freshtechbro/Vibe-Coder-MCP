@@ -9,6 +9,7 @@ export type Intent =
   | 'create_project'
   | 'list_projects'
   | 'open_project'
+  | 'update_project'
   | 'create_task'
   | 'list_tasks'
   | 'run_task'
@@ -23,6 +24,8 @@ export type Intent =
   | 'parse_prd'
   | 'parse_tasks'
   | 'import_artifact'
+  | 'unrecognized_intent'
+  | 'clarification_needed'
   | 'unknown';
 
 /**

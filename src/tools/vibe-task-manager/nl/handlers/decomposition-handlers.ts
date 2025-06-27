@@ -253,13 +253,50 @@ export class DecomposeTaskHandler implements CommandHandler {
         }),
         context: {
           projectId: task.projectId,
+          projectPath: process.cwd(),
+          projectName: task.projectId,
+          description: `Task decomposition context for ${task.title}`,
           languages, // Dynamic detection using existing 35+ language infrastructure
           frameworks, // Dynamic detection using existing language handler methods
+          buildTools: [],
           tools, // Dynamic detection using Context Curator patterns
+          configFiles: [],
+          entryPoints: [],
+          architecturalPatterns: [],
           existingTasks: [],
           codebaseSize: 'medium' as const,
           teamSize: 1,
-          complexity: 'medium' as const
+          complexity: 'medium' as const,
+          codebaseContext: {
+            relevantFiles: [],
+            contextSummary: `Task decomposition context for ${task.title}`,
+            gatheringMetrics: {
+              searchTime: 0,
+              readTime: 0,
+              scoringTime: 0,
+              totalTime: 0,
+              cacheHitRate: 0
+            },
+            totalContextSize: 0,
+            averageRelevance: 0
+          },
+          structure: {
+            sourceDirectories: ['src'],
+            testDirectories: ['test', 'tests', '__tests__'],
+            docDirectories: ['docs', 'documentation'],
+            buildDirectories: ['dist', 'build', 'lib']
+          },
+          dependencies: {
+            production: [],
+            development: [],
+            external: []
+          },
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: '1.0.0',
+            source: 'manual' as const
+          }
         },
         sessionId: `nl-decompose-${context.sessionId}`,
         options: {
@@ -590,13 +627,50 @@ export class DecomposeProjectHandler implements CommandHandler {
         task: projectTask,
         context: {
           projectId: project.id,
+          projectPath: this.resolveProjectPath(context),
+          projectName: project.name,
+          description: additionalContext || project.description,
           languages, // Dynamic detection with project techStack preference
           frameworks, // Dynamic detection with project techStack preference
+          buildTools: [],
           tools, // Dynamic detection with project techStack preference
+          configFiles: [],
+          entryPoints: [],
+          architecturalPatterns: [],
           existingTasks: [],
           codebaseSize: 'large' as const,
           teamSize: 1,
-          complexity: 'high' as const
+          complexity: 'high' as const,
+          codebaseContext: {
+            relevantFiles: [],
+            contextSummary: additionalContext || project.description,
+            gatheringMetrics: {
+              searchTime: 0,
+              readTime: 0,
+              scoringTime: 0,
+              totalTime: 0,
+              cacheHitRate: 0
+            },
+            totalContextSize: 0,
+            averageRelevance: 0
+          },
+          structure: {
+            sourceDirectories: ['src'],
+            testDirectories: ['test', 'tests', '__tests__'],
+            docDirectories: ['docs', 'documentation'],
+            buildDirectories: ['dist', 'build', 'lib']
+          },
+          dependencies: {
+            production: [],
+            development: [],
+            external: []
+          },
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: '1.0.0',
+            source: 'manual' as const
+          }
         },
         sessionId: `nl-project-decompose-${context.sessionId}`,
         options: {

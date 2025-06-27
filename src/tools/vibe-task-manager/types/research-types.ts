@@ -6,7 +6,7 @@
  */
 
 import { AtomicTask } from './task.js';
-import { ProjectContext } from '../core/atomic-detector.js';
+import { ProjectContext } from '../types/project-context.js';
 import { ContextResult } from '../services/context-enrichment-service.js';
 
 /**

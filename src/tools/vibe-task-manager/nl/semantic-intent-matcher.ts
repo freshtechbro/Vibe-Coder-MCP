@@ -347,6 +347,7 @@ export class SemanticIntentMatcher {
       'search_content': ['searchPattern'],
       'create_task': ['projectId'],
       'create_project': [],
+      'update_project': ['projectId'],
       'list_tasks': ['projectId'],
       'list_projects': [],
       'run_task': ['taskId'],
@@ -358,7 +359,9 @@ export class SemanticIntentMatcher {
       'get_help': [],
       'parse_prd': ['projectName', 'filePath'],
       'parse_tasks': ['projectName', 'filePath'],
-      'import_artifact': ['artifactType', 'projectName', 'filePath']
+      'import_artifact': ['artifactType', 'projectName', 'filePath'],
+      'unrecognized_intent': [],
+      'clarification_needed': []
     };
 
     return entityMap[intent] || [];

@@ -7,7 +7,7 @@ import { Intent, RecognizedIntent, ConfidenceLevel, Entity } from '../types/nl.j
 import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { getPromptService } from '../services/prompt-service.js';
-import { ConfigLoader } from '../utils/config-loader.js';
+import { OpenRouterConfigManager } from '../../../utils/openrouter-config-manager.js';
 import logger from '../../../logger.js';
 
 /**
@@ -95,29 +95,9 @@ export class LLMFallbackSystem {
    */
   private async initializeConfig(): Promise<void> {
     try {
-      const configLoader = ConfigLoader.getInstance();
-
-      // Try to get existing config first
-      let config = configLoader.getConfig();
-
-      // If no config exists, load it
-      if (!config) {
-        const result = await configLoader.loadConfig();
-        if (result.success && result.data) {
-          config = result.data;
-        } else {
-          throw new Error(`Failed to load config: ${result.error}`);
-        }
-      }
-
-      // Build OpenRouter config from environment and loaded config
-      this.openRouterConfig = {
-        baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-        apiKey: process.env.OPENROUTER_API_KEY || '',
-        geminiModel: 'google/gemini-2.5-flash-preview-05-20',
-        perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
-        llm_mapping: config.llm.llm_mapping
-      };
+      const configManager = OpenRouterConfigManager.getInstance();
+      await configManager.initialize();
+      this.openRouterConfig = await configManager.getOpenRouterConfig();
 
       logger.info('LLM Fallback System initialized with OpenRouter config');
     } catch (error) {
@@ -287,15 +267,41 @@ export class LLMFallbackSystem {
   ): RecognizedIntent {
     const processingTime = Date.now() - startTime;
 
+    // Handle unrecognized intents - convert to 'unknown' with low confidence
+    let intent = llmResponse.intent;
+    let confidence = llmResponse.confidence;
+
+    if (intent === 'unrecognized_intent' || intent === 'clarification_needed') {
+      intent = 'unknown';
+      // For unrecognized intents, confidence should be low regardless of LLM confidence
+      confidence = Math.min(confidence, 0.3);
+
+      logger.debug({
+        originalIntent: llmResponse.intent,
+        originalConfidence: llmResponse.confidence,
+        adjustedConfidence: confidence
+      }, 'Adjusted confidence for unrecognized intent');
+    } else if (!this.isValidIntent(intent)) {
+      // For invalid intents that aren't explicitly unrecognized, keep original confidence
+      // but convert to unknown
+      intent = 'unknown';
+
+      logger.debug({
+        originalIntent: llmResponse.intent,
+        originalConfidence: llmResponse.confidence,
+        adjustedIntent: intent
+      }, 'Converted invalid intent to unknown');
+    }
+
     return {
-      intent: llmResponse.intent,
-      confidence: llmResponse.confidence,
-      confidenceLevel: this.getConfidenceLevel(llmResponse.confidence),
+      intent: intent as Intent,
+      confidence,
+      confidenceLevel: this.getConfidenceLevel(confidence),
       entities: this.convertParametersToEntities(llmResponse.parameters || {}),
       originalInput,
       processedInput: originalInput.toLowerCase().trim(),
       alternatives: llmResponse.alternatives?.map(alt => ({
-        intent: alt.intent,
+        intent: this.isValidIntent(alt.intent) ? alt.intent as Intent : 'unknown',
         confidence: alt.confidence
       })) || [],
       metadata: {
@@ -335,6 +341,20 @@ export class LLMFallbackSystem {
     if (confidence >= 0.5) return 'medium';
     if (confidence >= 0.3) return 'low';
     return 'very_low';
+  }
+
+  /**
+   * Check if an intent is valid according to the Intent type
+   */
+  private isValidIntent(intent: string): boolean {
+    const validIntents = [
+      'create_project', 'list_projects', 'open_project', 'update_project', 'archive_project',
+      'create_task', 'list_tasks', 'run_task', 'check_status',
+      'decompose_task', 'decompose_project', 'search_files', 'search_content',
+      'refine_task', 'assign_task', 'get_help', 'parse_prd', 'parse_tasks',
+      'import_artifact', 'unrecognized_intent', 'clarification_needed', 'unknown'
+    ];
+    return validIntents.includes(intent);
   }
 
   /**

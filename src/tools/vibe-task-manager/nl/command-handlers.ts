@@ -714,15 +714,34 @@ export class RunTaskHandler implements CommandHandler {
 
       // Create dynamic project context for task assignment
       const projectContext = {
+        projectId: task.projectId || 'unknown',
         projectPath,
         projectName: task.projectId || 'unknown',
         description: 'Task execution context with dynamic detection',
         languages, // Dynamic detection using existing 35+ language infrastructure
         frameworks, // Dynamic detection using existing language handler methods
         buildTools: tools, // Dynamic detection using Context Curator patterns
+        tools: [],
         configFiles: ['package.json'],
         entryPoints: ['src/index.ts'],
         architecturalPatterns: ['mvc'],
+        existingTasks: [],
+        codebaseSize: 'medium' as const,
+        teamSize: 1,
+        complexity: 'medium' as const,
+        codebaseContext: {
+          relevantFiles: [],
+          contextSummary: 'Task execution context with dynamic detection',
+          gatheringMetrics: {
+            searchTime: 0,
+            readTime: 0,
+            scoringTime: 0,
+            totalTime: 0,
+            cacheHitRate: 0
+          },
+          totalContextSize: 0,
+          averageRelevance: 0
+        },
         structure: {
           sourceDirectories: ['src'],
           testDirectories: ['tests'],

@@ -318,6 +318,7 @@ export class ResponseGenerator {
   private getIntentSpecificSuggestions(intent: Intent, context: ResponseContext): string[] {
     const suggestions: Record<Intent, string[]> = {
       'create_project': ['Add tasks to your project', 'Set project priorities', 'Invite team members'],
+      'update_project': ['Modify project settings', 'Change project configuration', 'Update project details'],
       'create_task': ['Run the task', 'Set task dependencies', 'Assign the task'],
       'list_projects': ['Create a new project', 'Check project status', 'Archive old projects'],
       'list_tasks': ['Create a new task', 'Run a task', 'Update task status'],
@@ -334,6 +335,8 @@ export class ResponseGenerator {
       'parse_prd': ['Generate epics from PRD', 'Create tasks from features', 'Review PRD content'],
       'parse_tasks': ['Execute task list', 'Review task dependencies', 'Assign tasks to agents'],
       'import_artifact': ['Parse specific artifact type', 'Review imported content', 'Create project from artifact'],
+      'unrecognized_intent': ['Try being more specific', 'Ask for help', 'View available commands'],
+      'clarification_needed': ['Provide more details', 'Be more specific', 'Try a different approach'],
       'unknown': ['Try a different command', 'Ask for help', 'View available commands']
     };
 

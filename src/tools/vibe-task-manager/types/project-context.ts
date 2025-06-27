@@ -6,36 +6,75 @@
  */
 
 /**
- * Project context information
+ * Unified project context information
+ * Combines comprehensive project metadata with atomic task analysis requirements
  */
 export interface ProjectContext {
+  /** Project unique identifier (required for atomic task analysis) */
+  projectId: string;
+
   /** Project root path */
   projectPath: string;
-  
+
   /** Project name */
   projectName: string;
-  
+
   /** Project description */
   description?: string;
-  
+
   /** Programming languages used in the project */
   languages: string[];
-  
+
   /** Frameworks and libraries used */
   frameworks: string[];
-  
+
   /** Build tools and package managers */
   buildTools: string[];
-  
+
+  /** Development tools and utilities */
+  tools: string[];
+
   /** Configuration files found */
   configFiles: string[];
-  
+
   /** Main entry points */
   entryPoints: string[];
-  
+
   /** Architectural patterns identified */
   architecturalPatterns: string[];
-  
+
+  /** Existing tasks for context (used in atomic analysis) */
+  existingTasks: import('./task.js').AtomicTask[];
+
+  /** Codebase size assessment */
+  codebaseSize: 'small' | 'medium' | 'large';
+
+  /** Team size for complexity assessment */
+  teamSize: number;
+
+  /** Overall project complexity */
+  complexity: 'low' | 'medium' | 'high';
+
+  /** Enhanced codebase context from context enrichment service */
+  codebaseContext?: {
+    relevantFiles: Array<{
+      path: string;
+      relevance: number;
+      type: string;
+      size: number;
+    }>;
+    contextSummary: string;
+    gatheringMetrics: {
+      searchTime: number;
+      readTime: number;
+      scoringTime: number;
+      totalTime: number;
+      cacheHitRate: number;
+    };
+    totalContextSize: number;
+    averageRelevance: number;
+  };
+
   /** Project structure information */
   structure: {
     /** Main source directories */

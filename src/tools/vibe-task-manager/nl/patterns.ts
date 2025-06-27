@@ -713,6 +713,43 @@ export class IntentPatternEngine {
       ]
     });
 
+    // Project update patterns
+    this.addPattern('update_project', {
+      id: 'update_project_basic',
+      intent: 'update_project',
+      patterns: [
+        'update\\s+(?:the\\s+)?(?:\\w+\\s+)?project',
+        'modify\\s+(?:the\\s+)?(?:\\w+\\s+)?project',
+        'change\\s+(?:the\\s+)?(?:\\w+\\s+)?project',
+        'edit\\s+(?:the\\s+)?(?:\\w+\\s+)?project',
+        'configure\\s+(?:the\\s+)?(?:\\w+\\s+)?project',
+        'update\\s+project\\s+\\w+',
+        'modify\\s+project\\s+\\w+',
+        'change\\s+project\\s+\\w+',
+        // Enhanced natural language variations
+        'update\\s+(?:the\\s+)?(?:\\w+\\s+)?project\\s+(?:settings|configuration|config|properties)',
+        'modify\\s+(?:the\\s+)?(?:\\w+\\s+)?project\\s+(?:settings|configuration|config|properties)',
+        'change\\s+(?:the\\s+)?(?:\\w+\\s+)?project\\s+(?:settings|configuration|config|properties)',
+        'configure\\s+(?:the\\s+)?(?:\\w+\\s+)?project\\s+(?:settings|configuration|config|properties)',
+        'update\\s+(?:the\\s+)?(?:\\w+\\s+)?project\\s+(?:details|info|information)',
+        'edit\\s+(?:the\\s+)?(?:\\w+\\s+)?project\\s+(?:details|info|information|settings|configuration)'
+      ],
+      keywords: ['update', 'modify', 'change', 'edit', 'configure', 'project', 'settings', 'configuration', 'config', 'properties', 'details'],
+      requiredEntities: [],
+      optionalEntities: ['projectName', 'property', 'value'],
+      priority: 10,
+      active: true,
+      examples: [
+        'Update project configuration',
+        'Modify the project settings',
+        'Change project properties',
+        'Edit the project details',
+        'Configure the project',
+        'Update project MyApp',
+        'Modify project settings for WebApp'
+      ]
+    });
+
     // Task list parsing patterns
     this.addPattern('parse_tasks', {
       id: 'parse_tasks_basic',
