@@ -5,6 +5,7 @@ import logger from '../logger.js';
 import { AppError, ApiError, ConfigurationError, ParsingError } from './errors.js';
 import { selectModelForTask } from './configLoader.js';
 import { getPromptOptimizer } from './prompt-optimizer.js';
+import { OpenRouterConfigManager } from './openrouter-config-manager.js';
 
 // Configure axios with SSL settings to handle SSL/TLS issues
 const httpsAgent = new https.Agent({
@@ -121,8 +122,12 @@ export async function performDirectLlmCall(
   }
 
   // Select the model using the utility function
-  // Provide a sensible default if no specific model is found or configured
-  const defaultModel = config.geminiModel || "google/gemini-2.5-flash-preview-05-20"; // Use a known default
+  // Use proper fallback hierarchy: config.geminiModel -> default_generation -> environment -> hardcoded
+  const defaultModel = config.geminiModel ||
+                      config.llm_mapping?.['default_generation'] ||
+                      process.env.GEMINI_MODEL ||
+                      process.env.VIBE_DEFAULT_LLM_MODEL ||
+                      "google/gemini-2.5-flash-preview-05-20";
   const modelToUse = selectModelForTask(config, logicalTaskName, defaultModel);
   logger.info({ modelSelected: modelToUse, logicalTaskName }, `Selected model for direct LLM call.`);
 
@@ -1629,3 +1634,78 @@ function legacyNormalizeJsonResponse(rawResponse: string, jobId?: string): strin
 
 // Export the enhanced extractPartialJson function for use in other modules
 export { extractPartialJson };
+
+/**
+ * Enhanced LLM call using centralized configuration manager
+ * Automatically retrieves configuration from the centralized manager
+ */
+export async function performDirectLlmCallWithCentralizedConfig(
+  prompt: string,
+  systemPrompt: string,
+  logicalTaskName: string,
+  temperature: number = 0.1,
+  expectedSchema?: object
+): Promise<string> {
+  try {
+    const configManager = OpenRouterConfigManager.getInstance();
+    const config = await configManager.getOpenRouterConfig();
+
+    return await performDirectLlmCall(
+      prompt,
+      systemPrompt,
+      config,
+      logicalTaskName,
+      temperature,
+      expectedSchema
+    );
+  } catch (error) {
+    logger.error({ err: error, logicalTaskName }, 'Failed to perform LLM call with centralized config');
+    throw error;
+  }
+}
+
+/**
+ * Enhanced format-aware LLM call using centralized configuration manager
+ */
+export async function performFormatAwareLlmCallWithCentralizedConfig(
+  prompt: string,
+  systemPrompt: string,
+  logicalTaskName: string,
+  expectedFormat: 'json' | 'markdown' | 'text' | 'yaml' = 'text',
+  expectedSchema?: object,
+  temperature: number = 0.1
+): Promise<string> {
+  try {
+    const configManager = OpenRouterConfigManager.getInstance();
+    const config = await configManager.getOpenRouterConfig();
+
+    return await performFormatAwareLlmCall(
+      prompt,
+      systemPrompt,
+      config,
+      logicalTaskName,
+      expectedFormat,
+      expectedSchema,
+      temperature
+    );
+  } catch (error) {
+    logger.error({ err: error, logicalTaskName }, 'Failed to perform format-aware LLM call with centralized config');
+    throw error;
+  }
+}
+
+/**
+ * Get LLM model for operation using centralized configuration manager
+ */
+export async function getLLMModelWithCentralizedConfig(operation: string): Promise<string> {
+  try {
+    const configManager = OpenRouterConfigManager.getInstance();
+    return await configManager.getLLMModel(operation);
+  } catch (error) {
+    logger.error({ err: error, operation }, 'Failed to get LLM model with centralized config');
+    // Fallback to environment or hardcoded default
+    return process.env.GEMINI_MODEL ||
+           process.env.VIBE_DEFAULT_LLM_MODEL ||
+           'google/gemini-2.5-flash-preview-05-20';
+  }
+}

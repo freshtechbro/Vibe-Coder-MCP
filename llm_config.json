@@ -22,6 +22,7 @@
     "context_curator_prompt_refinement": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_file_discovery": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_relevance_scoring": "google/gemini-2.5-flash-preview-05-20",
+    "context_curator_relevance_ranking": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_meta_prompt_generation": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_task_decomposition": "google/gemini-2.5-flash-preview-05-20",
     "context_curator_architectural_analysis": "google/gemini-2.5-flash-preview-05-20",
@@ -45,6 +46,9 @@
     "task_list_integration": "google/gemini-2.5-flash-preview-05-20",
     "natural_language_processing": "google/gemini-2.5-flash-preview-05-20",
     "command_parsing": "google/gemini-2.5-flash-preview-05-20",
+    "module_selection": "google/gemini-2.5-flash-preview-05-20",
+    "yaml_generation": "google/gemini-2.5-flash-preview-05-20",
+    "template_generation": "google/gemini-2.5-flash-preview-05-20",
     "default_generation": "google/gemini-2.5-flash-preview-05-20"
   }
 }
