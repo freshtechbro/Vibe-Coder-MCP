@@ -57,6 +57,13 @@ export class DependencyOperations {
   }
 
   /**
+   * Reset singleton instance (for testing)
+   */
+  static resetInstance(): void {
+    DependencyOperations.instance = undefined as any;
+  }
+
+  /**
    * Create a new dependency with validation
    */
   async createDependency(params: CreateDependencyParams, createdBy: string = 'system'): Promise<FileOperationResult<Dependency>> {

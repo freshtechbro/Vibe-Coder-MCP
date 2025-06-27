@@ -14,7 +14,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import { AtomicTask } from './types/task.js';
 import { ProjectContext } from './types/project-context.js';
-import { ProjectContext as AtomicProjectContext } from './core/atomic-detector.js';
 
 // Input schema for the Vibe Task Manager tool
 const vibeTaskManagerInputSchema = z.object({
@@ -708,15 +707,34 @@ async function handleRunCommand(
             }
 
             projectContext = {
+              projectId: project.id,
               projectPath,
               projectName: project.name,
               description: project.description || 'No description available',
               languages, // Dynamic detection with project preference
               frameworks, // Dynamic detection with project preference
               buildTools: tools, // Dynamic detection with project preference
+              tools: [],
               configFiles: ['package.json'],
               entryPoints: ['src/index.ts'],
               architecturalPatterns: ['mvc'],
+              existingTasks: [],
+              codebaseSize: 'medium',
+              teamSize: 1,
+              complexity: 'medium',
+              codebaseContext: {
+                relevantFiles: [],
+                contextSummary: project.description || 'No description available',
+                gatheringMetrics: {
+                  searchTime: 0,
+                  readTime: 0,
+                  scoringTime: 0,
+                  totalTime: 0,
+                  cacheHitRate: 0
+                },
+                totalContextSize: 0,
+                averageRelevance: 0
+              },
               structure: {
                 sourceDirectories: ['src'],
                 testDirectories: ['tests'],
@@ -1434,16 +1452,53 @@ async function handleDecomposeCommand(
           tools = ['vscode', 'git']; // fallback
         }
 
-        // Create project context using the atomic-detector ProjectContext interface
-        const projectContext: AtomicProjectContext = {
+        // Create project context using the unified ProjectContext interface
+        const projectContext: ProjectContext = {
           projectId: matchingProject.id, // Use the actual project ID from storage
+          projectPath: matchingProject.path || process.cwd(),
+          projectName: matchingProject.name || target,
+          description: matchingProject.description || `Project decomposition for ${target}`,
           languages, // Dynamic detection using existing 35+ language infrastructure
           frameworks, // Dynamic detection using existing language handler methods
+          buildTools: [],
           tools, // Dynamic detection using Context Curator patterns
+          configFiles: [],
+          entryPoints: [],
+          architecturalPatterns: [],
           existingTasks: [],
           codebaseSize: 'medium' as const,
           teamSize: 1,
-          complexity: 'medium' as const
+          complexity: 'medium' as const,
+          codebaseContext: {
+            relevantFiles: [],
+            contextSummary: `Decomposition context for project ${target}`,
+            gatheringMetrics: {
+              searchTime: 0,
+              readTime: 0,
+              scoringTime: 0,
+              totalTime: 0,
+              cacheHitRate: 0
+            },
+            totalContextSize: 0,
+            averageRelevance: 0
+          },
+          structure: {
+            sourceDirectories: ['src'],
+            testDirectories: ['test', 'tests', '__tests__'],
+            docDirectories: ['docs', 'documentation'],
+            buildDirectories: ['dist', 'build', 'lib']
+          },
+          dependencies: {
+            production: [],
+            development: [],
+            external: []
+          },
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: '1.0.0',
+            source: 'auto-detected'
+          }
         };
 
         // Use real DecompositionService instead of mock simulation
@@ -1778,15 +1833,34 @@ async function createDynamicProjectContext(projectPath: string): Promise<Project
     }
 
     return {
+      projectId: `dynamic-${projectName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
       projectPath,
       projectName,
       description: `Dynamically detected project: ${projectName}`,
       languages: detectedLanguages,
       frameworks: detectedFrameworks,
       buildTools: detectedBuildTools,
+      tools: [],
       configFiles: detectedConfigFiles,
       entryPoints: detectedEntryPoints,
       architecturalPatterns: ['mvc'], // Default pattern
+      existingTasks: [],
+      codebaseSize: 'medium',
+      teamSize: 1,
+      complexity: 'medium',
+      codebaseContext: {
+        relevantFiles: [],
+        contextSummary: `Dynamic project context for ${projectName}`,
+        gatheringMetrics: {
+          searchTime: 0,
+          readTime: 0,
+          scoringTime: 0,
+          totalTime: 0,
+          cacheHitRate: 0
+        },
+        totalContextSize: 0,
+        averageRelevance: 0
+      },
       structure: {
         sourceDirectories: ['src'],
         testDirectories: ['tests', 'test', '__tests__'],
@@ -1811,15 +1885,34 @@ async function createDynamicProjectContext(projectPath: string): Promise<Project
 
     // Ultimate fallback
     return {
+      projectId: 'unknown-project',
       projectPath,
       projectName: 'Unknown Project',
       description: 'No project context available',
       languages: ['typescript'],
       frameworks: ['node.js'],
       buildTools: ['npm'],
+      tools: [],
       configFiles: ['package.json'],
       entryPoints: ['src/index.ts'],
       architecturalPatterns: ['mvc'],
+      existingTasks: [],
+      codebaseSize: 'medium',
+      teamSize: 1,
+      complexity: 'medium',
+      codebaseContext: {
+        relevantFiles: [],
+        contextSummary: 'Fallback project context',
+        gatheringMetrics: {
+          searchTime: 0,
+          readTime: 0,
+          scoringTime: 0,
+          totalTime: 0,
+          cacheHitRate: 0
+        },
+        totalContextSize: 0,
+        averageRelevance: 0
+      },
       structure: {
         sourceDirectories: ['src'],
         testDirectories: ['tests'],

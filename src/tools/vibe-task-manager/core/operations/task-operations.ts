@@ -98,6 +98,13 @@ export class TaskOperations {
   }
 
   /**
+   * Reset singleton instance (for testing)
+   */
+  static resetInstance(): void {
+    TaskOperations.instance = undefined as any;
+  }
+
+  /**
    * Create a new atomic task
    */
   async createTask(params: CreateTaskParams, createdBy: string = 'system'): Promise<FileOperationResult<AtomicTask>> {

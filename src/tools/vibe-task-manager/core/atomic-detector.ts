@@ -2,6 +2,7 @@ import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { getLLMModelForOperation } from '../utils/config-loader.js';
 import { AtomicTask, TaskPriority, TaskType } from '../types/task.js';
+import { ProjectContext } from '../types/project-context.js';
 import { getPrompt } from '../services/prompt-service.js';
 import logger from '../../../logger.js';
 
@@ -17,49 +18,7 @@ export interface AtomicityAnalysis {
   recommendations: string[];
 }
 
-/**
- * Project context for task analysis
- */
-export interface ProjectContext {
-  projectId: string;
-  languages: string[];
-  frameworks: string[];
-  tools: string[];
-  existingTasks: AtomicTask[];
-  codebaseSize: 'small' | 'medium' | 'large';
-  teamSize: number;
-  complexity: 'low' | 'medium' | 'high';
 
-  /** Enhanced codebase context from context enrichment service */
-  codebaseContext?: {
-    relevantFiles: Array<{
-      path: string;
-      relevance: number;
-      type: string;
-      size: number;
-    }>;
-    contextSummary: string;
-    gatheringMetrics: {
-      searchTime: number;
-      readTime: number;
-      scoringTime: number;
-      totalTime: number;
-      cacheHitRate: number;
-    };
-    totalContextSize: number;
-    averageRelevance: number;
-  };
-
-  /** Research context from auto-research integration */
-  researchContext?: {
-    researchResults: string[];
-    researchSummary: string;
-    researchQueries: string[];
-    researchTime: number;
-    knowledgeBase: string[];
-    actionItems: string[];
-  };
-}
 
 /**
  * Atomic task detector using AI analysis
@@ -137,18 +96,18 @@ TASK DETAILS:
 - Type: ${task.type}
 - Priority: ${task.priority}
 - Estimated Hours: ${task.estimatedHours}
-- Acceptance Criteria: ${task.acceptanceCriteria.join(', ')}
-- File Paths: ${task.filePaths.join(', ')}
+- Acceptance Criteria: ${(task.acceptanceCriteria || []).join(', ')}
+- File Paths: ${(task.filePaths || []).join(', ')}
 
 PROJECT CONTEXT:
 - Project ID: ${context.projectId}
-- Languages: ${context.languages.join(', ')}
-- Frameworks: ${context.frameworks.join(', ')}
-- Tools: ${context.tools.join(', ')}
-- Codebase Size: ${context.codebaseSize}
-- Team Size: ${context.teamSize}
-- Project Complexity: ${context.complexity}
-- Existing Tasks Count: ${context.existingTasks.length}`;
+- Languages: ${(context.languages && context.languages.length > 0 ? context.languages : ['unknown']).join(', ')}
+- Frameworks: ${(context.frameworks && context.frameworks.length > 0 ? context.frameworks : ['unknown']).join(', ')}
+- Tools: ${(context.tools || []).join(', ')}
+- Codebase Size: ${context.codebaseSize || 'unknown'}
+- Team Size: ${context.teamSize || 'unknown'}
+- Project Complexity: ${context.complexity || 'unknown'}
+- Existing Tasks Count: ${(context.existingTasks || []).length}`;
 
     // Add enhanced codebase context if available
     if (context.codebaseContext) {
@@ -271,7 +230,7 @@ Please provide your analysis in the following JSON format:
     }
 
     // Rule 3: Tasks must have exactly ONE acceptance criteria
-    if (task.acceptanceCriteria.length !== 1) {
+    if ((task.acceptanceCriteria || []).length !== 1) {
       validatedAnalysis.isAtomic = false;
       validatedAnalysis.confidence = 0.0;
       validatedAnalysis.recommendations.push('Atomic tasks must have exactly ONE acceptance criteria');
@@ -288,7 +247,7 @@ Please provide your analysis in the following JSON format:
     }
 
     // Rule 5: Tasks with multiple file modifications are likely not atomic
-    if (task.filePaths.length > 2) {
+    if ((task.filePaths || []).length > 2) {
       validatedAnalysis.isAtomic = false;
       validatedAnalysis.confidence = 0.0; // Set to 0 for consistency with other non-atomic rules
       validatedAnalysis.complexityFactors.push('Multiple file modifications indicate non-atomic task');
@@ -345,8 +304,8 @@ Please provide your analysis in the following JSON format:
     // Simple heuristic-based analysis with updated atomic criteria
     const isLikelyAtomic = task.estimatedHours <= 0.17 && // 10 minutes max
                           task.estimatedHours >= 0.08 && // 5 minutes min
-                          task.filePaths.length <= 2 &&
-                          task.acceptanceCriteria.length === 1 && // Exactly one criteria
+                          (task.filePaths || []).length <= 2 &&
+                          (task.acceptanceCriteria || []).length === 1 && // Exactly one criteria
                           !task.title.toLowerCase().includes(' and ') &&
                           !task.description.toLowerCase().includes(' and ');
 

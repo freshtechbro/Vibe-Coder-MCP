@@ -794,6 +794,34 @@ export class OptimizedDependencyGraph {
   }
 
   /**
+   * Reset the entire graph to empty state
+   */
+  reset(): void {
+    // Clear all data structures
+    this.nodes.clear();
+    this.edges.clear();
+    this.adjacencyList.clear();
+    this.reverseIndex.clear();
+
+    // Clear cached computations
+    this.clearCache();
+
+    // Reset metrics
+    this.metrics = {
+      totalNodes: 0,
+      totalEdges: 0,
+      maxDepth: 0,
+      criticalPathLength: 0,
+      parallelBatches: 0,
+      cycleCount: 0,
+      orphanedNodes: 0,
+      averageDegree: 0
+    };
+
+    logger.debug({ projectId: this.projectId }, 'Dependency graph reset to empty state');
+  }
+
+  /**
    * Get graph size information
    */
   getSize(): { nodes: number; edges: number } {

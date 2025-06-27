@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 import { z } from 'zod';
 import logger from '../../../logger.js';
 import { AppError, ValidationError } from '../../../utils/errors.js';
+import { validateSecurePath } from './path-security-validator.js';
 
 /**
  * File operation result
@@ -34,8 +35,8 @@ export class FileUtils {
    */
   static async readFile(filePath: string): Promise<FileOperationResult<string>> {
     try {
-      // Validate file path
-      const validationResult = this.validateFilePath(filePath);
+      // Validate file path with security checks
+      const validationResult = await this.validateFilePath(filePath);
       if (!validationResult.valid) {
         return {
           success: false,
@@ -107,12 +108,12 @@ export class FileUtils {
   }
 
   /**
-   * Safely write a file with validation
+   * Safely write a file with validation and atomic operations
    */
   static async writeFile(filePath: string, content: string): Promise<FileOperationResult<void>> {
     try {
-      // Validate file path
-      const validationResult = this.validateFilePath(filePath);
+      // Validate file path with security checks for write operation
+      const validationResult = await this.validateFilePath(filePath, 'write');
       if (!validationResult.valid) {
         return {
           success: false,
@@ -129,12 +130,29 @@ export class FileUtils {
       const dirPath = path.dirname(filePath);
       await fs.ensureDir(dirPath);
 
-      // Write file content
-      await fs.writeFile(filePath, content, 'utf-8');
+      // Use atomic write operation to prevent corruption
+      const tempFilePath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
+
+      try {
+        // Write to temporary file first
+        await fs.writeFile(tempFilePath, content, 'utf-8');
+
+        // Atomically rename temporary file to target file
+        await fs.rename(tempFilePath, filePath);
+
+      } catch (writeError) {
+        // Clean up temporary file if it exists
+        try {
+          await fs.remove(tempFilePath);
+        } catch {
+          // Ignore cleanup errors
+        }
+        throw writeError;
+      }
 
       const stats = await fs.stat(filePath);
 
-      logger.debug({ filePath, size: stats.size }, 'File written successfully');
+      logger.debug({ filePath, size: stats.size }, 'File written successfully (atomic)');
 
       return {
         success: true,
@@ -392,29 +410,67 @@ export class FileUtils {
   }
 
   /**
-   * Validate file path for security
+   * Validate file path for security using centralized security validator
    */
-  private static validateFilePath(filePath: string): { valid: boolean; error?: string } {
-    // Check for path traversal attempts
-    if (filePath.includes('..') || filePath.includes('~')) {
-      return { valid: false, error: 'Path traversal not allowed' };
-    }
+  private static async validateFilePath(filePath: string, operation: 'read' | 'write' = 'read'): Promise<{ valid: boolean; error?: string }> {
+    try {
+      // For write operations, we need to validate the directory path and allow non-existent files
+      if (operation === 'write') {
+        const dirPath = path.dirname(filePath);
+        const fileName = path.basename(filePath);
 
-    // Check for absolute paths outside allowed directories (allow test paths)
-    if (path.isAbsolute(filePath) &&
-        !filePath.startsWith(process.cwd()) &&
-        !filePath.startsWith('/test/') &&
-        !filePath.startsWith('/tmp/')) {
-      return { valid: false, error: 'Absolute paths outside project directory not allowed' };
-    }
+        // Validate directory path exists and is accessible
+        const dirValidationResult = await validateSecurePath(dirPath);
+        if (!dirValidationResult.isValid) {
+          // If directory validation fails, try to validate the full path with relaxed mode
+          const pathValidator = new (await import('./path-security-validator.js')).PathSecurityValidator({
+            strictMode: false // Allow non-existent files for write operations
+          });
+          const relaxedResult = await pathValidator.validatePath(filePath);
 
-    // Check file extension
-    const ext = path.extname(filePath).toLowerCase();
-    if (ext && !this.ALLOWED_EXTENSIONS.includes(ext)) {
-      return { valid: false, error: `File extension ${ext} not allowed` };
-    }
+          if (!relaxedResult.isValid) {
+            return {
+              valid: false,
+              error: relaxedResult.error
+            };
+          }
+        }
 
-    return { valid: true };
+        // Validate filename doesn't contain dangerous characters
+        if (/[<>"|?*\x00-\x1f]/.test(fileName)) {
+          return {
+            valid: false,
+            error: 'Filename contains dangerous characters'
+          };
+        }
+      } else {
+        // For read operations, use standard validation
+        const validationResult = await validateSecurePath(filePath);
+        if (!validationResult.isValid) {
+          return {
+            valid: false,
+            error: validationResult.error
+          };
+        }
+      }
+
+      // Additional file extension check for FileUtils
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext && !this.ALLOWED_EXTENSIONS.includes(ext)) {
+        return {
+          valid: false,
+          error: `File extension ${ext} not allowed. Allowed extensions: ${this.ALLOWED_EXTENSIONS.join(', ')}`
+        };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      logger.error({ err: error, filePath, operation }, 'File path validation failed with exception');
+      return {
+        valid: false,
+        error: `Path validation error: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
   }
 
   /**
@@ -463,8 +519,8 @@ export class FileUtils {
    */
   static async deleteFile(filePath: string): Promise<FileOperationResult<void>> {
     try {
-      // Validate file path
-      const validationResult = this.validateFilePath(filePath);
+      // Validate file path with security checks for read operation (file must exist to delete)
+      const validationResult = await this.validateFilePath(filePath, 'read');
       if (!validationResult.valid) {
         return {
           success: false,

@@ -131,13 +131,13 @@ export class IdGenerator {
         };
       }
 
-      // Find unique epic ID within project (project-specific to prevent conflicts)
+      // Find unique epic ID (simple format: E001)
       for (let counter = 1; counter <= this.config.maxRetries; counter++) {
-        const epicId = `${projectId}-${this.config.epicPrefix}${counter.toString().padStart(this.config.epicIdLength, '0')}`;
+        const epicId = `${this.config.epicPrefix}${counter.toString().padStart(this.config.epicIdLength, '0')}`;
 
         const exists = await storageManager.epicExists(epicId);
         if (!exists) {
-          logger.debug({ epicId, projectId, attempts: counter }, 'Generated unique project-specific epic ID');
+          logger.debug({ epicId, projectId, attempts: counter }, 'Generated unique epic ID');
           return {
             success: true,
             id: epicId,

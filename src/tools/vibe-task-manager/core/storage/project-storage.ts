@@ -2,6 +2,8 @@ import path from 'path';
 import { FileUtils, FileOperationResult } from '../../utils/file-utils.js';
 import { Project, ProjectConfig } from '../../types/task.js';
 import { getVibeTaskManagerConfig, getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
+import { DisposableService } from '../../utils/disposable-patterns.js';
+import { initializeStorage } from '../../utils/storage-initialization.js';
 import logger from '../../../../logger.js';
 
 /**
@@ -19,54 +21,62 @@ export interface ProjectStorageOperations {
 }
 
 /**
- * File-based project storage implementation
+ * File-based project storage implementation with disposable pattern
  */
-export class ProjectStorage implements ProjectStorageOperations {
+export class ProjectStorage extends DisposableService implements ProjectStorageOperations {
   private dataDirectory: string;
   private projectsDirectory: string;
   private indexFile: string;
+  private indexUpdateLock: Promise<FileOperationResult<void>> = Promise.resolve({ success: true, metadata: { filePath: '', operation: 'init', timestamp: new Date() } });
 
   constructor(dataDirectory?: string) {
+    super(); // Initialize DisposableService
     this.dataDirectory = dataDirectory || getVibeTaskManagerOutputDir();
     this.projectsDirectory = path.join(this.dataDirectory, 'projects');
     this.indexFile = path.join(this.dataDirectory, 'projects-index.json');
   }
 
   /**
-   * Initialize storage directories
+   * Initialize storage directories using standardized utility
    */
   async initialize(): Promise<FileOperationResult<void>> {
     try {
-      // Ensure directories exist
-      const dirResult = await FileUtils.ensureDirectory(this.projectsDirectory);
-      if (!dirResult.success) {
-        return dirResult;
-      }
+      logger.debug({ dataDirectory: this.dataDirectory }, 'Initializing project storage');
 
-      // Initialize index file if it doesn't exist
-      if (!await FileUtils.fileExists(this.indexFile)) {
-        const indexData = {
-          projects: [],
-          lastUpdated: new Date().toISOString(),
-          version: '1.0.0'
+      // Use standardized storage initialization with error recovery
+      const result = await initializeStorage('project', this.dataDirectory, true);
+
+      if (result.success) {
+        logger.debug({
+          dataDirectory: this.dataDirectory,
+          directoriesCreated: result.metadata.directoriesCreated.length,
+          indexFilesCreated: result.metadata.indexFilesCreated.length
+        }, 'Project storage initialized successfully');
+
+        return {
+          success: true,
+          metadata: {
+            filePath: this.dataDirectory,
+            operation: 'initialize',
+            timestamp: new Date()
+          }
         };
+      } else {
+        logger.error({
+          err: result.error,
+          dataDirectory: this.dataDirectory
+        }, 'Failed to initialize project storage');
 
-        const indexResult = await FileUtils.writeJsonFile(this.indexFile, indexData);
-        if (!indexResult.success) {
-          return indexResult;
-        }
+        return {
+          success: false,
+          error: result.error || 'Unknown initialization error',
+          metadata: {
+            filePath: this.dataDirectory,
+            operation: 'initialize',
+            timestamp: new Date()
+          }
+        };
       }
-
-      logger.debug({ dataDirectory: this.dataDirectory }, 'Project storage initialized');
-
-      return {
-        success: true,
-        metadata: {
-          filePath: this.dataDirectory,
-          operation: 'initialize',
-          timestamp: new Date()
-        }
-      };
 
     } catch (error) {
       logger.error({ err: error, dataDirectory: this.dataDirectory }, 'Failed to initialize project storage');
@@ -571,50 +581,80 @@ export class ProjectStorage implements ProjectStorageOperations {
   }
 
   /**
-   * Update project index
+   * Update project index with mutex lock to prevent concurrent modifications
    */
   private async updateIndex(operation: 'add' | 'update' | 'remove', projectId: string, projectInfo?: any): Promise<FileOperationResult<void>> {
-    try {
-      const indexResult = await this.loadIndex();
-      if (!indexResult.success) {
-        return indexResult as FileOperationResult<void>;
-      }
+    // Wait for any existing index update to complete and acquire lock
+    this.indexUpdateLock = this.indexUpdateLock.then(async (): Promise<FileOperationResult<void>> => {
+      try {
+        logger.debug({ operation, projectId }, 'Acquiring index update lock');
 
-      const index = indexResult.data!;
-
-      switch (operation) {
-        case 'add':
-          if (!index.projects.find((p: any) => p.id === projectId)) {
-            index.projects.push(projectInfo);
-          }
-          break;
-
-        case 'update':
-          const updateIndex = index.projects.findIndex((p: any) => p.id === projectId);
-          if (updateIndex !== -1) {
-            index.projects[updateIndex] = projectInfo;
-          }
-          break;
-
-        case 'remove':
-          index.projects = index.projects.filter((p: any) => p.id !== projectId);
-          break;
-      }
-
-      index.lastUpdated = new Date().toISOString();
-
-      return await FileUtils.writeJsonFile(this.indexFile, index);
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metadata: {
-          filePath: this.indexFile,
-          operation: 'update_index',
-          timestamp: new Date()
+        const indexResult = await this.loadIndex();
+        if (!indexResult.success) {
+          return indexResult as FileOperationResult<void>;
         }
-      };
+
+        const index = indexResult.data!;
+
+        switch (operation) {
+          case 'add':
+            if (!index.projects.find((p: any) => p.id === projectId)) {
+              index.projects.push(projectInfo);
+            }
+            break;
+
+          case 'update':
+            const updateIndex = index.projects.findIndex((p: any) => p.id === projectId);
+            if (updateIndex !== -1) {
+              index.projects[updateIndex] = projectInfo;
+            }
+            break;
+
+          case 'remove':
+            index.projects = index.projects.filter((p: any) => p.id !== projectId);
+            break;
+        }
+
+        index.lastUpdated = new Date().toISOString();
+
+        const writeResult = await FileUtils.writeJsonFile(this.indexFile, index);
+        logger.debug({ operation, projectId, success: writeResult.success }, 'Index update completed');
+
+        return writeResult;
+
+      } catch (error) {
+        logger.error({ err: error, operation, projectId }, 'Index update failed');
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          metadata: {
+            filePath: this.indexFile,
+            operation: 'update_index',
+            timestamp: new Date()
+          }
+        };
+      }
+    });
+
+    return await this.indexUpdateLock;
+  }
+
+  /**
+   * Custom disposal logic for ProjectStorage
+   */
+  protected async onDispose(): Promise<void> {
+    // Wait for any pending index updates to complete
+    try {
+      await this.indexUpdateLock;
+      logger.debug('ProjectStorage: Index update lock resolved during disposal');
+    } catch (error) {
+      logger.warn('ProjectStorage: Error waiting for index update lock during disposal', { error });
     }
+
+    // Clear any cached data (if we had caches)
+    // Note: This storage implementation doesn't currently use caches,
+    // but this is where we would clear them
+
+    logger.debug({ dataDirectory: this.dataDirectory }, 'ProjectStorage disposed');
   }
 }

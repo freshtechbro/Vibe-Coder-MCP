@@ -125,35 +125,47 @@ export class TaskManagerMemoryManager {
    * Collect current memory statistics
    */
   private collectMemoryStats(): void {
-    const memoryUsage = process.memoryUsage();
-    const memStats = this.memoryManager.getMemoryStats();
+    try {
+      const memoryUsage = process.memoryUsage();
 
-    const stats: TaskManagerMemoryStats = {
-      totalMemoryUsage: memoryUsage.heapUsed + memoryUsage.external,
-      heapUsed: memoryUsage.heapUsed,
-      heapTotal: memoryUsage.heapTotal,
-      external: memoryUsage.external,
-      arrayBuffers: memoryUsage.arrayBuffers || 0,
-      rss: memoryUsage.rss,
-      percentageUsed: memStats.raw.memoryUsagePercentage || 0,
-      cacheMemoryUsage: this.estimateCacheMemoryUsage(),
-      taskStorageMemoryUsage: this.estimateTaskStorageMemoryUsage(),
-      agentMemoryUsage: this.estimateAgentMemoryUsage(),
-      timestamp: new Date()
-    };
+      // Safely get memory stats with fallback
+      let memStats;
+      try {
+        memStats = this.memoryManager?.getMemoryStats?.();
+      } catch (error) {
+        logger.debug({ err: error }, 'Failed to get memory stats from memory manager, using fallback');
+        memStats = null;
+      }
 
-    this.memoryStats.push(stats);
+      const stats: TaskManagerMemoryStats = {
+        totalMemoryUsage: memoryUsage.heapUsed + memoryUsage.external,
+        heapUsed: memoryUsage.heapUsed,
+        heapTotal: memoryUsage.heapTotal,
+        external: memoryUsage.external,
+        arrayBuffers: memoryUsage.arrayBuffers || 0,
+        rss: memoryUsage.rss,
+        percentageUsed: memStats?.raw?.memoryUsagePercentage || 0,
+        cacheMemoryUsage: this.estimateCacheMemoryUsage(),
+        taskStorageMemoryUsage: this.estimateTaskStorageMemoryUsage(),
+        agentMemoryUsage: this.estimateAgentMemoryUsage(),
+        timestamp: new Date()
+      };
 
-    // Keep only last 100 stats entries
-    if (this.memoryStats.length > 100) {
-      this.memoryStats = this.memoryStats.slice(-100);
+      this.memoryStats.push(stats);
+
+      // Keep only last 100 stats entries
+      if (this.memoryStats.length > 100) {
+        this.memoryStats = this.memoryStats.slice(-100);
+      }
+
+      logger.debug({
+        heapUsed: `${Math.round(stats.heapUsed / 1024 / 1024)} MB`,
+        percentageUsed: `${(stats.percentageUsed * 100).toFixed(1)}%`,
+        cacheMemory: `${Math.round(stats.cacheMemoryUsage / 1024 / 1024)} MB`
+      }, 'Memory stats collected');
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to collect memory stats');
     }
-
-    logger.debug({
-      heapUsed: `${Math.round(stats.heapUsed / 1024 / 1024)} MB`,
-      percentageUsed: `${(stats.percentageUsed * 100).toFixed(1)}%`,
-      cacheMemory: `${Math.round(stats.cacheMemoryUsage / 1024 / 1024)} MB`
-    }, 'Memory stats collected');
   }
 
   /**
@@ -236,7 +248,11 @@ export class TaskManagerMemoryManager {
       }
 
       // Prune memory manager caches
-      this.memoryManager.pruneCaches();
+      try {
+        this.memoryManager?.pruneCaches?.();
+      } catch (error) {
+        logger.debug({ err: error }, 'Failed to prune memory manager caches');
+      }
 
       const duration = Date.now() - startTime;
       const result: MemoryCleanupResult = {

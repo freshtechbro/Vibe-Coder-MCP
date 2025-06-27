@@ -6,6 +6,9 @@
 import { VibeTaskManagerConfig, PerformanceConfig } from './config-loader.js';
 import { createErrorContext, ValidationError } from './enhanced-errors.js';
 import logger from '../../../logger.js';
+import fs from 'fs';
+import path from 'path';
+import { getProjectRoot } from '../../code-map-generator/utils/pathUtils.enhanced.js';
 
 /**
  * Environment variable configuration mapping
@@ -18,6 +21,42 @@ export interface EnvironmentVariableConfig {
   description: string;
   validation?: (value: any) => boolean;
   transform?: (value: string) => any;
+}
+
+/**
+ * Dynamically resolve LLM default from configuration hierarchy
+ * Priority: Environment -> default_generation from llm_config.json -> hardcoded fallback
+ */
+function getDynamicLLMDefault(): string {
+  // First check environment variables
+  if (process.env.GEMINI_MODEL) {
+    return process.env.GEMINI_MODEL;
+  }
+
+  if (process.env.VIBE_DEFAULT_LLM_MODEL) {
+    return process.env.VIBE_DEFAULT_LLM_MODEL;
+  }
+
+  // Try to load from llm_config.json
+  try {
+    const projectRoot = getProjectRoot();
+    const llmConfigPath = path.join(projectRoot, 'llm_config.json');
+
+    if (fs.existsSync(llmConfigPath)) {
+      const configContent = fs.readFileSync(llmConfigPath, 'utf-8');
+      const llmConfig = JSON.parse(configContent);
+
+      if (llmConfig?.llm_mapping?.['default_generation']) {
+        return llmConfig.llm_mapping['default_generation'];
+      }
+    }
+  } catch (error) {
+    // Silently fall through to hardcoded default
+    logger.debug({ err: error }, 'Failed to load dynamic LLM default from config file');
+  }
+
+  // Final hardcoded fallback
+  return 'google/gemini-2.5-flash-preview-05-20';
 }
 
 /**
@@ -312,10 +351,10 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
   // LLM Model Fallback
   VIBE_DEFAULT_LLM_MODEL: {
     key: 'VIBE_DEFAULT_LLM_MODEL',
-    defaultValue: 'google/gemini-2.5-flash-preview-05-20',
+    defaultValue: getDynamicLLMDefault(),
     type: 'string',
     required: false,
-    description: 'Default LLM model to use as fallback'
+    description: 'Default LLM model to use as fallback (dynamically resolved from default_generation or environment)'
   }
 };
 

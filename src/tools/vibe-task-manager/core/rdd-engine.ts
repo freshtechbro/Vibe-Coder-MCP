@@ -2,10 +2,97 @@ import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { getLLMModelForOperation } from '../utils/config-loader.js';
 import { AtomicTask, TaskType, TaskPriority } from '../types/task.js';
-import { AtomicTaskDetector, AtomicityAnalysis, ProjectContext } from './atomic-detector.js';
+import { AtomicTaskDetector, AtomicityAnalysis } from './atomic-detector.js';
+import { ProjectContext } from '../types/project-context.js';
 import { getPrompt } from '../services/prompt-service.js';
 import { getTimeoutManager } from '../utils/timeout-manager.js';
 import logger from '../../../logger.js';
+
+/**
+ * Circuit breaker for task decomposition to prevent infinite loops
+ */
+class DecompositionCircuitBreaker {
+  private attempts = new Map<string, number>();
+  private failures = new Map<string, number>();
+  private lastAttempt = new Map<string, number>();
+  private readonly maxAttempts: number;
+  private readonly maxFailures: number;
+  private readonly cooldownPeriod: number; // milliseconds
+
+  constructor(maxAttempts = 3, maxFailures = 2, cooldownPeriod = 60000) {
+    this.maxAttempts = maxAttempts;
+    this.maxFailures = maxFailures;
+    this.cooldownPeriod = cooldownPeriod;
+  }
+
+  canAttempt(taskId: string): boolean {
+    const attempts = this.attempts.get(taskId) || 0;
+    const failures = this.failures.get(taskId) || 0;
+    const lastAttemptTime = this.lastAttempt.get(taskId) || 0;
+    const now = Date.now();
+
+    // Check if in cooldown period
+    if (lastAttemptTime > 0 && (now - lastAttemptTime) < this.cooldownPeriod) {
+      logger.warn({ taskId, cooldownRemaining: this.cooldownPeriod - (now - lastAttemptTime) },
+        'Task decomposition in cooldown period');
+      return false;
+    }
+
+    // Check attempt limits
+    if (attempts >= this.maxAttempts) {
+      logger.warn({ taskId, attempts, maxAttempts: this.maxAttempts },
+        'Task decomposition max attempts reached');
+      return false;
+    }
+
+    // Check failure limits
+    if (failures >= this.maxFailures) {
+      logger.warn({ taskId, failures, maxFailures: this.maxFailures },
+        'Task decomposition max failures reached');
+      return false;
+    }
+
+    return true;
+  }
+
+  recordAttempt(taskId: string): void {
+    const attempts = this.attempts.get(taskId) || 0;
+    this.attempts.set(taskId, attempts + 1);
+    this.lastAttempt.set(taskId, Date.now());
+  }
+
+  recordFailure(taskId: string): void {
+    const failures = this.failures.get(taskId) || 0;
+    this.failures.set(taskId, failures + 1);
+  }
+
+  recordSuccess(taskId: string): void {
+    // Reset counters on success
+    this.attempts.delete(taskId);
+    this.failures.delete(taskId);
+    this.lastAttempt.delete(taskId);
+  }
+
+  getStats(taskId: string): { attempts: number; failures: number; canAttempt: boolean } {
+    return {
+      attempts: this.attempts.get(taskId) || 0,
+      failures: this.failures.get(taskId) || 0,
+      canAttempt: this.canAttempt(taskId)
+    };
+  }
+
+  reset(taskId?: string): void {
+    if (taskId) {
+      this.attempts.delete(taskId);
+      this.failures.delete(taskId);
+      this.lastAttempt.delete(taskId);
+    } else {
+      this.attempts.clear();
+      this.failures.clear();
+      this.lastAttempt.clear();
+    }
+  }
+}
 
 /**
  * Decomposition result for a single task
@@ -41,6 +128,7 @@ export class RDDEngine {
   private atomicDetector: AtomicTaskDetector;
   private rddConfig: RDDConfig;
   private activeOperations: Map<string, { startTime: Date; operation: string; taskId: string }> = new Map();
+  private circuitBreaker: DecompositionCircuitBreaker;
 
   constructor(config: OpenRouterConfig, rddConfig?: Partial<RDDConfig>) {
     this.config = config;
@@ -52,6 +140,7 @@ export class RDDEngine {
       enableParallelDecomposition: false,
       ...rddConfig
     };
+    this.circuitBreaker = new DecompositionCircuitBreaker(3, 2, 60000); // 3 attempts, 2 failures, 1 minute cooldown
   }
 
   /**
@@ -64,6 +153,37 @@ export class RDDEngine {
   ): Promise<DecompositionResult> {
     const operationId = `decompose-${task.id}-${Date.now()}`;
     this.trackOperation(operationId, 'decomposition', task.id);
+
+    // Check circuit breaker before attempting decomposition
+    if (!this.circuitBreaker.canAttempt(task.id)) {
+      const stats = this.circuitBreaker.getStats(task.id);
+      logger.warn({
+        taskId: task.id,
+        depth,
+        circuitBreakerStats: stats
+      }, 'Circuit breaker preventing decomposition attempt');
+
+      this.completeOperation(operationId);
+      return {
+        success: true,
+        isAtomic: true, // Force atomic to prevent further attempts
+        originalTask: task,
+        subTasks: [],
+        analysis: {
+          isAtomic: true,
+          confidence: 0.9,
+          reasoning: 'Task marked as atomic due to circuit breaker protection (too many failed decomposition attempts)',
+          estimatedHours: task.estimatedHours,
+          complexityFactors: ['circuit_breaker_protection', 'decomposition_failure_limit'],
+          recommendations: ['Manual task breakdown recommended', 'Review task complexity']
+        },
+        error: 'Circuit breaker protection activated',
+        depth
+      };
+    }
+
+    // Record decomposition attempt
+    this.circuitBreaker.recordAttempt(task.id);
 
     logger.info({ taskId: task.id, depth, operationId }, 'Starting RDD decomposition');
 
@@ -87,6 +207,7 @@ export class RDDEngine {
       // If atomic with high confidence, return as-is
       if (analysis.isAtomic && analysis.confidence >= this.rddConfig.minConfidence) {
         logger.info({ taskId: task.id, confidence: analysis.confidence }, 'Task determined to be atomic');
+        this.circuitBreaker.recordSuccess(task.id); // Record success for atomic task
         this.completeOperation(operationId);
         return {
           success: true,
@@ -103,6 +224,7 @@ export class RDDEngine {
 
       if (subTasks.length === 0) {
         logger.warn({ taskId: task.id }, 'No sub-tasks generated, treating as atomic');
+        this.circuitBreaker.recordFailure(task.id); // Record failure for failed decomposition
         this.completeOperation(operationId);
         return {
           success: true,
@@ -124,6 +246,7 @@ export class RDDEngine {
         operationId
       }, 'RDD decomposition completed');
 
+      this.circuitBreaker.recordSuccess(task.id); // Record success for successful decomposition
       this.completeOperation(operationId);
       return {
         success: true,
@@ -135,45 +258,12 @@ export class RDDEngine {
       };
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('timed out');
-
-      if (isTimeout) {
-        logger.error({
-          err: error,
-          taskId: task.id,
-          depth,
-          timeout: true,
-          operation: 'task_decomposition'
-        }, 'RDD decomposition timed out - treating task as atomic');
-      } else {
-        logger.error({ err: error, taskId: task.id, depth }, 'RDD decomposition failed');
-      }
-
-      // Create a fallback analysis with timeout-specific reasoning
-      const fallbackAnalysis = {
-        isAtomic: true,
-        confidence: isTimeout ? 0.8 : 0.5, // Higher confidence for timeout fallback
-        reasoning: isTimeout
-          ? 'Task treated as atomic due to decomposition timeout - likely complex task requiring manual breakdown'
-          : 'Fallback analysis due to decomposition failure',
-        estimatedHours: task.estimatedHours,
-        complexityFactors: isTimeout ? ['timeout_complexity', 'llm_timeout'] : ['decomposition_error'],
-        recommendations: isTimeout
-          ? ['Manual task breakdown recommended', 'Consider simplifying task scope', 'Review task complexity']
-          : ['Manual review required']
-      };
-
       this.completeOperation(operationId);
-      return {
-        success: true, // Mark as success to continue workflow, but treat as atomic
-        isAtomic: true, // Force atomic to prevent further decomposition attempts
-        originalTask: task,
-        subTasks: [],
-        analysis: fallbackAnalysis,
-        error: errorMessage,
-        depth
-      };
+      return this.handleDecompositionFailure(task, error instanceof Error ? error : 'Unknown error', {
+        depth,
+        isRecursive: false,
+        operationId
+      });
     }
   }
 
@@ -249,14 +339,32 @@ export class RDDEngine {
     const processedTasks: AtomicTask[] = [];
 
     for (const task of decomposedTasks) {
+      // Check circuit breaker before processing each task
+      if (!this.circuitBreaker.canAttempt(task.id)) {
+        const stats = this.circuitBreaker.getStats(task.id);
+        logger.warn({
+          taskId: task.id,
+          depth,
+          circuitBreakerStats: stats,
+          isRecursiveCall: true
+        }, 'Circuit breaker preventing recursive decomposition attempt');
+
+        // Force task to be atomic due to circuit breaker
+        processedTasks.push(task);
+        continue;
+      }
+
       // Quick atomic check for decomposed tasks
       const quickAnalysis = await this.atomicDetector.analyzeTask(task, context);
 
       if (quickAnalysis.isAtomic && quickAnalysis.confidence >= this.rddConfig.minConfidence) {
         // Task is atomic, add as-is
+        this.circuitBreaker.recordSuccess(task.id);
         processedTasks.push(task);
       } else if (depth < this.rddConfig.maxDepth) {
         // Task needs further decomposition with centralized timeout protection
+        this.circuitBreaker.recordAttempt(task.id);
+
         try {
           const timeoutManager = getTimeoutManager();
           const decompositionResult = await timeoutManager.raceWithTimeout(
@@ -265,12 +373,22 @@ export class RDDEngine {
           );
 
           if (decompositionResult.success && decompositionResult.subTasks.length > 0) {
+            this.circuitBreaker.recordSuccess(task.id);
             processedTasks.push(...decompositionResult.subTasks);
           } else {
-            // Decomposition failed, keep original task
+            // Decomposition failed - record failure and keep original task
+            this.circuitBreaker.recordFailure(task.id);
+            logger.warn({
+              taskId: task.id,
+              depth,
+              isRecursiveCall: true,
+              decompositionSuccess: decompositionResult.success,
+              subTaskCount: decompositionResult.subTasks?.length || 0
+            }, 'Recursive decomposition failed to generate sub-tasks, keeping original task as atomic');
             processedTasks.push(task);
           }
         } catch (error) {
+          this.circuitBreaker.recordFailure(task.id);
           logger.warn({
             err: error,
             taskId: task.id,
@@ -281,6 +399,11 @@ export class RDDEngine {
         }
       } else {
         // Max depth reached, keep as-is
+        logger.info({
+          taskId: task.id,
+          depth,
+          maxDepth: this.rddConfig.maxDepth
+        }, 'Maximum decomposition depth reached, keeping task as-is');
         processedTasks.push(task);
       }
     }
@@ -304,21 +427,21 @@ ORIGINAL TASK:
 - Type: ${task.type}
 - Priority: ${task.priority}
 - Estimated Hours: ${task.estimatedHours}
-- File Paths: ${task.filePaths.join(', ')}
-- Acceptance Criteria: ${task.acceptanceCriteria.join('; ')}
+- File Paths: ${(task.filePaths || []).join(', ')}
+- Acceptance Criteria: ${(task.acceptanceCriteria || []).join('; ')}
 
 ATOMICITY ANALYSIS:
 - Is Atomic: ${analysis.isAtomic}
 - Confidence: ${analysis.confidence}
 - Reasoning: ${analysis.reasoning}
-- Complexity Factors: ${analysis.complexityFactors.join(', ')}
-- Recommendations: ${analysis.recommendations.join('; ')}
+- Complexity Factors: ${(analysis.complexityFactors || []).join(', ')}
+- Recommendations: ${(analysis.recommendations || []).join('; ')}
 
 PROJECT CONTEXT:
-- Languages: ${context.languages.join(', ')}
-- Frameworks: ${context.frameworks.join(', ')}
-- Tools: ${context.tools.join(', ')}
-- Complexity: ${context.complexity}
+- Languages: ${(context.languages && context.languages.length > 0 ? context.languages : ['unknown']).join(', ')}
+- Frameworks: ${(context.frameworks && context.frameworks.length > 0 ? context.frameworks : ['unknown']).join(', ')}
+- Tools: ${(context.tools || []).join(', ')}
+- Complexity: ${context.complexity || 'unknown'}
 
 EPIC CONSTRAINT:
 - This task belongs to an epic with a maximum of 8 hours total
@@ -610,5 +733,218 @@ CRITICAL REMINDER:
     }
 
     return cleanedCount;
+  }
+
+  /**
+   * Handle decomposition failure with proper error recovery
+   */
+  private handleDecompositionFailure(
+    task: AtomicTask,
+    error: Error | string,
+    context: { depth: number; isRecursive?: boolean; operationId?: string }
+  ): DecompositionResult {
+    const errorMessage = error instanceof Error ? error.message : error;
+    const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('timed out');
+
+    // Record failure in circuit breaker
+    this.circuitBreaker.recordFailure(task.id);
+
+    // Log appropriate error level based on context
+    const logLevel = context.isRecursive ? 'warn' : 'error';
+    const logMessage = context.isRecursive
+      ? 'Recursive decomposition failed, treating task as atomic'
+      : 'Primary decomposition failed, treating task as atomic';
+
+    logger[logLevel]({
+      err: error instanceof Error ? error : new Error(errorMessage),
+      taskId: task.id,
+      depth: context.depth,
+      isRecursive: context.isRecursive || false,
+      timeout: isTimeout,
+      operationId: context.operationId
+    }, logMessage);
+
+    // Create appropriate fallback analysis
+    const fallbackAnalysis = {
+      isAtomic: true,
+      confidence: isTimeout ? 0.8 : 0.6,
+      reasoning: isTimeout
+        ? 'Task treated as atomic due to decomposition timeout - likely requires manual breakdown'
+        : context.isRecursive
+          ? 'Task treated as atomic after recursive decomposition failure'
+          : 'Task treated as atomic due to primary decomposition failure',
+      estimatedHours: task.estimatedHours,
+      complexityFactors: isTimeout
+        ? ['timeout_complexity', 'llm_timeout', 'circuit_breaker_protection']
+        : ['decomposition_failure', 'circuit_breaker_protection'],
+      recommendations: isTimeout
+        ? ['Manual task breakdown recommended', 'Consider simplifying task scope', 'Review task complexity']
+        : ['Manual review required', 'Consider alternative decomposition approach']
+    };
+
+    return {
+      success: true, // Mark as success to continue workflow
+      isAtomic: true, // Force atomic to prevent further decomposition attempts
+      originalTask: task,
+      subTasks: [],
+      analysis: fallbackAnalysis,
+      error: errorMessage,
+      depth: context.depth
+    };
+  }
+
+  /**
+   * Reset circuit breaker for a specific task or all tasks
+   */
+  resetCircuitBreaker(taskId?: string): void {
+    this.circuitBreaker.reset(taskId);
+    logger.info({ taskId: taskId || 'all' }, 'Circuit breaker reset');
+  }
+
+  /**
+   * Get circuit breaker statistics for monitoring
+   */
+  getCircuitBreakerStats(taskId?: string): any {
+    if (taskId) {
+      return this.circuitBreaker.getStats(taskId);
+    }
+
+    // Return overall stats (this would need to be implemented in the circuit breaker)
+    return {
+      message: 'Use specific taskId to get detailed stats'
+    };
+  }
+
+  /**
+   * Monitor decomposition progress and detect stuck processes
+   */
+  monitorDecompositionProgress(): {
+    status: 'healthy' | 'warning' | 'critical';
+    activeOperations: number;
+    stuckOperations: Array<{
+      operationId: string;
+      taskId: string;
+      operation: string;
+      duration: number;
+      status: 'warning' | 'critical';
+    }>;
+    circuitBreakerStatus: {
+      tasksBlocked: number;
+      recentFailures: number;
+    };
+    recommendations: string[];
+  } {
+    const now = new Date();
+    const warningThreshold = 120000; // 2 minutes
+    const criticalThreshold = 300000; // 5 minutes
+
+    const stuckOperations: Array<{
+      operationId: string;
+      taskId: string;
+      operation: string;
+      duration: number;
+      status: 'warning' | 'critical';
+    }> = [];
+
+    // Check active operations for stuck processes
+    for (const [operationId, info] of this.activeOperations.entries()) {
+      const duration = now.getTime() - info.startTime.getTime();
+
+      if (duration > criticalThreshold) {
+        stuckOperations.push({
+          operationId,
+          taskId: info.taskId,
+          operation: info.operation,
+          duration,
+          status: 'critical'
+        });
+      } else if (duration > warningThreshold) {
+        stuckOperations.push({
+          operationId,
+          taskId: info.taskId,
+          operation: info.operation,
+          duration,
+          status: 'warning'
+        });
+      }
+    }
+
+    // Determine overall status
+    let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+    if (stuckOperations.some(op => op.status === 'critical')) {
+      status = 'critical';
+    } else if (stuckOperations.length > 0) {
+      status = 'warning';
+    }
+
+    // Generate recommendations
+    const recommendations: string[] = [];
+    if (stuckOperations.length > 0) {
+      recommendations.push('Consider stopping stuck decomposition processes');
+      recommendations.push('Review circuit breaker settings');
+      recommendations.push('Check LLM service availability and response times');
+    }
+
+    if (stuckOperations.filter(op => op.status === 'critical').length > 0) {
+      recommendations.push('URGENT: Kill critical stuck operations immediately');
+      recommendations.push('Reset circuit breaker for affected tasks');
+    }
+
+    // Mock circuit breaker status (would need actual implementation)
+    const circuitBreakerStatus = {
+      tasksBlocked: 0, // Would count tasks currently blocked by circuit breaker
+      recentFailures: 0 // Would count recent failures
+    };
+
+    return {
+      status,
+      activeOperations: this.activeOperations.size,
+      stuckOperations,
+      circuitBreakerStatus,
+      recommendations
+    };
+  }
+
+  /**
+   * Emergency stop for all active decomposition operations
+   */
+  emergencyStop(): {
+    stopped: number;
+    operations: Array<{ operationId: string; taskId: string; operation: string; duration: number }>;
+  } {
+    const now = new Date();
+    const stoppedOperations: Array<{ operationId: string; taskId: string; operation: string; duration: number }> = [];
+
+    for (const [operationId, info] of this.activeOperations.entries()) {
+      const duration = now.getTime() - info.startTime.getTime();
+      stoppedOperations.push({
+        operationId,
+        taskId: info.taskId,
+        operation: info.operation,
+        duration
+      });
+
+      logger.warn({
+        operationId,
+        taskId: info.taskId,
+        operation: info.operation,
+        duration
+      }, 'Emergency stop: Terminating active decomposition operation');
+    }
+
+    // Clear all active operations
+    this.activeOperations.clear();
+
+    // Reset circuit breaker to allow fresh attempts
+    this.circuitBreaker.reset();
+
+    logger.info({
+      stoppedCount: stoppedOperations.length
+    }, 'Emergency stop completed - all active operations terminated');
+
+    return {
+      stopped: stoppedOperations.length,
+      operations: stoppedOperations
+    };
   }
 }

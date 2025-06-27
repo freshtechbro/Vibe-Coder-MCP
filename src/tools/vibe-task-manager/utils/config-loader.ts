@@ -844,10 +844,10 @@ export function extractVibeTaskManagerSecurityConfig(config?: OpenRouterConfig):
 
   if (config) {
     // Try to extract from tools['vibe-task-manager'] first
-    const toolConfig = config.tools?.['vibe-task-manager'] as any;
+    const toolConfig = config.tools?.['vibe-task-manager'] as Partial<VibeTaskManagerSecurityConfig> | undefined;
 
     // If not found, try config['vibe-task-manager']
-    const configSection = config.config?.['vibe-task-manager'] as any;
+    const configSection = config.config?.['vibe-task-manager'] as Partial<VibeTaskManagerSecurityConfig> | undefined;
 
     // Merge configurations if they exist
     if (toolConfig || configSection) {
@@ -898,4 +898,62 @@ export function extractVibeTaskManagerSecurityConfig(config?: OpenRouterConfig):
     allowedWriteDirectory: resolvedWriteDir,
     securityMode
   };
+}
+
+/**
+ * Create AgentOrchestrator configuration from centralized config
+ */
+export async function getOrchestratorConfig(): Promise<any> {
+  try {
+    const config = await getVibeTaskManagerConfig();
+    if (!config) {
+      logger.debug('No config found, using AgentOrchestrator defaults');
+      return null;
+    }
+
+    const agentSettings = config.taskManager?.agentSettings;
+    const timeouts = config.taskManager?.timeouts;
+
+    if (!agentSettings) {
+      logger.debug('No agent settings found in config, using AgentOrchestrator defaults');
+      return null;
+    }
+
+    // Map centralized config to OrchestratorConfig
+    const orchestratorConfig = {
+      heartbeatInterval: (agentSettings.healthCheckInterval || 30) * 1000, // Convert seconds to ms
+      taskTimeout: timeouts?.taskExecution || 300000, // 5 minutes default
+      maxRetries: 3, // Default, could be made configurable
+      loadBalancingStrategy: mapCoordinationStrategy(agentSettings.coordinationStrategy),
+      enableHealthChecks: true,
+      conflictResolutionStrategy: 'queue' as const, // Could be made configurable
+      heartbeatTimeoutMultiplier: 3, // Could be made configurable
+      enableAdaptiveTimeouts: true, // Could be made configurable  
+      maxHeartbeatMisses: 5 // Could be made configurable
+    };
+
+    logger.debug({ orchestratorConfig }, 'Created OrchestratorConfig from centralized config');
+    return orchestratorConfig;
+
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to load centralized config for AgentOrchestrator, using defaults');
+    return null;
+  }
+}
+
+/**
+ * Map coordination strategy from centralized config to orchestrator strategy
+ */
+function mapCoordinationStrategy(strategy?: string): 'round_robin' | 'capability_based' | 'performance_based' {
+  switch (strategy) {
+    case 'round_robin':
+      return 'round_robin';
+    case 'capability_based':
+      return 'capability_based';
+    case 'priority_based':
+    case 'least_loaded':
+      return 'performance_based';
+    default:
+      return 'capability_based';
+  }
 }
