@@ -183,8 +183,9 @@ export class ContextCuratorConfigLoader {
    * Get LLM model for specific Context Curator operation
    */
   getLLMModel(operation: string): string {
+    // If no LLM config loaded, use environment fallback
     if (!this.llmConfig) {
-      return 'google/gemini-2.5-flash-preview-05-20'; // fallback
+      return this.getEnvironmentFallbackModel();
     }
 
     // Context Curator specific operations
@@ -202,6 +203,15 @@ export class ContextCuratorConfigLoader {
     return this.llmConfig.llm_mapping[prefixedOperation] ||
            this.llmConfig.llm_mapping[operation] ||
            this.llmConfig.llm_mapping['default_generation'] ||
+           this.getEnvironmentFallbackModel();
+  }
+
+  /**
+   * Get fallback model from environment or final hardcoded default
+   */
+  private getEnvironmentFallbackModel(): string {
+    return process.env.GEMINI_MODEL ||
+           process.env.VIBE_DEFAULT_LLM_MODEL ||
            'google/gemini-2.5-flash-preview-05-20';
   }
 
