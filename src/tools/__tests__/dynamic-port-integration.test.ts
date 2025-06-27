@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { transportManager } from '../../services/transport-manager/index.js';
+import { setupUniqueTestPorts, cleanupTestPorts } from '../../services/transport-manager/__tests__/test-port-utils.js';
 
 // Mock logger to avoid console output during tests
 vi.mock('../../logger.js', () => ({
@@ -42,20 +43,28 @@ vi.mock('../../services/sse-notifier/index.js', () => ({
 
 describe('Downstream Tool Integration with Dynamic Ports', () => {
   let originalEnv: NodeJS.ProcessEnv;
+  let testPortBase: number;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     originalEnv = { ...process.env };
-    
-    // Set up test environment with specific ports
-    process.env.WEBSOCKET_PORT = '9800';
-    process.env.HTTP_AGENT_PORT = '9801';
-    process.env.SSE_PORT = '9802';
 
-    // Configure transport manager
+    // Use unique port ranges for each test to avoid conflicts
+    // Use 35000-45000 range to avoid conflicts with transport manager tests
+    testPortBase = 35000 + Math.floor(Math.random() * 10000);
+
+    // Set up test environment with specific ports
+    process.env.WEBSOCKET_PORT = (testPortBase).toString();
+    process.env.HTTP_AGENT_PORT = (testPortBase + 1).toString();
+    process.env.SSE_PORT = (testPortBase + 2).toString();
+
+    // Stop any existing transport manager instance
+    await transportManager.stopAll();
+
+    // Configure transport manager to use environment variables
     transportManager.configure({
-      websocket: { enabled: true, port: 8080, path: '/agent-ws' },
-      http: { enabled: true, port: 3001, cors: true },
-      sse: { enabled: true },
+      websocket: { enabled: true, port: 8080, path: '/agent-ws' }, // Will be overridden by env var
+      http: { enabled: true, port: 3001, cors: true }, // Will be overridden by env var
+      sse: { enabled: true }, // Will use env var
       stdio: { enabled: true }
     });
   });
@@ -87,10 +96,10 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     it('should provide dynamic endpoint URLs for agent registration', async () => {
       const registry = new AgentRegistry();
       const endpoints = registry.getTransportEndpoints();
-      
-      expect(endpoints.websocket).toBe('ws://localhost:9800/agent-ws');
-      expect(endpoints.http).toBe('http://localhost:9801');
-      expect(endpoints.sse).toBe('http://localhost:9802/events');
+
+      expect(endpoints.websocket).toBe(`ws://localhost:${testPortBase}/agent-ws`);
+      expect(endpoints.http).toBe(`http://localhost:${testPortBase + 1}`);
+      expect(endpoints.sse).toBe(`http://localhost:${testPortBase + 2}/events`);
     });
 
     it('should generate correct transport instructions with dynamic ports', async () => {
@@ -106,7 +115,7 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
       };
 
       const instructions = registry.getTransportInstructions(wsRegistration);
-      expect(instructions).toContain('ws://localhost:9800/agent-ws');
+      expect(instructions).toContain(`ws://localhost:${testPortBase}/agent-ws`);
 
       const httpRegistration = {
         agentId: 'test-http-agent',
@@ -119,7 +128,7 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
       };
 
       const httpInstructions = registry.getTransportInstructions(httpRegistration);
-      expect(httpInstructions).toContain('http://localhost:9801');
+      expect(httpInstructions).toContain(`http://localhost:${testPortBase + 1}`);
     });
 
     it('should handle missing allocated ports gracefully', async () => {
@@ -161,15 +170,15 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
 
     it('should provide accurate endpoint information in status commands', async () => {
       const endpointInfo = getAgentEndpointInfo();
-      
-      expect(endpointInfo.allocatedPorts.websocket).toBe(9800);
-      expect(endpointInfo.allocatedPorts.http).toBe(9801);
-      expect(endpointInfo.allocatedPorts.sse).toBe(9802);
+
+      expect(endpointInfo.allocatedPorts.websocket).toBe(testPortBase);
+      expect(endpointInfo.allocatedPorts.http).toBe(testPortBase + 1);
+      expect(endpointInfo.allocatedPorts.sse).toBe(testPortBase + 2);
       expect(endpointInfo.status).toBe('available');
-      
-      expect(endpointInfo.endpoints.websocket).toBe('ws://localhost:9800/agent-ws');
-      expect(endpointInfo.endpoints.http).toBe('http://localhost:9801');
-      expect(endpointInfo.endpoints.sse).toBe('http://localhost:9802/events');
+
+      expect(endpointInfo.endpoints.websocket).toBe(`ws://localhost:${testPortBase}/agent-ws`);
+      expect(endpointInfo.endpoints.http).toBe(`http://localhost:${testPortBase + 1}`);
+      expect(endpointInfo.endpoints.sse).toBe(`http://localhost:${testPortBase + 2}/events`);
     });
 
     it('should handle transport manager unavailability', async () => {
@@ -199,19 +208,19 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     it('should provide accurate transport status with dynamic ports', async () => {
       const orchestrator = AgentOrchestrator.getInstance();
       const transportStatus = orchestrator.getTransportStatus();
-      
+
       expect(transportStatus.websocket.available).toBe(true);
-      expect(transportStatus.websocket.port).toBe(9800);
-      expect(transportStatus.websocket.endpoint).toBe('ws://localhost:9800/agent-ws');
-      
+      expect(transportStatus.websocket.port).toBe(testPortBase);
+      expect(transportStatus.websocket.endpoint).toBe(`ws://localhost:${testPortBase}/agent-ws`);
+
       expect(transportStatus.http.available).toBe(true);
-      expect(transportStatus.http.port).toBe(9801);
-      expect(transportStatus.http.endpoint).toBe('http://localhost:9801');
-      
+      expect(transportStatus.http.port).toBe(testPortBase + 1);
+      expect(transportStatus.http.endpoint).toBe(`http://localhost:${testPortBase + 1}`);
+
       expect(transportStatus.sse.available).toBe(true);
-      expect(transportStatus.sse.port).toBe(9802);
-      expect(transportStatus.sse.endpoint).toBe('http://localhost:9802/events');
-      
+      expect(transportStatus.sse.port).toBe(testPortBase + 2);
+      expect(transportStatus.sse.endpoint).toBe(`http://localhost:${testPortBase + 2}/events`);
+
       expect(transportStatus.stdio.available).toBe(true);
     });
 
@@ -270,25 +279,26 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
       
       // Restart transport manager with different environment
       await transportManager.stopAll();
-      process.env.WEBSOCKET_PORT = '9900';
-      process.env.HTTP_AGENT_PORT = '9901';
+      const newPortBase = testPortBase + 100;
+      process.env.WEBSOCKET_PORT = newPortBase.toString();
+      process.env.HTTP_AGENT_PORT = (newPortBase + 1).toString();
       await transportManager.startAll();
-      
+
       const newPorts = transportManager.getAllocatedPorts();
-      
+
       // Ports should have changed
       expect(newPorts.websocket).not.toBe(initialPorts.websocket);
       expect(newPorts.http).not.toBe(initialPorts.http);
-      expect(newPorts.websocket).toBe(9900);
-      expect(newPorts.http).toBe(9901);
-      
+      expect(newPorts.websocket).toBe(newPortBase);
+      expect(newPorts.http).toBe(newPortBase + 1);
+
       // All downstream tools should reflect the new ports
       const { AgentRegistry } = await import('../agent-registry/index.js');
       const registry = new AgentRegistry();
       const endpoints = registry.getTransportEndpoints();
-      
-      expect(endpoints.websocket).toBe('ws://localhost:9900/agent-ws');
-      expect(endpoints.http).toBe('http://localhost:9901');
+
+      expect(endpoints.websocket).toBe(`ws://localhost:${newPortBase}/agent-ws`);
+      expect(endpoints.http).toBe(`http://localhost:${newPortBase + 1}`);
     });
   });
 

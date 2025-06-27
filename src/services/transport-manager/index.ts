@@ -338,6 +338,8 @@ class TransportManager {
   private isStarted = false;
   private startedServices: string[] = [];
   private startupTimestamp?: number;
+  private startupInProgress = false;
+  private startupPromise?: Promise<void>;
 
   static getInstance(): TransportManager {
     if (!TransportManager.instance) {
@@ -367,6 +369,17 @@ class TransportManager {
   }
 
   /**
+   * Reset transport manager to initial state (for testing)
+   */
+  reset(): void {
+    this.config = { ...DEFAULT_CONFIG };
+    this.isStarted = false;
+    this.startedServices = [];
+    this.startupTimestamp = undefined;
+    logger.debug('Transport manager reset to initial state');
+  }
+
+  /**
    * Start all enabled transport services with dynamic port allocation
    */
   async startAll(): Promise<void> {
@@ -375,9 +388,20 @@ class TransportManager {
       return;
     }
 
-    try {
-      this.startupTimestamp = Date.now();
-      logger.info('Starting unified communication protocol transport services with dynamic port allocation...');
+    // Prevent concurrent startup attempts
+    if (this.startupInProgress) {
+      logger.warn('Transport manager startup already in progress, waiting...');
+      await this.waitForStartupCompletion();
+      return;
+    }
+
+    this.startupInProgress = true;
+
+    // Create startup promise for coordination
+    this.startupPromise = (async () => {
+      try {
+        this.startupTimestamp = Date.now();
+        logger.info('Starting unified communication protocol transport services with dynamic port allocation...');
 
       // 1. Get port ranges from environment variables
       const portRanges = getPortRangesFromEnvironment();
@@ -427,16 +451,22 @@ class TransportManager {
       // 7. Log comprehensive startup summary
       this.logStartupSummary(allocationSummary);
 
-    } catch (error) {
-      logger.error({ err: error }, 'Failed to start transport services');
+      } catch (error) {
+        logger.error({ err: error }, 'Failed to start transport services');
 
-      // Attempt to stop any services that were started
-      await this.stopAll().catch(stopError => {
-        logger.error({ err: stopError }, 'Failed to cleanup after startup failure');
-      });
+        // Attempt to stop any services that were started
+        await this.stopAll().catch(stopError => {
+          logger.error({ err: stopError }, 'Failed to cleanup after startup failure');
+        });
 
-      throw error;
-    }
+        throw error;
+      } finally {
+        this.startupInProgress = false;
+        this.startupPromise = undefined;
+      }
+    })();
+
+    await this.startupPromise;
   }
 
   /**
@@ -494,12 +524,11 @@ class TransportManager {
             retryEnabled: true
           }, 'WebSocket transport: Initial startup failed, attempting retry with alternative ports');
 
-          // Attempt retry with alternative ports
-          const retryResult = await this.retryServiceStartup('websocket', {
-            start: this.config.websocket.port,
-            end: this.config.websocket.port + 10,
-            service: 'websocket'
-          });
+          // Attempt retry with alternative ports (always use environment variable range if available)
+          const envPortRanges = getPortRangesFromEnvironment();
+          const retryRange = envPortRanges.websocket;
+
+          const retryResult = await this.retryServiceStartup('websocket', retryRange);
 
           if (retryResult.success) {
             logger.info({
@@ -526,11 +555,11 @@ class TransportManager {
           retryEnabled: true
         }, 'WebSocket transport: Initial port allocation failed, attempting retry with alternative ports');
 
-        const retryResult = await this.retryServiceStartup('websocket', {
-          start: this.config.websocket.port,
-          end: this.config.websocket.port + 10,
-          service: 'websocket'
-        });
+        // Use environment variable range if available, otherwise use configured port range
+        const envPortRanges = getPortRangesFromEnvironment();
+        const retryRange = envPortRanges.websocket;
+
+        const retryResult = await this.retryServiceStartup('websocket', retryRange);
 
         if (retryResult.success) {
           logger.info({
@@ -572,12 +601,11 @@ class TransportManager {
             retryEnabled: true
           }, 'HTTP transport: Initial startup failed, attempting retry with alternative ports');
 
-          // Attempt retry with alternative ports
-          const retryResult = await this.retryServiceStartup('http', {
-            start: this.config.http.port,
-            end: this.config.http.port + 20,
-            service: 'http'
-          });
+          // Attempt retry with alternative ports (always use environment variable range if available)
+          const envPortRanges = getPortRangesFromEnvironment();
+          const retryRange = envPortRanges.http;
+
+          const retryResult = await this.retryServiceStartup('http', retryRange);
 
           if (retryResult.success) {
             logger.info({
@@ -604,11 +632,11 @@ class TransportManager {
           retryEnabled: true
         }, 'HTTP transport: Initial port allocation failed, attempting retry with alternative ports');
 
-        const retryResult = await this.retryServiceStartup('http', {
-          start: this.config.http.port,
-          end: this.config.http.port + 20,
-          service: 'http'
-        });
+        // Use environment variable range if available, otherwise use configured port range
+        const envPortRanges = getPortRangesFromEnvironment();
+        const retryRange = envPortRanges.http;
+
+        const retryResult = await this.retryServiceStartup('http', retryRange);
 
         if (retryResult.success) {
           logger.info({
@@ -835,7 +863,7 @@ class TransportManager {
           'Not available',
         status: this.startedServices.includes('websocket') ? 'running' : 'failed',
         connections: this.startedServices.includes('websocket') ?
-          websocketServer.getConnectionCount() : 0
+          (typeof websocketServer.getConnectionCount === 'function' ? websocketServer.getConnectionCount() : 0) : 0
       };
 
       logger.info(wsStatus, 'WebSocket Service Status');
@@ -873,7 +901,7 @@ class TransportManager {
           'Integrated with MCP server',
         status: this.startedServices.includes('sse') ? 'running' : 'integrated',
         connections: this.startedServices.includes('sse') ?
-          sseNotifier.getConnectionCount() : 'N/A',
+          (typeof sseNotifier.getConnectionCount === 'function' ? sseNotifier.getConnectionCount() : 'N/A') : 'N/A',
         note: 'Integrated with MCP server lifecycle'
       };
 
@@ -929,12 +957,8 @@ class TransportManager {
           operation: 'service_retry_attempt'
         }, `Retry attempt ${attempt} for ${serviceName} service`);
 
-        // Create expanded port range for retry (add 10 ports to the end)
-        const retryRange: PortRange = {
-          start: originalRange.end + 1,
-          end: originalRange.end + 10,
-          service: serviceName
-        };
+        // Use the same range as the original allocation for retry
+        const retryRange: PortRange = originalRange;
 
         // Try to allocate a port in the retry range
         const allocationResult = await PortAllocator.findAvailablePortInRange(retryRange);
@@ -1067,47 +1091,86 @@ class TransportManager {
    */
   getStatus(): {
     isStarted: boolean;
+    isConfigured: boolean;
+    startupInProgress: boolean;
     startedServices: string[];
     config: TransportConfig;
     serviceDetails: Record<string, any>;
+    websocket?: { running: boolean; port?: number; path?: string; connections?: number };
+    http?: { running: boolean; port?: number; cors?: boolean };
+    sse?: { running: boolean; connections?: number };
+    stdio?: { running: boolean };
   } {
     const serviceDetails: Record<string, any> = {};
 
-    if (this.startedServices.includes('websocket')) {
+    // WebSocket service details
+    const websocketRunning = this.startedServices.includes('websocket');
+    if (this.config.websocket.enabled) {
       serviceDetails.websocket = {
-        port: this.config.websocket.port,
+        port: this.config.websocket.allocatedPort || this.config.websocket.port,
         path: this.config.websocket.path,
-        connections: websocketServer.getConnectionCount(),
-        connectedAgents: websocketServer.getConnectedAgents()
+        connections: websocketRunning && typeof websocketServer.getConnectionCount === 'function' ? websocketServer.getConnectionCount() : 0,
+        connectedAgents: websocketRunning && typeof websocketServer.getConnectedAgents === 'function' ? websocketServer.getConnectedAgents() : [],
+        running: websocketRunning
       };
     }
 
-    if (this.startedServices.includes('http')) {
+    // HTTP service details
+    const httpRunning = this.startedServices.includes('http');
+    if (this.config.http.enabled) {
       serviceDetails.http = {
-        port: this.config.http.port,
-        cors: this.config.http.cors
+        port: this.config.http.allocatedPort || this.config.http.port,
+        cors: this.config.http.cors,
+        running: httpRunning
       };
     }
 
-    if (this.startedServices.includes('sse')) {
+    // SSE service details
+    const sseRunning = this.startedServices.includes('sse');
+    if (this.config.sse.enabled) {
       serviceDetails.sse = {
-        connections: sseNotifier.getConnectionCount(),
-        enabled: true
+        connections: sseRunning && typeof sseNotifier.getConnectionCount === 'function' ? sseNotifier.getConnectionCount() : 0,
+        enabled: true,
+        running: sseRunning
       };
     }
 
-    if (this.startedServices.includes('stdio')) {
+    // Stdio service details
+    const stdioRunning = this.startedServices.includes('stdio');
+    if (this.config.stdio.enabled) {
       serviceDetails.stdio = {
         enabled: true,
-        note: 'Handled by MCP server'
+        note: 'Handled by MCP server',
+        running: stdioRunning
       };
     }
 
     return {
       isStarted: this.isStarted,
+      isConfigured: this.config.websocket.enabled || this.config.http.enabled || this.config.sse.enabled || this.config.stdio.enabled,
+      startupInProgress: this.startupInProgress,
       startedServices: this.startedServices,
       config: this.config,
-      serviceDetails
+      serviceDetails,
+      // Direct service status for backward compatibility with tests
+      websocket: this.config.websocket.enabled ? {
+        running: websocketRunning,
+        port: this.config.websocket.allocatedPort || this.config.websocket.port,
+        path: this.config.websocket.path,
+        connections: websocketRunning && typeof websocketServer.getConnectionCount === 'function' ? websocketServer.getConnectionCount() : 0
+      } : undefined,
+      http: this.config.http.enabled ? {
+        running: httpRunning,
+        port: this.config.http.allocatedPort || this.config.http.port,
+        cors: this.config.http.cors
+      } : undefined,
+      sse: this.config.sse.enabled ? {
+        running: sseRunning,
+        connections: sseRunning && typeof sseNotifier.getConnectionCount === 'function' ? sseNotifier.getConnectionCount() : 0
+      } : undefined,
+      stdio: this.config.stdio.enabled ? {
+        running: stdioRunning
+      } : undefined
     };
   }
 
@@ -1144,6 +1207,15 @@ class TransportManager {
       sse: this.startedServices.includes('sse') ? this.config.sse.allocatedPort : undefined,
       stdio: undefined // stdio doesn't use network ports
     };
+  }
+
+  /**
+   * Wait for startup completion if startup is in progress
+   */
+  private async waitForStartupCompletion(): Promise<void> {
+    if (this.startupPromise) {
+      await this.startupPromise;
+    }
   }
 
   /**
@@ -1207,14 +1279,15 @@ class TransportManager {
     health.sse = {
       status: this.config.sse.enabled ? 'healthy' : 'disabled',
       details: {
-        connections: this.isTransportRunning('sse') ? sseNotifier.getConnectionCount() : 0
+        connections: this.isTransportRunning('sse') ?
+          (typeof sseNotifier.getConnectionCount === 'function' ? sseNotifier.getConnectionCount() : 0) : 0
       }
     };
 
     // Check WebSocket transport
     if (this.config.websocket.enabled) {
       try {
-        const connectionCount = websocketServer.getConnectionCount();
+        const connectionCount = typeof websocketServer.getConnectionCount === 'function' ? websocketServer.getConnectionCount() : 0;
         health.websocket = {
           status: this.isTransportRunning('websocket') ? 'healthy' : 'unhealthy',
           details: {

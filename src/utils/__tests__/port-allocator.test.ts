@@ -19,25 +19,93 @@ vi.mock('../../logger.js', () => ({
   }
 }));
 
+// Global mock state for port allocation tests - using a module-level variable
+// that persists across mock function calls
+const mockPortState = {
+  portsInUse: new Set<number>()
+};
+
+// Mock net module to prevent real network operations during tests
+vi.mock('net', () => {
+  return {
+    createServer: vi.fn(() => {
+      let errorHandler: Function | null = null;
+      
+      const mockServer = {
+        listen: vi.fn((port: number, callback?: () => void) => {
+          // Use setTimeout to ensure proper async behavior and check current state
+          setTimeout(() => {
+            if (mockPortState.portsInUse.has(port)) {
+              const error = new Error('EADDRINUSE') as any;
+              error.code = 'EADDRINUSE';
+              error.port = port;
+              
+              if (errorHandler) {
+                errorHandler(error);
+              }
+            } else {
+              mockServer.listening = true;
+              if (callback) callback();
+            }
+          }, 0);
+          return mockServer;
+        }),
+        
+        close: vi.fn((callback?: () => void) => {
+          mockServer.listening = false;
+          setTimeout(() => {
+            if (callback) callback();
+          }, 0);
+          return mockServer;
+        }),
+        
+        on: vi.fn((event: string, handler: Function) => {
+          if (event === 'error') {
+            errorHandler = handler;
+          }
+          return mockServer;
+        }),
+        
+        listening: false
+      };
+      
+      return mockServer;
+    })
+  };
+});
+
+// Helper functions for test control
+export const mockPortHelpers = {
+  setPortInUse: (port: number) => {
+    mockPortState.portsInUse.add(port);
+    return true;
+  },
+  setPortAvailable: (port: number) => {
+    mockPortState.portsInUse.delete(port);
+    return true;
+  },
+  clearAllPorts: () => {
+    mockPortState.portsInUse.clear();
+    return true;
+  },
+  getMockPortsInUse: () => Array.from(mockPortState.portsInUse),
+  getPortsInUseCount: () => mockPortState.portsInUse.size
+};
+
 describe('PortAllocator', () => {
-  let testServers: any[] = [];
+  let testPortBase: number;
 
   beforeEach(() => {
-    testServers = [];
+    // Clear all mock ports state before each test
+    mockPortHelpers.clearAllPorts();
+    
+    // Use unique port ranges for each test to avoid conflicts
+    testPortBase = 45000 + Math.floor(Math.random() * 10000);
   });
 
-  afterEach(async () => {
-    // Clean up test servers
-    await Promise.all(testServers.map(server => 
-      new Promise<void>((resolve) => {
-        if (server.listening) {
-          server.close(() => resolve());
-        } else {
-          resolve();
-        }
-      })
-    ));
-    testServers = [];
+  afterEach(() => {
+    // Clean up mock state
+    mockPortHelpers.clearAllPorts();
   });
 
   describe('findAvailablePort', () => {
@@ -50,13 +118,8 @@ describe('PortAllocator', () => {
     it('should return false for ports in use', async () => {
       const port = 9998;
       
-      // Create a server to occupy the port
-      const server = createServer();
-      testServers.push(server);
-      
-      await new Promise<void>((resolve) => {
-        server.listen(port, () => resolve());
-      });
+      // Mark port as in use via mock
+      mockPortHelpers.setPortInUse(port);
 
       const isAvailable = await PortAllocator.findAvailablePort(port);
       expect(isAvailable).toBe(false);
@@ -148,9 +211,9 @@ describe('PortAllocator', () => {
 
   describe('findAvailablePortInRange', () => {
     it('should find available port in range', async () => {
-      const range: PortRange = { start: 9990, end: 9999, service: 'test' };
+      const range: PortRange = { start: testPortBase, end: testPortBase + 9, service: 'test' };
       const result = await PortAllocator.findAvailablePortInRange(range);
-      
+
       expect(result.success).toBe(true);
       expect(result.port).toBeGreaterThanOrEqual(range.start);
       expect(result.port).toBeLessThanOrEqual(range.end);
@@ -170,16 +233,34 @@ describe('PortAllocator', () => {
     it('should handle range with all ports occupied', async () => {
       const range: PortRange = { start: 9980, end: 9982, service: 'test' };
       
-      // Occupy all ports in the range
+      // Ensure clean state
+      mockPortHelpers.clearAllPorts();
+      
+      // Mark all ports in the range as in use via mock
       for (let port = range.start; port <= range.end; port++) {
-        const server = createServer();
-        testServers.push(server);
-        await new Promise<void>((resolve) => {
-          server.listen(port, () => resolve());
+        mockPortHelpers.setPortInUse(port);
+      }
+      
+      // Verify our mock setup
+      const mockPorts = mockPortHelpers.getMockPortsInUse();
+      const portsCount = mockPortHelpers.getPortsInUseCount();
+      
+      expect(portsCount).toBe(3);
+      expect(mockPorts).toContain(9980);
+      expect(mockPorts).toContain(9981);
+      expect(mockPorts).toContain(9982);
+      
+      const result = await PortAllocator.findAvailablePortInRange(range);
+      
+      // Debug output for troubleshooting
+      if (result.success) {
+        console.log('Unexpected success:', {
+          result,
+          mockPorts: mockPortHelpers.getMockPortsInUse(),
+          expectedPorts: [9980, 9981, 9982]
         });
       }
       
-      const result = await PortAllocator.findAvailablePortInRange(range);
       expect(result.success).toBe(false);
       expect(result.attempted.length).toBe(range.end - range.start + 1);
     });
@@ -188,9 +269,9 @@ describe('PortAllocator', () => {
   describe('allocatePortsForServices', () => {
     it('should allocate ports for multiple services', async () => {
       const ranges: PortRange[] = [
-        { start: 9970, end: 9975, service: 'websocket' },
-        { start: 9960, end: 9965, service: 'http' },
-        { start: 9950, end: 9955, service: 'sse' }
+        { start: testPortBase + 10, end: testPortBase + 15, service: 'websocket' },
+        { start: testPortBase + 16, end: testPortBase + 20, service: 'http' },
+        { start: testPortBase + 21, end: testPortBase + 25, service: 'sse' }
       ];
       
       const summary = await PortAllocator.allocatePortsForServices(ranges);
@@ -218,7 +299,7 @@ describe('PortAllocator', () => {
     it('should handle partial allocation failures gracefully', async () => {
       // Create a range where some ports will fail
       const ranges: PortRange[] = [
-        { start: 9940, end: 9945, service: 'websocket' }, // Should succeed
+        { start: testPortBase + 30, end: testPortBase + 35, service: 'websocket' }, // Should succeed
         { start: 80, end: 85, service: 'http' } // Should fail (excluded ports)
       ];
       
@@ -246,15 +327,12 @@ describe('PortAllocator', () => {
     it('should detect occupied ports in common ranges', async () => {
       // Use a different port to avoid conflicts with other tests
       const testPort = 9876;
-      const server = createServer();
-      testServers.push(server);
-
-      await new Promise<void>((resolve) => {
-        server.listen(testPort, () => resolve());
-      });
+      
+      // Mark port as in use via mock
+      mockPortHelpers.setPortInUse(testPort);
 
       const cleanedCount = await PortAllocator.cleanupOrphanedPorts();
       expect(typeof cleanedCount).toBe('number');
-    }, 10000); // Increase timeout to 10 seconds
+    });
   });
 });
