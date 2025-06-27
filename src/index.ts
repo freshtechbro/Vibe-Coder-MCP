@@ -6,10 +6,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from 'path'; // Ensure path is imported
 import { fileURLToPath } from 'url'; // Needed for ES Module path resolution
-import logger from "./logger.js";
+import logger, { registerShutdownCallback } from "./logger.js";
 import { initializeToolEmbeddings } from './services/routing/embeddingStore.js';
 import { loadLlmConfigMapping } from './utils/configLoader.js'; // Import the new loader
 import { OpenRouterConfig } from './types/workflow.js'; // Import OpenRouterConfig type
+import { OpenRouterConfigManager } from './utils/openrouter-config-manager.js';
 import { ToolRegistry } from './services/routing/toolRegistry.js'; // Import ToolRegistry to initialize it properly
 import { sseNotifier } from './services/sse-notifier/index.js'; // Import the SSE notifier singleton
 import { transportManager } from './services/transport-manager/index.js'; // Import transport manager singleton
@@ -261,30 +262,36 @@ async function initDirectories() {
 
 // New function to handle all async initialization steps
 async function initializeApp() {
-  // Load LLM configuration first (loader now handles path logic internally)
-  logger.info(`Attempting to load LLM config (checking env var LLM_CONFIG_PATH, then CWD)...`);
-  const llmMapping = loadLlmConfigMapping('llm_config.json'); // Pass only filename
+  // Initialize centralized OpenRouter configuration manager
+  logger.info('Initializing centralized OpenRouter configuration manager...');
+  const configManager = OpenRouterConfigManager.getInstance();
+  await configManager.initialize();
 
-  // Prepare OpenRouter config
-  // Create openRouterConfig with a proper deep copy of llmMapping to prevent reference issues
-  const openRouterConfig: OpenRouterConfig = {
-      baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY || "",
-      geminiModel: process.env.GEMINI_MODEL || "google/gemini-2.5-flash-preview-05-20",
-      perplexityModel: process.env.PERPLEXITY_MODEL || "perplexity/sonar-deep-research",
-      llm_mapping: JSON.parse(JSON.stringify(llmMapping)) // Create a deep copy using JSON serialization
-  };
+  // Get OpenRouter configuration from centralized manager
+  const openRouterConfig = await configManager.getOpenRouterConfig();
 
   // Log the loaded configuration details
-  const mappingKeys = Object.keys(llmMapping);
-  logger.info('Loaded LLM mapping configuration details:', {
-      // filePath is now logged within loadLlmConfigMapping if successful
-      mappingLoaded: mappingKeys.length > 0, // Indicate if mappings were actually loaded
+  const mappingKeys = Object.keys(openRouterConfig.llm_mapping || {});
+  logger.info('Loaded OpenRouter configuration details:', {
+      hasApiKey: Boolean(openRouterConfig.apiKey),
+      baseUrl: openRouterConfig.baseUrl,
+      geminiModel: openRouterConfig.geminiModel,
+      perplexityModel: openRouterConfig.perplexityModel,
+      mappingLoaded: mappingKeys.length > 0,
       numberOfMappings: mappingKeys.length,
-      mappingKeys: mappingKeys, // Log the keys found
-      // Avoid logging the full mapping values unless debug level is set
-      // mappingValues: llmMapping // Potentially too verbose for info level
+      mappingKeys: mappingKeys
   });
+
+  // Validate configuration
+  const validation = configManager.validateConfiguration();
+  if (!validation.valid) {
+    logger.error({ errors: validation.errors }, 'OpenRouter configuration validation failed');
+    throw new Error(`Configuration validation failed: ${validation.errors.join(', ')}`);
+  }
+
+  if (validation.warnings.length > 0) {
+    logger.warn({ warnings: validation.warnings, suggestions: validation.suggestions }, 'OpenRouter configuration has warnings');
+  }
 
   // CRITICAL - Initialize the ToolRegistry with the proper config BEFORE any tools are registered
   // This ensures all tools will receive the correct config with llm_mapping intact
@@ -339,14 +346,36 @@ async function initializeApp() {
     stdio: { enabled: true }
   });
 
-  // Start transport services for agent communication
+  // Start transport services for agent communication using coordinator
   try {
-    await transportManager.startAll();
+    const { transportCoordinator } = await import('./services/transport-coordinator.js');
+    await transportCoordinator.ensureTransportsStarted();
     logger.info('All transport services started successfully with dynamic port allocation');
   } catch (error) {
     logger.error({ err: error }, 'Failed to start transport services');
     // Don't throw - allow application to continue with available transports
   }
+
+  // Register shutdown callbacks for graceful cleanup
+  registerShutdownCallback(async () => {
+    logger.info('Shutting down transport services...');
+    try {
+      await transportManager.stopAll();
+      logger.info('Transport services stopped successfully');
+    } catch (error) {
+      logger.error({ err: error }, 'Error stopping transport services');
+    }
+  });
+
+  registerShutdownCallback(async () => {
+    logger.info('Cleaning up port allocations...');
+    try {
+      await PortAllocator.cleanupOrphanedPorts();
+      logger.info('Port cleanup completed');
+    } catch (error) {
+      logger.error({ err: error }, 'Error during port cleanup');
+    }
+  });
 
   logger.info('Application initialization complete.');
   // Return the fully loaded config
