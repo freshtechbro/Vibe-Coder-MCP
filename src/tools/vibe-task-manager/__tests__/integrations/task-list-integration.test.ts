@@ -33,7 +33,16 @@ describe('TaskListIntegrationService', () => {
     mockFs.access.mockResolvedValue(undefined);
     mockFs.readFile.mockResolvedValue(mockTaskListContent);
     mockFs.readdir.mockResolvedValue([
-      { name: 'test-project-task-list-detailed.md', isFile: () => true } as any
+      {
+        name: 'test-project-task-list-detailed.md',
+        isFile: () => true,
+        isDirectory: () => false,
+        isBlockDevice: () => false,
+        isCharacterDevice: () => false,
+        isSymbolicLink: () => false,
+        isFIFO: () => false,
+        isSocket: () => false
+      } as any
     ]);
 
     // Mock environment variables

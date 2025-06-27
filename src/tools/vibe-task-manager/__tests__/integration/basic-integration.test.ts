@@ -9,17 +9,22 @@ import { transportManager } from '../../../../services/transport-manager/index.j
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import type { AtomicTask } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
+import { setupUniqueTestPorts, cleanupTestPorts } from '../../../../services/transport-manager/__tests__/test-port-utils.js';
 
 // Test timeout for real operations
 const TEST_TIMEOUT = 30000; // 30 seconds
 
 describe('Vibe Task Manager - Basic Integration Tests', () => {
   let taskScheduler: TaskScheduler;
+  let testPortRange: ReturnType<typeof setupUniqueTestPorts>;
 
   beforeAll(async () => {
+    // Set up unique ports to avoid conflicts
+    testPortRange = setupUniqueTestPorts();
+
     // Initialize core components
     taskScheduler = new TaskScheduler({ enableDynamicOptimization: false });
-    
+
     logger.info('Starting basic integration tests');
   }, TEST_TIMEOUT);
 
@@ -30,6 +35,8 @@ describe('Vibe Task Manager - Basic Integration Tests', () => {
       if (taskScheduler && typeof taskScheduler.dispose === 'function') {
         taskScheduler.dispose();
       }
+      // Clean up test ports
+      cleanupTestPorts(testPortRange);
     } catch (error) {
       logger.warn({ err: error }, 'Error during cleanup');
     }

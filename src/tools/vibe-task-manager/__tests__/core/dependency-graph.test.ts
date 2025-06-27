@@ -17,6 +17,7 @@ describe('OptimizedDependencyGraph', () => {
   let mockTasks: AtomicTask[];
 
   beforeEach(() => {
+    // Always create a completely new graph instance for each test
     graph = new OptimizedDependencyGraph('test-project');
 
     // Create mock tasks
@@ -82,6 +83,9 @@ describe('OptimizedDependencyGraph', () => {
 
   describe('Task Management', () => {
     it('should add tasks to the graph', () => {
+      // Ensure clean graph for this test
+      graph.reset();
+
       graph.addTask(mockTasks[0]);
 
       const nodes = graph.getNodes();
@@ -95,6 +99,9 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should handle multiple tasks', () => {
+      // Ensure clean graph for this test
+      graph.reset();
+
       mockTasks.forEach(task => graph.addTask(task));
 
       const nodes = graph.getNodes();
@@ -129,9 +136,10 @@ describe('OptimizedDependencyGraph', () => {
       const types: ExtendedDependencyType[] = ['task', 'package', 'framework', 'tool', 'import', 'environment'];
 
       types.forEach((type, index) => {
-        // Only create dependencies between existing tasks (T001-T006)
-        if (index < 5) { // Only 5 valid combinations with 6 tasks
-          const success = graph.addDependency(`T00${index + 1}`, `T00${index + 2}`, type);
+        // Create dependencies between existing tasks (T001-T006)
+        // We have 6 tasks, so we can create 5 dependencies: T001->T002, T002->T003, etc.
+        if (index < 5) { // Only 5 valid combinations with 6 tasks (T001->T002, T002->T003, T003->T004, T004->T005, T005->T006)
+          const success = graph.addDependency(`T00${index + 2}`, `T00${index + 1}`, type);
           expect(success).toBe(true);
         }
       });
@@ -197,14 +205,20 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should detect existing cycles', () => {
+      // Create a fresh graph to avoid any state issues
+      const testGraph = new OptimizedDependencyGraph('cycle-test');
+
+      // Add tasks to the test graph
+      mockTasks.forEach(task => testGraph.addTask(task));
+
       // Manually create a cycle by bypassing the prevention
-      graph.addDependency('T001', 'T002', 'task'); // T001 depends on T002
-      graph.addDependency('T002', 'T003', 'task'); // T002 depends on T003
+      testGraph.addDependency('T001', 'T002', 'task'); // T001 depends on T002
+      testGraph.addDependency('T002', 'T003', 'task'); // T002 depends on T003
 
       // Force add the cycle-creating edge: T003 depends on T001
       // This creates: T001 -> T002 -> T003 -> T001 (cycle)
-      const graphInternal = graph as any;
-      graphInternal.adjacencyList.get('T001').add('T003'); // T001 points to T003 as dependent
+      const graphInternal = testGraph as any;
+      graphInternal.adjacencyList.get('T001').add('T003'); // T001 points to T003 as dependent (T003 depends on T001)
       graphInternal.reverseIndex.get('T003').add('T001'); // T003 has T001 as dependency
       graphInternal.edges.set('T003->T001', {
         from: 'T003',
@@ -214,7 +228,7 @@ describe('OptimizedDependencyGraph', () => {
         critical: false
       });
 
-      const cycles = graph.detectCycles();
+      const cycles = testGraph.detectCycles();
       expect(cycles.length).toBeGreaterThan(0);
     });
   });
@@ -225,16 +239,22 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should return empty array for cyclic graph', () => {
+      // Create a fresh graph to avoid any state issues
+      const testGraph = new OptimizedDependencyGraph('topo-cycle-test');
+
+      // Add tasks to the test graph
+      mockTasks.forEach(task => testGraph.addTask(task));
+
       // Create a cycle
-      graph.addDependency('T001', 'T002', 'task'); // T001 depends on T002
-      graph.addDependency('T002', 'T003', 'task'); // T002 depends on T003
+      testGraph.addDependency('T001', 'T002', 'task'); // T001 depends on T002
+      testGraph.addDependency('T002', 'T003', 'task'); // T002 depends on T003
 
       // Force cycle: T003 depends on T001
-      const graphInternal = graph as any;
-      graphInternal.adjacencyList.get('T001').add('T003'); // T001 points to T003 as dependent
+      const graphInternal = testGraph as any;
+      graphInternal.adjacencyList.get('T001').add('T003'); // T001 points to T003 as dependent (T003 depends on T001)
       graphInternal.reverseIndex.get('T003').add('T001'); // T003 has T001 as dependency
 
-      const order = graph.getTopologicalOrder();
+      const order = testGraph.getTopologicalOrder();
       expect(order).toHaveLength(0);
     });
 
@@ -335,18 +355,18 @@ describe('OptimizedDependencyGraph', () => {
   });
 
   describe('Parallel Batches', () => {
-    beforeEach(() => {
-      mockTasks.forEach(task => graph.addTask(task));
-    });
-
     it('should identify parallel execution batches', () => {
-      // Create dependencies: T002,T003 depend on T001; T004 depends on T002; T005 depends on T003
-      graph.addDependency('T002', 'T001', 'task');
-      graph.addDependency('T003', 'T001', 'task');
-      graph.addDependency('T004', 'T002', 'task');
-      graph.addDependency('T005', 'T003', 'task');
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('parallel-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      const batches = graph.getParallelBatches();
+      // Create dependencies: T002,T003 depend on T001; T004 depends on T002; T005 depends on T003
+      testGraph.addDependency('T002', 'T001', 'task');
+      testGraph.addDependency('T003', 'T001', 'task');
+      testGraph.addDependency('T004', 'T002', 'task');
+      testGraph.addDependency('T005', 'T003', 'task');
+
+      const batches = testGraph.getParallelBatches();
 
       expect(batches.length).toBeGreaterThan(0);
 
@@ -362,10 +382,14 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should calculate batch estimated duration', () => {
-      graph.addDependency('T002', 'T001', 'task'); // 2 hours depends on 4 hours
-      graph.addDependency('T003', 'T001', 'task'); // 6 hours depends on 4 hours
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('duration-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      const batches = graph.getParallelBatches();
+      testGraph.addDependency('T002', 'T001', 'task'); // 2 hours depends on 4 hours
+      testGraph.addDependency('T003', 'T001', 'task'); // 6 hours depends on 4 hours
+
+      const batches = testGraph.getParallelBatches();
       const secondBatch = batches.find(b => b.taskIds.includes('T002') && b.taskIds.includes('T003'));
 
       // Duration should be the maximum of the tasks in the batch (6 hours)
@@ -374,15 +398,15 @@ describe('OptimizedDependencyGraph', () => {
   });
 
   describe('Graph Metrics', () => {
-    beforeEach(() => {
-      mockTasks.forEach(task => graph.addTask(task));
-    });
-
     it('should calculate basic metrics', () => {
-      graph.addDependency('T002', 'T001', 'task');
-      graph.addDependency('T003', 'T002', 'task');
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('metrics-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      const metrics = graph.getMetrics();
+      testGraph.addDependency('T002', 'T001', 'task');
+      testGraph.addDependency('T003', 'T002', 'task');
+
+      const metrics = testGraph.getMetrics();
 
       expect(metrics.totalNodes).toBe(6);
       expect(metrics.totalEdges).toBe(2);
@@ -390,19 +414,27 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should identify orphaned nodes', () => {
-      graph.addDependency('T002', 'T001', 'task');
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('orphan-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      const metrics = graph.getMetrics();
+      testGraph.addDependency('T002', 'T001', 'task');
+
+      const metrics = testGraph.getMetrics();
 
       // T003, T004, T005, T006 are orphaned (no dependencies or dependents)
       expect(metrics.orphanedNodes).toBe(4);
     });
 
     it('should calculate average degree', () => {
-      graph.addDependency('T002', 'T001', 'task');
-      graph.addDependency('T003', 'T001', 'task');
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('degree-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      const metrics = graph.getMetrics();
+      testGraph.addDependency('T002', 'T001', 'task');
+      testGraph.addDependency('T003', 'T001', 'task');
+
+      const metrics = testGraph.getMetrics();
 
       // T001 has 2 dependents, T002 and T003 each have 1 dependency
       // Total degree = 2 + 1 + 1 = 4, average = 4/6 ≈ 0.67
@@ -434,45 +466,60 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should invalidate cache when graph changes', () => {
-      const order1 = graph.getTopologicalOrder();
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('cache-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      // Add dependency - should invalidate cache
-      graph.addDependency('T002', 'T001', 'task');
+      const order1 = testGraph.getTopologicalOrder();
 
-      const order2 = graph.getTopologicalOrder();
+      // Add dependency that will definitely change the order
+      // T001 depends on T006 (reverse alphabetical order to ensure change)
+      testGraph.addDependency('T001', 'T006', 'task');
+
+      const order2 = testGraph.getTopologicalOrder();
 
       // Orders should be different due to new dependency
       expect(order1).not.toEqual(order2);
     });
 
     it('should clear cache manually', () => {
-      graph.addDependency('T002', 'T001', 'task');
-      graph.getTopologicalOrder(); // Populate cache
+      // Use a fresh graph to avoid state sharing
+      const testGraph = new OptimizedDependencyGraph('cache-clear-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
 
-      graph.clearCache();
+      testGraph.addDependency('T002', 'T001', 'task');
+      testGraph.getTopologicalOrder(); // Populate cache
+
+      testGraph.clearCache();
 
       // Should recompute after cache clear
-      const order = graph.getTopologicalOrder();
+      const order = testGraph.getTopologicalOrder();
       expect(order).toHaveLength(6);
     });
   });
 
   describe('Graph Size and Information', () => {
     it('should report correct graph size', () => {
-      mockTasks.slice(0, 3).forEach(task => graph.addTask(task));
-      graph.addDependency('T002', 'T001', 'task');
+      // Use a new graph for this specific test
+      const testGraph = new OptimizedDependencyGraph('size-test');
 
-      const size = graph.getSize();
+      mockTasks.slice(0, 3).forEach(task => testGraph.addTask(task));
+      testGraph.addDependency('T002', 'T001', 'task');
+
+      const size = testGraph.getSize();
       expect(size.nodes).toBe(3);
       expect(size.edges).toBe(1);
     });
 
     it('should handle empty graph', () => {
-      const size = graph.getSize();
+      // Use a new graph for this specific test
+      const testGraph = new OptimizedDependencyGraph('empty-test');
+
+      const size = testGraph.getSize();
       expect(size.nodes).toBe(0);
       expect(size.edges).toBe(0);
 
-      const metrics = graph.getMetrics();
+      const metrics = testGraph.getMetrics();
       expect(metrics.totalNodes).toBe(0);
       expect(metrics.averageDegree).toBe(0);
     });
@@ -1068,7 +1115,16 @@ describe('OptimizedDependencyGraph', () => {
     });
 
     it('should include all required metadata in serialization', () => {
-      const serialized = graph.serializeToJSON();
+      // Use a fresh graph to avoid state sharing from previous tests
+      const testGraph = new OptimizedDependencyGraph('metadata-test');
+      mockTasks.forEach(task => testGraph.addTask(task));
+
+      // Add the same 3 dependencies as the beforeEach
+      testGraph.addDependency('T002', 'T001', 'task');
+      testGraph.addDependency('T003', 'T002', 'package');
+      testGraph.addDependency('T004', 'T001', 'framework');
+
+      const serialized = testGraph.serializeToJSON();
 
       expect(serialized.metadata.metrics).toBeDefined();
       expect(serialized.metadata.metrics.totalNodes).toBe(6);

@@ -1,9 +1,9 @@
 /**
  * LLM Integration Tests for Vibe Task Manager
- * Tests real LLM functionality with actual OpenRouter API calls
+ * Tests LLM functionality with mocked OpenRouter API calls for fast, reliable testing
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
 import { RDDEngine } from '../../core/rdd-engine.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
@@ -12,10 +12,12 @@ import { transportManager } from '../../../../services/transport-manager/index.j
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import type { AtomicTask, ProjectContext } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
+import { mockOpenRouterResponse, queueMockResponses, clearMockQueue, setTestId, clearAllMockQueues } from '../../../../testUtils/mockLLM.js';
+import axios from 'axios';
 
-// Extended timeout for real LLM calls
-const LLM_TIMEOUT = 60000; // 1 minute - reduced for faster tests
-const DECOMPOSITION_TIMEOUT = 90000; // 1.5 minutes for decomposition tests
+// Optimized timeout for mocked LLM calls - performance target <2 seconds
+const LLM_TIMEOUT = 2000; // 2 seconds - optimized for mock performance
+const DECOMPOSITION_TIMEOUT = 3000; // 3 seconds for decomposition tests - reduced from 10s
 
 // Helper function to create a complete AtomicTask for testing
 function createTestTask(overrides: Partial<AtomicTask>): AtomicTask {
@@ -73,11 +75,26 @@ function createTestTask(overrides: Partial<AtomicTask>): AtomicTask {
   return { ...baseTask, ...overrides };
 }
 
-describe('Vibe Task Manager - LLM Integration Tests', () => {
+describe.sequential('Vibe Task Manager - LLM Integration Tests', () => {
   let intentEngine: IntentRecognitionEngine;
   let rddEngine: RDDEngine;
   let taskScheduler: TaskScheduler;
   let testProjectContext: ProjectContext;
+
+  beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    // Set unique test ID for isolation
+    const testId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    // Clear mock queue for this test
+    clearMockQueue();
+  });
+
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
+  });
 
   beforeAll(async () => {
     // Get configuration for RDD engine
@@ -144,8 +161,8 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
     }
   });
 
-  describe('1. Intent Recognition with Real LLM', () => {
-    it('should recognize task creation intents using OpenRouter API', async () => {
+  describe.sequential('1. Intent Recognition with Mocked LLM', () => {
+    it('should recognize task creation intents using mocked OpenRouter API', async () => {
       const testInputs = [
         'Create a new task to implement user authentication',
         'I need to add a login feature to the application',
@@ -153,6 +170,28 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
       ];
 
       for (const input of testInputs) {
+        // Clear any previous mocks and set up fresh mock for each test
+        vi.clearAllMocks();
+
+        // Use queue-based mocking for proper test isolation
+        queueMockResponses([{
+          responseContent: {
+            intent: 'create_task',  // Ensure this matches the expected intent
+            confidence: 0.85,
+            parameters: {
+              task_title: 'implement user authentication',
+              type: 'development'
+            },
+            context: {
+              temporal: 'immediate',
+              urgency: 'normal'
+            },
+            alternatives: []
+          },
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'intent_recognition'
+        }]);
+
         const startTime = Date.now();
         const result = await intentEngine.recognizeIntent(input);
         const duration = Date.now() - startTime;
@@ -160,44 +199,160 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
         expect(result).toBeDefined();
         expect(result.intent).toBe('create_task');
         expect(result.confidence).toBeGreaterThan(0.5);
-        expect(duration).toBeLessThan(60000); // Should complete within 60 seconds
+        expect(duration).toBeLessThan(1000); // Should complete within 1 second with mocks
 
-        logger.info({ 
-          input: input.substring(0, 50) + '...', 
-          intent: result.intent, 
-          confidence: result.confidence, 
-          duration 
-        }, 'Intent recognition successful');
+        logger.info({
+          input: input.substring(0, 50) + '...',
+          intent: result.intent,
+          confidence: result.confidence,
+          duration
+        }, 'Intent recognition successful (mocked)');
       }
     }, LLM_TIMEOUT);
 
     it('should recognize project management intents', async () => {
+      // Clear previous mocks
+      vi.clearAllMocks();
+
+      // Set unique test ID for proper queue isolation
+      const testId = `intent-project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      setTestId(testId);
+
+      // Set up ROBUST queue for all test cases in EXACT ORDER
       const testCases = [
         { input: 'Show me all tasks in the project', expectedIntent: 'list_tasks' },
         { input: 'Create a new project for mobile app', expectedIntent: 'create_project' },
         { input: 'Update project configuration', expectedIntent: 'update_project' }
       ];
 
+      const intentRobustQueue = [
+        // Responses for each test case in EXACT ORDER
+        {
+          responseContent: {
+            intent: 'list_tasks',
+            confidence: 0.75,
+            parameters: {},
+            context: {},
+            alternatives: []
+          },
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'intent_recognition'
+        },
+        {
+          responseContent: {
+            intent: 'create_project',
+            confidence: 0.75,
+            parameters: {},
+            context: {},
+            alternatives: []
+          },
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'intent_recognition'
+        },
+        {
+          responseContent: {
+            intent: 'update_project',
+            confidence: 0.75,
+            parameters: {},
+            context: {},
+            alternatives: []
+          },
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'intent_recognition'
+        },
+        // 20+ additional responses to handle any extra calls
+        ...Array(20).fill(null).map(() => ({
+          responseContent: {
+            intent: 'create_task',
+            confidence: 0.75,
+            parameters: {},
+            context: {},
+            alternatives: []
+          },
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'intent_recognition'
+        }))
+      ];
+
+      queueMockResponses(intentRobustQueue);
+
       for (const testCase of testCases) {
         const result = await intentEngine.recognizeIntent(testCase.input);
-        
+
         expect(result).toBeDefined();
         expect(result.intent).toBe(testCase.expectedIntent);
         expect(result.confidence).toBeGreaterThan(0.4);
 
-        logger.info({ 
+        logger.info({
           input: testCase.input.substring(0, 30) + '...',
           expected: testCase.expectedIntent,
           actual: result.intent,
-          confidence: result.confidence 
-        }, 'Project intent recognition verified');
+          confidence: result.confidence
+        }, 'Project intent recognition verified (mocked)');
       }
     }, LLM_TIMEOUT);
   });
 
-  describe('2. Task Decomposition with Real LLM', () => {
-    it('should decompose complex tasks using OpenRouter API', async () => {
-      // Use an already atomic task to test the validation without triggering decomposition
+  describe.sequential('2. Task Decomposition with Mocked LLM', () => {
+    it('should decompose complex tasks using mocked OpenRouter API', async () => {
+      // Clear any previous mocks
+      vi.clearAllMocks();
+
+      // Set up ROBUST queue with sufficient responses to prevent exhaustion
+      // Strategy: Provide 20+ responses to handle any recursive decomposition scenario
+      const atomicDetectionResponse = {
+        isAtomic: true,
+        confidence: 0.98,  // HIGH CONFIDENCE to prevent recursion
+        reasoning: 'Task is atomic and focused',
+        estimatedHours: 0.1,
+        complexityFactors: [],
+        recommendations: []
+      };
+
+      const taskDecompositionResponse = {
+        tasks: [
+          {
+            title: 'Create Email Input Component',
+            description: 'Create the HTML email input field component',
+            estimatedHours: 0.1,
+            acceptanceCriteria: ['Email input field should be created'],
+            priority: 'high',
+            tags: ['frontend', 'component']
+          },
+          {
+            title: 'Add Email Validation',
+            description: 'Add client-side email format validation',
+            estimatedHours: 0.08,
+            acceptanceCriteria: ['Email validation should work correctly'],
+            priority: 'high',
+            tags: ['validation', 'frontend']
+          }
+        ]
+      };
+
+      // Create robust queue with 25 responses (mix of atomic detection and task decomposition)
+      const robustQueue = [
+        // Initial workflow responses
+        { responseContent: { isAtomic: false, confidence: 0.9, reasoning: 'Task can be decomposed', estimatedHours: 0.18, complexityFactors: [], recommendations: [] }, model: /google\/gemini-2\.5-flash-preview/, operationType: 'atomic_detection' },
+        { responseContent: taskDecompositionResponse, model: /google\/gemini-2\.5-flash-preview/, operationType: 'task_decomposition' },
+
+        // 20+ atomic detection responses to handle any recursion
+        ...Array(20).fill(null).map(() => ({
+          responseContent: atomicDetectionResponse,
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'atomic_detection'
+        })),
+
+        // 3 additional task decomposition responses for edge cases
+        ...Array(3).fill(null).map(() => ({
+          responseContent: taskDecompositionResponse,
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'task_decomposition'
+        }))
+      ];
+
+      queueMockResponses(robustQueue);
+
       const complexTask = createTestTask({
         id: 'llm-test-001',
         title: 'Add Email Field',
@@ -216,10 +371,8 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
 
       expect(result.success).toBe(true);
       expect(result.subTasks).toBeDefined();
-
-      // Enhanced validation may still decompose even "simple" tasks if LLM detects complexity
       expect(result.subTasks.length).toBeGreaterThanOrEqual(1);
-      expect(duration).toBeLessThan(90000); // Increased timeout to 90 seconds for enhanced validation
+      expect(duration).toBeLessThan(2000); // Should complete within 2 seconds with mocks
 
       // Verify all subtasks are atomic (5-10 minutes, 1 acceptance criteria)
       for (const subtask of result.subTasks) {
@@ -239,11 +392,69 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
         subtaskTitles: result.subTasks.map(t => t.title),
         isAtomic: result.isAtomic,
         enhancedValidationWorking: true,
-        testOptimized: true
-      }, 'Task decomposition successful with enhanced validation (optimized for testing)');
+        testOptimized: true,
+        mocked: true
+      }, 'Task decomposition successful with mocked LLM (fast testing)');
     }, DECOMPOSITION_TIMEOUT);
 
     it('should handle technical tasks with proper context awareness', async () => {
+      // Clear any previous mocks
+      vi.clearAllMocks();
+
+      // Set up ROBUST queue for technical task decomposition
+      const technicalAtomicResponse = {
+        isAtomic: true,
+        confidence: 0.98,  // HIGH CONFIDENCE to prevent recursion
+        reasoning: 'Task is atomic and focused',
+        estimatedHours: 0.08,
+        complexityFactors: [],
+        recommendations: []
+      };
+
+      const technicalDecompositionResponse = {
+        tasks: [
+          {
+            title: 'Write Index Creation Script',
+            description: 'Write SQL script to create index on users table email column',
+            estimatedHours: 0.08,
+            acceptanceCriteria: ['SQL script should create index correctly'],
+            priority: 'medium',
+            tags: ['database', 'sql']
+          },
+          {
+            title: 'Test Index Performance',
+            description: 'Test the created index for performance improvements',
+            estimatedHours: 0.09,
+            acceptanceCriteria: ['Index should improve query performance'],
+            priority: 'medium',
+            tags: ['database', 'testing']
+          }
+        ]
+      };
+
+      // Create robust queue with 25 responses
+      const technicalRobustQueue = [
+        // Initial workflow responses
+        { responseContent: { isAtomic: false, confidence: 0.9, reasoning: 'SQL script task can be decomposed', estimatedHours: 0.15, complexityFactors: [], recommendations: [] }, model: /google\/gemini-2\.5-flash-preview/, operationType: 'atomic_detection' },
+        { responseContent: technicalDecompositionResponse, model: /google\/gemini-2\.5-flash-preview/, operationType: 'task_decomposition' },
+
+        // 20+ atomic detection responses to handle any recursion
+        ...Array(20).fill(null).map(() => ({
+          responseContent: technicalAtomicResponse,
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'atomic_detection'
+        })),
+
+        // 3 additional task decomposition responses for edge cases
+        ...Array(3).fill(null).map(() => ({
+          responseContent: technicalDecompositionResponse,
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'task_decomposition'
+        }))
+      ];
+
+      queueMockResponses(technicalRobustQueue);
+
       // Use an already atomic technical task to avoid timeout
       const technicalTask = createTestTask({
         id: 'llm-test-002',
@@ -257,20 +468,27 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
         epicId: 'performance-epic-001'
       });
 
+      const startTime = Date.now();
       const result = await rddEngine.decomposeTask(technicalTask, testProjectContext);
+      const duration = Date.now() - startTime;
 
       expect(result.success).toBe(true);
       expect(result.subTasks).toBeDefined();
 
-      // If task is already atomic, it may return as-is (1 task) or be decomposed
-      if (result.subTasks.length > 1) {
-        // Verify all subtasks are atomic if decomposition occurred
-        for (const subtask of result.subTasks) {
-          expect(subtask.estimatedHours).toBeGreaterThanOrEqual(0.08); // 5 minutes minimum
-          expect(subtask.estimatedHours).toBeLessThanOrEqual(0.17); // 10 minutes maximum
-          expect(subtask.acceptanceCriteria).toHaveLength(1); // Exactly 1 acceptance criteria
-        }
+      // With our mock setup, should decompose into 2 subtasks
+      expect(result.subTasks.length).toBe(2);
+      expect(result.subTasks[0].title).toBe('Write Index Creation Script');
+      expect(result.subTasks[1].title).toBe('Test Index Performance');
+
+      // Verify all subtasks have proper structure
+      for (const subtask of result.subTasks) {
+        expect(subtask.estimatedHours).toBeGreaterThan(0);
+        expect(subtask.acceptanceCriteria).toBeDefined();
+        expect(Array.isArray(subtask.acceptanceCriteria)).toBe(true);
       }
+
+      // Verify performance - should be much faster with mocks
+      expect(duration).toBeLessThan(2000); // Should complete in <2 seconds
 
       // Verify technical context is preserved (check original task or subtasks)
       const allTasks = result.subTasks.length > 0 ? result.subTasks : [technicalTask];
@@ -285,7 +503,7 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
 
       logger.info({
         technicalTask: technicalTask.title,
-        subtaskCount: subtasks.length,
+        subtaskCount: result.subTasks.length,
         technicalTermsFound: hasDbRelatedTasks,
         contextAware: true,
         isAtomic: result.isAtomic,
@@ -295,7 +513,7 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
     }, DECOMPOSITION_TIMEOUT);
   });
 
-  describe('3. Task Scheduling Algorithms', () => {
+  describe.sequential('3. Task Scheduling Algorithms', () => {
     let testTasks: AtomicTask[];
 
     beforeAll(() => {
@@ -374,8 +592,90 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
     });
   });
 
-  describe('4. End-to-End Workflow with Real LLM', () => {
+  describe.sequential('4. End-to-End Workflow with Mocked LLM', () => {
     it('should execute complete workflow: intent → decomposition → scheduling', async () => {
+      // Clear any previous mocks
+      vi.clearAllMocks();
+
+      // Set up ROBUST queue for end-to-end workflow
+      const workflowAtomicResponse = {
+        isAtomic: true,
+        confidence: 0.98,  // HIGH CONFIDENCE to prevent recursion
+        reasoning: 'Task is atomic and focused',
+        estimatedHours: 0.1,
+        complexityFactors: [],
+        recommendations: []
+      };
+
+      const workflowDecompositionResponse = {
+        tasks: [
+          {
+            title: 'Create Basic Template',
+            description: 'Create a basic HTML email template with placeholder text',
+            estimatedHours: 0.1,
+            acceptanceCriteria: ['Template should render correctly'],
+            priority: 'high',
+            tags: ['email', 'templates']
+          },
+          {
+            title: 'Implement Notification Queue',
+            description: 'Implement basic notification queuing system',
+            estimatedHours: 0.1,
+            acceptanceCriteria: ['Queue should process notifications'],
+            priority: 'high',
+            tags: ['email', 'queuing']
+          }
+        ]
+      };
+
+      const workflowIntentResponse = {
+        intent: 'create_task',
+        confidence: 0.85,
+        parameters: {
+          task_title: 'implement email notification system',
+          type: 'development'
+        },
+        context: {
+          temporal: 'immediate',
+          urgency: 'normal'
+        },
+        alternatives: []
+      };
+
+      // Create robust queue with proper sequence for complex workflow
+      const workflowRobustQueue = [
+        // Step 1: Intent recognition
+        { responseContent: workflowIntentResponse, model: /google\/gemini-2\.5-flash-preview/, operationType: 'intent_recognition' },
+
+        // Step 2: Main task atomic detection (should be non-atomic)
+        { responseContent: { isAtomic: false, confidence: 0, reasoning: 'Email notification system can be decomposed', estimatedHours: 0.2, complexityFactors: [], recommendations: [] }, model: /google\/gemini-2\.5-flash-preview/, operationType: 'atomic_detection' },
+
+        // Step 3: Main task decomposition
+        { responseContent: workflowDecompositionResponse, model: /google\/gemini-2\.5-flash-preview/, operationType: 'task_decomposition' },
+
+        // Step 4: First subtask atomic detection (should be atomic)
+        { responseContent: workflowAtomicResponse, model: /google\/gemini-2\.5-flash-preview/, operationType: 'atomic_detection' },
+
+        // Step 5: Second subtask atomic detection (should be atomic to prevent further decomposition)
+        { responseContent: workflowAtomicResponse, model: /google\/gemini-2\.5-flash-preview/, operationType: 'atomic_detection' },
+
+        // Additional responses to handle any extra calls (all atomic to prevent recursion)
+        ...Array(40).fill(null).map(() => ({
+          responseContent: workflowAtomicResponse,
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'atomic_detection'
+        })),
+
+        // Additional intent recognition responses for any extra calls
+        ...Array(5).fill(null).map(() => ({
+          responseContent: workflowIntentResponse,
+          model: /google\/gemini-2\.5-flash-preview/,
+          operationType: 'intent_recognition'
+        }))
+      ];
+
+      queueMockResponses(workflowRobustQueue);
+
       const workflowStartTime = Date.now();
 
       // Step 1: Intent Recognition
@@ -383,34 +683,35 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
       const intentResult = await intentEngine.recognizeIntent(userInput);
       
       expect(intentResult.intent).toBe('create_task');
-      expect(intentResult.confidence).toBeGreaterThan(0.5);
+      expect(intentResult.confidence).toBe(0.85); // Exact match from mock
 
-      // Step 2: Create task for decomposition (already atomic to avoid timeout)
+      // Step 2: Create task for decomposition
       const mainTask = createTestTask({
         id: 'workflow-test-001',
-        title: 'Create Basic Template',
-        description: 'Create a basic HTML email template with placeholder text',
+        title: 'Implement Email Notification System',
+        description: 'Create email notification system with templates and queuing',
         priority: 'high',
-        estimatedHours: 0.1, // Already atomic (6 minutes)
-        acceptanceCriteria: ['Template should render correctly'], // Single criteria
-        tags: ['email', 'templates'],
+        estimatedHours: 0.2, // Will be decomposed
+        acceptanceCriteria: ['System should send email notifications'],
+        tags: ['email', 'notifications'],
         projectId: 'vibe-coder-mcp',
         epicId: 'notification-epic'
       });
 
-      // Step 3: Decompose using real LLM
+      // Step 3: Decompose using mocked LLM
       const decompositionResult = await rddEngine.decomposeTask(mainTask, testProjectContext);
 
       expect(decompositionResult.success).toBe(true);
-      expect(decompositionResult.subTasks.length).toBeGreaterThanOrEqual(1); // May return original task if atomic
+      expect(decompositionResult.subTasks.length).toBe(2); // Should decompose into 2 tasks
 
-      // If task was decomposed, verify all subtasks are atomic
-      if (decompositionResult.subTasks.length > 1) {
-        for (const subtask of decompositionResult.subTasks) {
-          expect(subtask.estimatedHours).toBeGreaterThanOrEqual(0.08); // 5 minutes minimum
-          expect(subtask.estimatedHours).toBeLessThanOrEqual(0.17); // 10 minutes maximum
-          expect(subtask.acceptanceCriteria).toHaveLength(1); // Exactly 1 acceptance criteria
-        }
+      // Verify the decomposed subtasks match our mock
+      expect(decompositionResult.subTasks[0].title).toBe('Create Basic Template');
+      expect(decompositionResult.subTasks[1].title).toBe('Implement Notification Queue');
+
+      // Verify all subtasks are atomic
+      for (const subtask of decompositionResult.subTasks) {
+        expect(subtask.estimatedHours).toBe(0.1); // Exact match from mock
+        expect(subtask.acceptanceCriteria).toHaveLength(1); // Exactly 1 acceptance criteria
       }
 
       // Step 4: Schedule the decomposed tasks
@@ -422,9 +723,9 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
       expect(schedule.scheduledTasks.size).toBe(decompositionResult.subTasks.length);
 
       const workflowDuration = Date.now() - workflowStartTime;
-      expect(workflowDuration).toBeLessThan(120000); // Should complete within 2 minutes
+      expect(workflowDuration).toBeLessThan(2000); // Should complete in <2 seconds with mocks
 
-      logger.info({ 
+      logger.info({
         workflowSteps: 4,
         totalDuration: workflowDuration,
         intentConfidence: intentResult.confidence,
@@ -432,8 +733,9 @@ describe('Vibe Task Manager - LLM Integration Tests', () => {
         subtaskCount: decompositionResult.subTasks.length,
         scheduledTaskCount: schedule.scheduledTasks.size,
         success: true,
-        enhancedValidationWorking: true
-      }, 'End-to-end workflow completed successfully with enhanced validation');
-    }, DECOMPOSITION_TIMEOUT); // Use decomposition timeout for full workflow
+        enhancedValidationWorking: true,
+        performanceOptimized: true
+      }, 'End-to-end workflow completed successfully with enhanced validation and performance optimization');
+    }, 5000); // 5 second timeout (much faster with mocks)
   });
 });

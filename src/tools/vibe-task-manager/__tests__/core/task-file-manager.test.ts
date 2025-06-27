@@ -9,7 +9,30 @@ import { TaskFileManager, FileIndexEntry, BatchOperationResult } from '../../cor
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 
 // Mock fs-extra
-vi.mock('fs-extra');
+vi.mock('fs-extra', () => {
+  const mockFunctions = {
+    ensureDir: vi.fn(),
+    pathExists: vi.fn(),
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+    readJson: vi.fn(),
+    writeJson: vi.fn(),
+    remove: vi.fn(),
+    stat: vi.fn(),
+    copy: vi.fn(),
+    move: vi.fn(),
+    emptyDir: vi.fn(),
+    mkdirp: vi.fn(),
+    outputFile: vi.fn(),
+    outputJson: vi.fn()
+  };
+
+  return {
+    default: mockFunctions,
+    ...mockFunctions
+  };
+});
+
 const mockFs = vi.mocked(fs);
 
 // Mock zlib for compression tests
@@ -107,10 +130,16 @@ describe('TaskFileManager', () => {
       }
     };
 
+  });
+
+  beforeEach(() => {
     // Reset singleton
     (TaskFileManager as any).instance = null;
 
-    // Setup fs mocks
+    // Reset all mocks
+    vi.clearAllMocks();
+
+    // Setup default mock behaviors
     mockFs.ensureDir.mockResolvedValue(undefined);
     mockFs.pathExists.mockResolvedValue(false);
     mockFs.readJson.mockResolvedValue({});

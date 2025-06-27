@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { AutoResearchDetector } from '../../services/auto-research-detector.js';
 import { AtomicTask } from '../../types/task.js';
-import { ProjectContext } from '../../core/atomic-detector.js';
+import { ProjectContext } from '../../types/project-context.js';
 import { ContextResult } from '../../services/context-enrichment-service.js';
 import { ResearchTriggerContext } from '../../types/research-types.js';
 

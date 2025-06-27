@@ -1,56 +1,51 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ProjectStorage } from '../../../core/storage/project-storage.js';
-import { setupCommonMocks, cleanupMocks, testData } from '../../utils/test-setup.js';
+import { testData } from '../../utils/test-setup.js';
 
-// Mock FileUtils instead of fs-extra since that's what ProjectStorage actually uses
+// Mock FileUtils module
 vi.mock('../../../utils/file-utils.js', () => ({
   FileUtils: {
-    ensureDirectory: vi.fn(),
-    fileExists: vi.fn(),
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    readJsonFile: vi.fn(),
-    writeJsonFile: vi.fn(),
-    readYamlFile: vi.fn(),
-    writeYamlFile: vi.fn(),
-    deleteFile: vi.fn(),
-    validateFilePath: vi.fn().mockReturnValue({ valid: true })
+    ensureDirectory: vi.fn().mockResolvedValue({ success: true }),
+    fileExists: vi.fn().mockResolvedValue(false),
+    readFile: vi.fn().mockResolvedValue({ success: true, data: '{}' }),
+    writeFile: vi.fn().mockResolvedValue({ success: true }),
+    readJsonFile: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    writeJsonFile: vi.fn().mockResolvedValue({ success: true }),
+    readYamlFile: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    writeYamlFile: vi.fn().mockResolvedValue({ success: true }),
+    deleteFile: vi.fn().mockResolvedValue({ success: true }),
+    validateFilePath: vi.fn().mockResolvedValue({ valid: true })
+  }
+}));
+
+// Mock logger
+vi.mock('../../../../../logger.js', () => ({
+  default: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    trace: vi.fn()
   }
 }));
 
 describe('ProjectStorage', () => {
   let projectStorage: ProjectStorage;
-  const testDataDir = '/test/data';
   let mockFileUtils: any;
+  const testDataDir = '/test/data';
 
   beforeEach(async () => {
-    setupCommonMocks();
     vi.clearAllMocks();
 
     // Get the mocked FileUtils
-    const { FileUtils } = await import('../../../utils/file-utils.js');
-    mockFileUtils = FileUtils;
+    const fileUtilsModule = await import('../../../utils/file-utils.js');
+    mockFileUtils = fileUtilsModule.FileUtils;
 
     projectStorage = new ProjectStorage(testDataDir);
-
-    // Setup default successful responses for FileUtils
-    mockFileUtils.ensureDirectory.mockResolvedValue({ success: true });
-    mockFileUtils.fileExists.mockResolvedValue(false);
-    mockFileUtils.writeJsonFile.mockResolvedValue({ success: true });
-    mockFileUtils.readJsonFile.mockResolvedValue({
-      success: true,
-      data: { projects: [], lastUpdated: new Date().toISOString(), version: '1.0.0' }
-    });
-    mockFileUtils.readYamlFile.mockResolvedValue({
-      success: true,
-      data: testData.project
-    });
-    mockFileUtils.writeYamlFile.mockResolvedValue({ success: true });
-    mockFileUtils.deleteFile.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
-    cleanupMocks();
+    vi.clearAllMocks();
   });
 
   describe('initialize', () => {

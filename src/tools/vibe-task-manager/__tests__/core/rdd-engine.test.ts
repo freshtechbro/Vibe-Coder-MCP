@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { RDDEngine, DecompositionResult, RDDConfig } from '../../core/rdd-engine.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
-import { ProjectContext } from '../../core/atomic-detector.js';
+import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
 import { createMockConfig } from '../utils/test-setup.js';
 
@@ -39,10 +39,20 @@ describe('RDDEngine', () => {
   let mockTask: AtomicTask;
   let mockContext: ProjectContext;
   let mockAtomicDetector: any;
+  let mockPerformFormatAwareLlmCall: any;
 
   beforeEach(async () => {
     // Clear all mocks first
     vi.clearAllMocks();
+
+    // Create a fresh mock function with all the vitest methods
+    mockPerformFormatAwareLlmCall = vi.fn();
+
+    // Use doMock to replace the module implementation
+    vi.doMock('../../../../utils/llmHelper.js', () => ({
+      performDirectLlmCall: vi.fn(),
+      performFormatAwareLlmCall: mockPerformFormatAwareLlmCall
+    }));
 
     mockConfig = createMockConfig();
 
@@ -55,9 +65,36 @@ describe('RDDEngine', () => {
 
     engine = new RDDEngine(mockConfig, rddConfig);
 
-    // Get the mocked atomic detector
-    const { AtomicTaskDetector } = await import('../../core/atomic-detector.js');
-    mockAtomicDetector = vi.mocked(AtomicTaskDetector).mock.results[0].value;
+    // Create a mock atomic detector instance and inject it
+    mockAtomicDetector = {
+      analyzeTask: vi.fn().mockResolvedValue({
+        isAtomic: false, // Default to non-atomic so decomposition can proceed
+        confidence: 0.5, // Low confidence to trigger decomposition
+        reasoning: 'Mock analysis for testing',
+        estimatedHours: 1.0,
+        complexityFactors: ['test'],
+        recommendations: ['test recommendation']
+      })
+    };
+
+    // Inject the mock detector into the engine
+    (engine as any).atomicDetector = mockAtomicDetector;
+
+    // Reset the circuit breaker for each test to ensure clean state
+    if (engine.resetCircuitBreaker) {
+      engine.resetCircuitBreaker();
+    }
+
+    // Replace the circuit breaker with a more lenient one for tests
+    const testCircuitBreaker = {
+      canAttempt: () => true, // Always allow attempts in tests
+      recordAttempt: () => {},
+      recordFailure: () => {},
+      recordSuccess: () => {},
+      getStats: () => ({ attempts: 0, failures: 0, canAttempt: true }),
+      reset: () => {}
+    };
+    (engine as any).circuitBreaker = testCircuitBreaker;
 
     mockTask = {
       id: 'T0001',
@@ -137,7 +174,6 @@ describe('RDDEngine', () => {
           recommendations: []
         });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
         tasks: [ // Use "tasks" instead of "subTasks"
           {
@@ -165,7 +201,7 @@ describe('RDDEngine', () => {
         ]
       });
 
-      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+      mockPerformFormatAwareLlmCall.mockResolvedValue(mockSplitResponse);
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -206,8 +242,7 @@ describe('RDDEngine', () => {
         recommendations: []
       });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
-      vi.mocked(performFormatAwareLlmCall).mockRejectedValue(new Error('LLM API failed'));
+      mockPerformFormatAwareLlmCall.mockRejectedValue(new Error('LLM API failed'));
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -226,8 +261,7 @@ describe('RDDEngine', () => {
         recommendations: []
       });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
-      vi.mocked(performFormatAwareLlmCall).mockResolvedValue('Invalid JSON response');
+      mockPerformFormatAwareLlmCall.mockResolvedValue('Invalid JSON response');
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -255,7 +289,6 @@ describe('RDDEngine', () => {
           recommendations: []
         });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
         tasks: [
           {
@@ -294,7 +327,7 @@ describe('RDDEngine', () => {
         ]
       });
 
-      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+      mockPerformFormatAwareLlmCall.mockResolvedValue(mockSplitResponse);
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -353,8 +386,6 @@ describe('RDDEngine', () => {
           recommendations: []
         });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
-
       // First decomposition response - 2 sub-tasks
       const firstSplitResponse = JSON.stringify({
         tasks: [
@@ -412,7 +443,7 @@ describe('RDDEngine', () => {
       });
 
       // Set up LLM call mocks in order
-      vi.mocked(performFormatAwareLlmCall)
+      mockPerformFormatAwareLlmCall
         .mockResolvedValueOnce(firstSplitResponse)   // First decomposition
         .mockResolvedValueOnce(secondSplitResponse); // Second decomposition (recursive)
 
@@ -453,8 +484,6 @@ describe('RDDEngine', () => {
           recommendations: []
         });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
-
       // Create exactly 8 valid atomic tasks
       const mockSplitResponse = JSON.stringify({
         tasks: [
@@ -469,7 +498,7 @@ describe('RDDEngine', () => {
         ]
       });
 
-      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+      mockPerformFormatAwareLlmCall.mockResolvedValue(mockSplitResponse);
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -497,7 +526,7 @@ describe('RDDEngine', () => {
       expect(result.success).toBe(true);
       expect(result.isAtomic).toBe(true);
       expect(result.error).toContain('Atomic detector failed');
-      expect(result.analysis.reasoning).toContain('Fallback analysis due to decomposition failure');
+      expect(result.analysis.reasoning).toContain('Task treated as atomic due to primary decomposition failure');
     });
 
     it('should handle invalid task types and priorities', async () => {
@@ -519,7 +548,6 @@ describe('RDDEngine', () => {
           recommendations: []
         });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
         tasks: [
           {
@@ -536,7 +564,7 @@ describe('RDDEngine', () => {
         ]
       });
 
-      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+      mockPerformFormatAwareLlmCall.mockResolvedValue(mockSplitResponse);
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -561,9 +589,8 @@ describe('RDDEngine', () => {
         recommendations: []
       });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       // Simulate timeout by rejecting the LLM call
-      vi.mocked(performFormatAwareLlmCall).mockRejectedValue(new Error('llmRequest operation timed out after 180000ms'));
+      mockPerformFormatAwareLlmCall.mockRejectedValue(new Error('llmRequest operation timed out after 180000ms'));
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
@@ -594,7 +621,6 @@ describe('RDDEngine', () => {
           recommendations: []
         });
 
-      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
         tasks: [
           {
@@ -611,7 +637,7 @@ describe('RDDEngine', () => {
         ]
       });
 
-      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+      mockPerformFormatAwareLlmCall.mockResolvedValue(mockSplitResponse);
 
       // Mock TimeoutManager to simulate timeout on recursive call
       const mockTimeoutManager = {

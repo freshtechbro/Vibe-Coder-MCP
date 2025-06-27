@@ -13,6 +13,181 @@ vi.mock('../../../logger.js', () => ({
   }
 }));
 
+// Mock AgentOrchestrator to prevent hanging
+vi.mock('../services/agent-orchestrator.js', () => ({
+  AgentOrchestrator: {
+    getInstance: vi.fn(() => ({
+      getAgents: vi.fn(() => []),
+      registerAgent: vi.fn(() => Promise.resolve()),
+      updateAgentHeartbeat: vi.fn(() => Promise.resolve()),
+      getAssignments: vi.fn(() => []),
+      executeTask: vi.fn(() => Promise.resolve({
+        success: true,
+        status: 'completed',
+        message: 'Task completed successfully'
+      }))
+    }))
+  }
+}));
+
+// Mock ProjectOperations
+const mockProjectOperations = {
+  createProject: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      id: 'test-project-id',
+      status: 'created'
+    }
+  })),
+  listProjects: vi.fn(() => Promise.resolve({
+    success: true,
+    data: []
+  })),
+  getProject: vi.fn(() => Promise.resolve({
+    success: true,
+    data: {
+      id: 'test-project-id',
+      name: 'Test Project',
+      description: 'Test Description',
+      status: 'active',
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'test-user',
+        tags: ['test']
+      },
+      techStack: {
+        languages: ['typescript'],
+        frameworks: ['node.js'],
+        tools: ['npm']
+      }
+    }
+  }))
+};
+
+vi.mock('../core/operations/project-operations.js', () => ({
+  ProjectOperations: {
+    getInstance: vi.fn(() => mockProjectOperations)
+  },
+  getProjectOperations: vi.fn(() => mockProjectOperations)
+}));
+
+// Mock DecompositionService
+const mockDecompositionServiceInstance = vi.hoisted(() => ({
+  startDecomposition: vi.fn(() => Promise.resolve('test-session-id')),
+  getSession: vi.fn(() => ({ status: 'completed' })),
+  getResults: vi.fn(() => [])
+}));
+
+const MockDecompositionService = vi.hoisted(() => {
+  const mock = vi.fn(() => mockDecompositionServiceInstance);
+  mock.getInstance = vi.fn(() => mockDecompositionServiceInstance);
+  return mock;
+});
+
+vi.mock('../services/decomposition-service.js', () => ({
+  DecompositionService: MockDecompositionService
+}));
+
+// Mock TaskOperations
+vi.mock('../core/operations/task-operations.js', () => ({
+  getTaskOperations: vi.fn(() => ({
+    getTask: vi.fn(() => Promise.resolve({
+      success: true,
+      data: {
+        id: 'T0001',
+        title: 'Test Task',
+        description: 'Test task description',
+        status: 'pending',
+        projectId: 'test-project-id'
+      }
+    }))
+  }))
+}));
+
+// Mock ProjectAnalyzer
+vi.mock('../utils/project-analyzer.js', () => ({
+  ProjectAnalyzer: {
+    getInstance: vi.fn(() => ({
+      detectProjectLanguages: vi.fn(() => Promise.resolve(['typescript'])),
+      detectProjectFrameworks: vi.fn(() => Promise.resolve(['node.js'])),
+      detectProjectTools: vi.fn(() => Promise.resolve(['npm']))
+    }))
+  }
+}));
+
+// Mock AdaptiveTimeoutManager
+vi.mock('../services/adaptive-timeout-manager.js', () => ({
+  AdaptiveTimeoutManager: {
+    getInstance: vi.fn(() => ({
+      executeWithTimeout: vi.fn((name, fn) => fn())
+    }))
+  }
+}));
+
+// Mock TaskRefinementService
+vi.mock('../services/task-refinement-service.js', () => ({
+  TaskRefinementService: {
+    getInstance: vi.fn(() => ({
+      refineTask: vi.fn(() => Promise.resolve({
+        success: true,
+        data: {
+          id: 'T0001',
+          title: 'Refined Task',
+          description: 'Refined task description'
+        }
+      }))
+    }))
+  }
+}));
+
+// Mock CommandGateway
+vi.mock('../nl/command-gateway.js', () => ({
+  CommandGateway: {
+    getInstance: vi.fn(() => ({
+      processCommand: vi.fn(() => Promise.resolve({
+        success: true,
+        intent: { intent: 'create', confidence: 0.9 },
+        toolParams: { command: 'create', projectName: 'test', description: 'test' },
+        validationErrors: [],
+        suggestions: []
+      }))
+    }))
+  }
+}));
+
+// Mock job manager
+vi.mock('../../../services/job-manager/index.js', () => ({
+  jobManager: {
+    createJob: vi.fn(() => 'test-job-id'),
+    setJobResult: vi.fn(),
+    updateJobStatus: vi.fn()
+  }
+}));
+
+// Mock config loaders
+vi.mock('../utils/config-loader.js', () => ({
+  getBaseOutputDir: vi.fn(() => Promise.resolve('/test/output')),
+  getVibeTaskManagerOutputDir: vi.fn(() => Promise.resolve('/test/output/vibe-task-manager')),
+  getVibeTaskManagerConfig: vi.fn(() => Promise.resolve({
+    taskManager: {
+      maxConcurrentTasks: 5,
+      timeouts: {
+        taskExecution: 30000,
+        taskDecomposition: 60000
+      }
+    }
+  }))
+}));
+
+// Mock timeout manager
+vi.mock('../utils/timeout-manager.js', () => ({
+  getTimeoutManager: vi.fn(() => ({
+    initialize: vi.fn(),
+    executeWithTimeout: vi.fn((name, fn) => fn())
+  }))
+}));
+
 describe('Vibe Task Manager - Tool Registration and Basic Functionality', () => {
   let mockConfig: OpenRouterConfig;
   let mockContext: ToolExecutionContext;

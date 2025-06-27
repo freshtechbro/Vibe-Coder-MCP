@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DecompositionService } from '../../services/decomposition-service.js';
 import { AutoResearchDetector } from '../../services/auto-research-detector.js';
 import { AtomicTask } from '../../types/task.js';
-import { ProjectContext } from '../../core/atomic-detector.js';
+import { ProjectContext } from '../../types/project-context.js';
 import { createMockConfig } from '../utils/test-setup.js';
 
 describe('Auto-Research Quick Live Test', () => {

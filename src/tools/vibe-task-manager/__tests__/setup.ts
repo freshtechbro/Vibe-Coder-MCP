@@ -5,6 +5,9 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { TimeoutManager } from '../utils/timeout-manager.js';
+import { VibeTaskManagerConfig } from '../utils/config-loader.js';
+import logger from '../../../logger.js';
 
 // Load environment variables from .env file
 config({ path: resolve(process.cwd(), '.env') });
@@ -36,6 +39,101 @@ process.env.EPIC_CONTEXT_RESOLVER_CACHE_TTL = '1000'; // 1 second for tests
 // Test data directories
 process.env.TEST_DATA_DIR = resolve(process.cwd(), 'src/tools/vibe-task-manager/__tests__/data');
 process.env.TEST_OUTPUT_DIR = resolve(process.cwd(), 'src/tools/vibe-task-manager/__tests__/output');
+
+/**
+ * Default test configuration for TimeoutManager and other services
+ */
+const defaultTestConfig: VibeTaskManagerConfig['taskManager'] = {
+  maxConcurrentTasks: 3, // Reduced for tests
+  defaultTaskTemplate: 'test',
+  dataDirectory: process.env.TEST_OUTPUT_DIR!,
+  performanceTargets: {
+    maxResponseTime: 1000, // 1 second for tests
+    maxMemoryUsage: 512, // 512MB for tests
+    minTestCoverage: 80
+  },
+  agentSettings: {
+    maxAgents: 2, // Reduced for tests
+    defaultAgent: 'test-agent',
+    coordinationStrategy: 'round_robin',
+    healthCheckInterval: 5000 // 5 seconds for tests
+  },
+  nlpSettings: {
+    primaryMethod: 'hybrid',
+    fallbackMethod: 'pattern',
+    minConfidence: 0.7,
+    maxProcessingTime: 30 // 30ms for tests
+  },
+  timeouts: {
+    taskExecution: 30000, // 30 seconds for tests
+    taskDecomposition: 60000, // 1 minute for tests
+    recursiveTaskDecomposition: 45000, // 45 seconds for tests
+    taskRefinement: 20000, // 20 seconds for tests
+    agentCommunication: 10000, // 10 seconds for tests
+    llmRequest: 30000, // 30 seconds for tests
+    fileOperations: 5000, // 5 seconds for tests
+    databaseOperations: 5000, // 5 seconds for tests
+    networkOperations: 10000 // 10 seconds for tests
+  },
+  retryPolicy: {
+    maxRetries: 2, // Reduced for tests
+    backoffMultiplier: 1.5,
+    initialDelayMs: 500, // 500ms for tests
+    maxDelayMs: 5000, // 5 seconds for tests
+    enableExponentialBackoff: true
+  },
+  performance: {
+    memoryManagement: {
+      maxMemoryPercentage: 50, // 50% for tests
+      gcThreshold: 70
+    },
+    caching: {
+      maxCacheSize: 1024 * 1024 * 5, // 5MB for tests
+      ttlMs: 30000 // 30 seconds for tests
+    }
+  }
+};
+
+/**
+ * Initialize test services with proper configuration
+ */
+export function initializeTestServices(): void {
+  try {
+    // Initialize TimeoutManager with test configuration
+    const timeoutManager = TimeoutManager.getInstance();
+    timeoutManager.initialize(defaultTestConfig);
+
+    logger.debug('Test services initialized successfully');
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to initialize test services');
+    throw error;
+  }
+}
+
+/**
+ * Reset test services to clean state
+ */
+export function resetTestServices(): void {
+  try {
+    // Reset TimeoutManager
+    const timeoutManager = TimeoutManager.getInstance();
+    (timeoutManager as any).config = null;
+
+    logger.debug('Test services reset successfully');
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to reset test services');
+  }
+}
+
+/**
+ * Get test configuration
+ */
+export function getTestConfig(): VibeTaskManagerConfig['taskManager'] {
+  return { ...defaultTestConfig };
+}
+
+// Initialize services on module load
+initializeTestServices();
 
 // Epic creation test utilities
 export const epicTestUtils = {
@@ -155,9 +253,69 @@ export const epicTestUtils = {
    * Clean up test data
    */
   cleanupTestData: async () => {
-    // In a real implementation, this would clean up test databases, files, etc.
-    // For now, we'll just log the cleanup
-    console.log('Cleaning up epic creation test data...');
+    try {
+      // Reset test services
+      resetTestServices();
+
+      // Clean up test files and directories
+      const fs = await import('fs/promises');
+      const testOutputDir = process.env.TEST_OUTPUT_DIR;
+
+      if (testOutputDir) {
+        try {
+          await fs.rm(testOutputDir, { recursive: true, force: true });
+          await fs.mkdir(testOutputDir, { recursive: true });
+        } catch (error) {
+          logger.warn({ err: error }, 'Failed to clean test output directory');
+        }
+      }
+
+      logger.debug('Epic creation test data cleaned up successfully');
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to cleanup epic creation test data');
+    }
+  },
+
+  /**
+   * Setup test environment for a specific test
+   */
+  setupTestEnvironment: async () => {
+    try {
+      // Ensure test services are initialized
+      initializeTestServices();
+
+      // Create test directories
+      const fs = await import('fs/promises');
+      const testDataDir = process.env.TEST_DATA_DIR;
+      const testOutputDir = process.env.TEST_OUTPUT_DIR;
+
+      if (testDataDir) {
+        await fs.mkdir(testDataDir, { recursive: true });
+      }
+
+      if (testOutputDir) {
+        await fs.mkdir(testOutputDir, { recursive: true });
+      }
+
+      logger.debug('Test environment setup completed');
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to setup test environment');
+      throw error;
+    }
+  },
+
+  /**
+   * Teardown test environment after a test
+   */
+  teardownTestEnvironment: async () => {
+    try {
+      // Clean up any remaining resources
+      await epicTestUtils.cleanupTestData();
+
+      logger.debug('Test environment teardown completed');
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to teardown test environment');
+    }
   },
 };
 

@@ -1,4 +1,30 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock config loader FIRST before any other imports
+vi.mock('../../utils/config-loader.js', () => ({
+  getVibeTaskManagerConfig: vi.fn().mockResolvedValue({
+    taskManager: {
+      dataDirectory: '/test/output',
+      maxDepth: 3,
+      maxTasks: 100
+    },
+    openRouter: {
+      baseUrl: 'https://test.openrouter.ai/api/v1',
+      apiKey: 'test-key',
+      model: 'test-model',
+      geminiModel: 'test-gemini',
+      perplexityModel: 'test-perplexity'
+    }
+  }),
+  getVibeTaskManagerOutputDir: vi.fn().mockReturnValue('/test/output'),
+  getBaseOutputDir: vi.fn().mockReturnValue('/test/output')
+}));
+
+// Mock the project root function that getVibeTaskManagerOutputDir depends on
+vi.mock('../../../code-map-generator/utils/pathUtils.enhanced.js', () => ({
+  getProjectRoot: vi.fn().mockReturnValue('/test/project')
+}));
+
 import { DecompositionService, DecompositionRequest } from '../../services/decomposition-service.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { AtomicDetectorContext } from '../../core/atomic-detector.js';
@@ -150,30 +176,17 @@ vi.mock('../../services/research-integration.js', () => ({
   }
 }));
 
-// Mock config loader with static values
-vi.mock('../../utils/config-loader.js', () => ({
-  getVibeTaskManagerConfig: vi.fn().mockResolvedValue({
-    taskManager: {
-      dataDirectory: '/test/output',
-      maxDepth: 3,
-      maxTasks: 100
-    },
-    openRouter: {
-      baseUrl: 'https://test.openrouter.ai/api/v1',
-      apiKey: 'test-key',
-      model: 'test-model',
-      geminiModel: 'test-gemini',
-      perplexityModel: 'test-perplexity'
-    }
-  }),
-  getVibeTaskManagerOutputDir: vi.fn().mockReturnValue('/test/output')
-}));
+
 
 describe('Session Persistence Integration Tests', () => {
   let decompositionService: DecompositionService;
   let mockConfig: OpenRouterConfig;
 
   beforeEach(() => {
+    // Set up environment variables for test BEFORE creating the service
+    process.env.VIBE_CODER_OUTPUT_DIR = '/test/output';
+    process.env.VIBE_TASK_MANAGER_READ_DIR = '/test/project';
+
     mockConfig = {
       baseUrl: 'https://test.openrouter.ai/api/v1',
       apiKey: 'test-key',
@@ -182,11 +195,15 @@ describe('Session Persistence Integration Tests', () => {
       perplexityModel: 'test-perplexity'
     };
 
+    // Create the service after environment variables are set
     decompositionService = new DecompositionService(mockConfig);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    // Clean up environment variables
+    delete process.env.VIBE_CODER_OUTPUT_DIR;
+    delete process.env.VIBE_TASK_MANAGER_READ_DIR;
   });
 
   describe('executeDecomposition path', () => {
