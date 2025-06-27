@@ -5,10 +5,27 @@
  * Implements synchronization, data model conversion, and unified registration
  */
 
-import { AgentRegistration } from '../../agent-registry/index.js';
 import { AgentInfo, AgentCapability } from './agent-orchestrator.js';
 import { AppError } from '../../../utils/errors.js';
+import { dependencyContainer } from '../../../services/dependency-container.js';
 import logger from '../../../logger.js';
+
+// Import AgentRegistration type without importing the module
+export interface AgentRegistration {
+  agentId: string;
+  capabilities: string[];
+  transportType: 'stdio' | 'sse' | 'websocket' | 'http';
+  sessionId: string;
+  maxConcurrentTasks: number;
+  pollingInterval?: number;
+  status?: 'online' | 'offline' | 'busy';
+  registeredAt?: number;
+  lastSeen?: number;
+  currentTasks?: string[];
+  websocketConnection?: any;
+  httpEndpoint?: string;
+  httpAuthToken?: string;
+}
 
 /**
  * Unified agent interface that bridges registry and orchestrator models
@@ -124,14 +141,16 @@ export class AgentIntegrationBridge {
   }
 
   /**
-   * Initialize dependencies with lazy loading
+   * Initialize dependencies using dependency container
    */
   private async initializeDependencies(): Promise<void> {
     try {
-      // Import and initialize agent registry
-      const { AgentRegistry } = await import('../../agent-registry/index.js');
-      this.agentRegistry = AgentRegistry.getInstance();
-      
+      // Initialize agent registry using dependency container
+      this.agentRegistry = await dependencyContainer.getAgentRegistry();
+      if (!this.agentRegistry) {
+        logger.warn('AgentRegistry not available');
+      }
+
       // Import and initialize agent orchestrator
       const { AgentOrchestrator } = await import('./agent-orchestrator.js');
       this.agentOrchestrator = AgentOrchestrator.getInstance();

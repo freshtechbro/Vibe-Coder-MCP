@@ -98,6 +98,13 @@ export class EpicService {
   }
 
   /**
+   * Reset singleton instance (for testing)
+   */
+  static resetInstance(): void {
+    EpicService.instance = undefined as any;
+  }
+
+  /**
    * Create a new epic
    */
   async createEpic(params: CreateEpicParams, createdBy: string = 'system'): Promise<FileOperationResult<Epic>> {

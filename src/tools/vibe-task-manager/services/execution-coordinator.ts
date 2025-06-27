@@ -155,6 +155,47 @@ export interface ExecutionConfig {
 
   /** Load balancing strategy */
   loadBalancingStrategy: 'round_robin' | 'least_loaded' | 'resource_aware' | 'priority_based';
+
+  /** Enable execution state change events */
+  enableExecutionStateEvents: boolean;
+
+  /** Execution retention time (minutes) - how long to keep completed executions */
+  executionRetentionMinutes: number;
+
+  /** Enable controllable execution delays for testing */
+  enableExecutionDelays: boolean;
+
+  /** Default execution delay in milliseconds */
+  defaultExecutionDelayMs: number;
+}
+
+/**
+ * Execution state change event
+ */
+export interface ExecutionStateChangeEvent {
+  executionId: string;
+  taskId: string;
+  agentId: string;
+  previousStatus: ExecutionStatus;
+  newStatus: ExecutionStatus;
+  timestamp: Date;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Execution state change callback
+ */
+export type ExecutionStateChangeCallback = (event: ExecutionStateChangeEvent) => void;
+
+/**
+ * Execution lifecycle hooks
+ */
+export interface ExecutionLifecycleHooks {
+  onExecutionStart?: (execution: TaskExecution) => Promise<void> | void;
+  onExecutionProgress?: (execution: TaskExecution, progress: number) => Promise<void> | void;
+  onExecutionComplete?: (execution: TaskExecution) => Promise<void> | void;
+  onExecutionFailed?: (execution: TaskExecution, error: Error) => Promise<void> | void;
+  onExecutionCancelled?: (execution: TaskExecution) => Promise<void> | void;
 }
 
 /**
@@ -205,7 +246,11 @@ export const DEFAULT_EXECUTION_CONFIG: ExecutionConfig = {
   agentHeartbeatInterval: 30,
   resourceMonitoringInterval: 10,
   enableAutoRecovery: true,
-  loadBalancingStrategy: 'resource_aware'
+  loadBalancingStrategy: 'resource_aware',
+  enableExecutionStateEvents: true,
+  executionRetentionMinutes: 60,
+  enableExecutionDelays: false,
+  defaultExecutionDelayMs: 100
 };
 
 /**
@@ -220,6 +265,7 @@ export class ExecutionCoordinator {
   private taskScheduler: TaskScheduler;
   private agents = new Map<string, Agent>();
   private activeExecutions = new Map<string, TaskExecution>();
+  private completedExecutions = new Map<string, TaskExecution>(); // For retention
   private executionBatches = new Map<string, ExecutionBatch>();
   private executionQueue: ScheduledTask[] = [];
   private isRunning = false;
@@ -229,6 +275,15 @@ export class ExecutionCoordinator {
   private activeLocks = new Map<string, string[]>(); // executionId -> lockIds
   private performanceMonitor: PerformanceMonitor | null = null;
   private startupOptimizer: StartupOptimizer;
+
+  // State synchronization properties
+  private stateChangeCallbacks: ExecutionStateChangeCallback[] = [];
+  private executionStateSync = new Map<string, ExecutionStatus>(); // Track state changes
+  private lifecycleHooks: ExecutionLifecycleHooks = {};
+
+  // Execution delay control
+  private executionDelays = new Map<string, number>(); // executionId -> delay in ms
+  private executionPauses = new Map<string, boolean>(); // executionId -> paused state
 
   constructor(
     taskScheduler: TaskScheduler,
@@ -286,6 +341,20 @@ export class ExecutionCoordinator {
   }
 
   /**
+   * Reset singleton instance (for testing and cleanup)
+   */
+  static resetInstance(): void {
+    ExecutionCoordinator.instance = null;
+  }
+
+  /**
+   * Check if singleton instance exists
+   */
+  static hasInstance(): boolean {
+    return ExecutionCoordinator.instance !== null;
+  }
+
+  /**
    * Start the execution coordinator
    */
   async start(): Promise<void> {
@@ -293,6 +362,9 @@ export class ExecutionCoordinator {
       logger.warn('ExecutionCoordinator already running');
       return;
     }
+
+    // Wait for dependencies to be ready
+    await this.waitForDependencies();
 
     this.isRunning = true;
 
@@ -309,6 +381,49 @@ export class ExecutionCoordinator {
     );
 
     logger.info('ExecutionCoordinator started');
+  }
+
+  /**
+   * Wait for required dependencies to be ready
+   */
+  private async waitForDependencies(): Promise<void> {
+    const maxWaitTime = 30000; // 30 seconds
+    const checkInterval = 500; // 500ms
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Check if TaskScheduler is ready
+        if (!this.taskScheduler) {
+          throw new Error('TaskScheduler not available');
+        }
+
+        // Check if Transport Manager is ready (if available)
+        try {
+          const { TransportManager } = await import('../../../services/transport-manager/index.js');
+          const transportManager = TransportManager.getInstance();
+          const status = transportManager.getStatus();
+
+          // Only wait for transport manager if it's configured to start
+          if (status.isConfigured && !status.isStarted) {
+            throw new Error('Transport Manager not ready');
+          }
+        } catch (error) {
+          // Transport Manager might not be available in all environments
+          logger.debug('Transport Manager not available, continuing without it');
+        }
+
+        // All dependencies are ready
+        logger.info('All dependencies ready for ExecutionCoordinator');
+        return;
+
+      } catch (error) {
+        // Wait before next check
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+    }
+
+    logger.warn('Timeout waiting for dependencies, starting anyway');
   }
 
   /**
@@ -467,6 +582,10 @@ export class ExecutionCoordinator {
       }
     };
 
+    // Add to active executions FIRST for proper state tracking
+    this.activeExecutions.set(executionId, execution);
+    this.notifyExecutionStateChange(execution, 'queued', 'queued');
+
     // Acquire resource locks for task execution
     const lockIds: string[] = [];
     try {
@@ -575,9 +694,18 @@ export class ExecutionCoordinator {
 
     try {
       await this.runTaskExecution(execution);
+
+      // Check if execution failed even without throwing an error
+      if (execution.status === 'failed') {
+        logger.error('Task execution failed', {
+          taskId: scheduledTask.task.id,
+          error: execution.result?.error || 'Unknown error'
+        });
+      }
+
       return execution;
     } catch (error) {
-      logger.error('Task execution failed', {
+      logger.error('Task execution failed with exception', {
         taskId: scheduledTask.task.id,
         error: error instanceof Error ? error.message : String(error)
       });
@@ -653,12 +781,7 @@ export class ExecutionCoordinator {
     return Array.from(this.activeExecutions.values());
   }
 
-  /**
-   * Get execution by ID
-   */
-  getExecution(executionId: string): TaskExecution | undefined {
-    return this.activeExecutions.get(executionId);
-  }
+
 
   /**
    * Get task execution status by task ID
@@ -719,17 +842,19 @@ export class ExecutionCoordinator {
       await this.signalCancellation(execution);
     }
 
-    execution.status = 'cancelled';
     execution.endTime = new Date();
+
+    // Update status with proper synchronization
+    this.updateExecutionStatus(execution, 'cancelled');
+
+    // Call lifecycle hook for execution cancellation
+    await this.callLifecycleHook('onExecutionCancelled', execution);
 
     // Release resource locks
     await this.releaseExecutionLocks(executionId);
 
     // Update agent status
     this.updateAgentAfterTaskCompletion(execution.agent, execution);
-
-    // Remove from active executions
-    this.activeExecutions.delete(executionId);
 
     logger.info('Task execution cancelled', {
       executionId,
@@ -803,6 +928,15 @@ export class ExecutionCoordinator {
 
     try {
       await this.runTaskExecution(execution);
+
+      // Check if execution failed after running
+      if ((execution.status as ExecutionStatus) === 'failed') {
+        logger.error('Task retry execution failed', {
+          executionId,
+          error: (execution.result as any)?.error || 'Unknown error'
+        });
+      }
+
       return execution;
     } catch (error) {
       execution.status = 'failed';
@@ -818,14 +952,35 @@ export class ExecutionCoordinator {
    * Dispose of the execution coordinator
    */
   async dispose(): Promise<void> {
+    // Prevent multiple disposal calls
+    if (this.isDisposed) {
+      return;
+    }
+    this.isDisposed = true;
+
     await this.stop();
+
+    // Clear all collections
     this.agents.clear();
     this.activeExecutions.clear();
     this.executionBatches.clear();
     this.executionQueue = [];
 
+    // Clear active locks
+    this.activeLocks.clear();
+
+    // Reset singleton if this is the current instance
+    if (ExecutionCoordinator.instance === this) {
+      ExecutionCoordinator.instance = null;
+    }
+
     logger.info('ExecutionCoordinator disposed');
   }
+
+  /**
+   * Check if coordinator is disposed
+   */
+  isDisposed = false;
 
   // Private helper methods
 
@@ -1030,20 +1185,31 @@ export class ExecutionCoordinator {
     // Update agent status
     this.updateAgentBeforeTaskExecution(execution.agent, execution);
 
+    // Call lifecycle hook for execution start
+    await this.callLifecycleHook('onExecutionStart', execution);
+
+    // Apply execution delay if configured
+    await this.applyExecutionDelay(execution.metadata.executionId);
+
+    // Wait for execution to be unpaused if paused
+    await this.waitForExecutionUnpause(execution.metadata.executionId);
+
     try {
       // Execute task using real agent communication via UniversalAgentCommunicationChannel
       const result = await this.executeTaskWithAgent(execution);
 
-      execution.status = 'completed';
       execution.endTime = new Date();
       execution.actualDuration = (execution.endTime.getTime() - execution.startTime.getTime()) / (1000 * 60 * 60);
       execution.result = result;
 
+      // Update status with proper synchronization
+      this.updateExecutionStatus(execution, 'completed');
+
+      // Call lifecycle hook for execution completion
+      await this.callLifecycleHook('onExecutionComplete', execution);
+
       // Update task status in scheduler
       await this.taskScheduler.markTaskCompleted(execution.scheduledTask.task.id);
-
-      // Remove from active executions
-      this.activeExecutions.delete(execution.metadata.executionId);
 
       logger.info('Task execution completed', {
         executionId: execution.metadata.executionId,
@@ -1052,14 +1218,25 @@ export class ExecutionCoordinator {
       });
 
     } catch (error) {
-      execution.status = 'failed';
       execution.endTime = new Date();
+      execution.actualDuration = (execution.endTime.getTime() - execution.startTime.getTime()) / (1000 * 60 * 60);
       execution.result = {
         success: false,
         error: error instanceof Error ? error.message : String(error)
       };
 
-      throw error;
+      // Update status with proper synchronization
+      this.updateExecutionStatus(execution, 'failed');
+
+      // Call lifecycle hook for execution failure
+      await this.callLifecycleHook('onExecutionFailed', execution, error instanceof Error ? error : new Error(String(error)));
+
+      // Log the error but don't re-throw to allow the execution to complete with failed status
+      logger.error('Task execution failed', {
+        executionId: execution.metadata.executionId,
+        taskId: execution.scheduledTask.task.id,
+        error: error instanceof Error ? error.message : String(error)
+      });
     } finally {
       // Release resource locks
       await this.releaseExecutionLocks(execution.metadata.executionId);
@@ -1070,7 +1247,7 @@ export class ExecutionCoordinator {
           taskId: execution.scheduledTask.task.id,
           agentId: execution.agent.id,
           status: execution.status,
-          success: execution.status === 'completed'
+          success: (execution.status as ExecutionStatus) === 'completed'
         });
 
         // Log performance if it exceeds target
@@ -1146,6 +1323,12 @@ export class ExecutionCoordinator {
         agentId: agent.id,
         executionId: execution.metadata.executionId
       }, 'Task sent to agent successfully');
+
+      // Apply additional delay before waiting for response (for testing)
+      await this.applyExecutionDelay(execution.metadata.executionId);
+
+      // Check if execution is paused before waiting for response
+      await this.waitForExecutionUnpause(execution.metadata.executionId);
 
       // Wait for agent response with timeout
       const timeoutMs = this.config.taskTimeoutMinutes * 60 * 1000;
@@ -1390,21 +1573,40 @@ export class ExecutionCoordinator {
   private canExecuteBatch(executionBatch: ExecutionBatch): boolean {
     const { totalMemoryMB, totalCpuWeight, agentCount } = executionBatch.resourceAllocation;
 
-    // Check if we have enough agents
-    const availableAgents = Array.from(this.agents.values())
-      .filter(agent => agent.status === 'idle' || agent.status === 'busy').length;
+    // Get agents that can actually handle tasks (not offline)
+    const activeAgents = Array.from(this.agents.values())
+      .filter(agent => agent.status !== 'offline');
 
-    if (agentCount > availableAgents) {
+    if (activeAgents.length === 0) {
+      logger.debug('No active agents available for batch execution');
       return false;
     }
 
-    // Check if we have enough total resources
-    const totalCapacity = Array.from(this.agents.values()).reduce((sum, agent) => ({
+    // Check if we have enough agents for the batch
+    if (agentCount > activeAgents.length) {
+      logger.debug('Insufficient agent count', {
+        required: agentCount,
+        available: activeAgents.length
+      });
+      return false;
+    }
+
+    // Check individual agent capacity constraints
+    const scheduledTasks = this.getScheduledTasksForBatch(executionBatch);
+    const agentAssignments = this.simulateAgentAssignments(scheduledTasks, activeAgents);
+
+    if (!agentAssignments) {
+      logger.debug('Cannot assign tasks to agents due to capacity constraints');
+      return false;
+    }
+
+    // Check total resource availability as a final validation
+    const totalCapacity = activeAgents.reduce((sum, agent) => ({
       memory: sum.memory + agent.capacity.maxMemoryMB,
       cpu: sum.cpu + agent.capacity.maxCpuWeight
     }), { memory: 0, cpu: 0 });
 
-    const currentUsage = Array.from(this.agents.values()).reduce((sum, agent) => ({
+    const currentUsage = activeAgents.reduce((sum, agent) => ({
       memory: sum.memory + agent.currentUsage.memoryMB,
       cpu: sum.cpu + agent.currentUsage.cpuWeight
     }), { memory: 0, cpu: 0 });
@@ -1412,7 +1614,70 @@ export class ExecutionCoordinator {
     const availableMemory = totalCapacity.memory - currentUsage.memory;
     const availableCpu = totalCapacity.cpu - currentUsage.cpu;
 
-    return availableMemory >= totalMemoryMB && availableCpu >= totalCpuWeight;
+    const hasResources = availableMemory >= totalMemoryMB && availableCpu >= totalCpuWeight;
+
+    if (!hasResources) {
+      logger.debug('Insufficient total resources', {
+        requiredMemory: totalMemoryMB,
+        availableMemory,
+        requiredCpu: totalCpuWeight,
+        availableCpu
+      });
+    }
+
+    return hasResources;
+  }
+
+  /**
+   * Get scheduled tasks for a batch
+   */
+  private getScheduledTasksForBatch(executionBatch: ExecutionBatch): ScheduledTask[] {
+    const currentSchedule = this.taskScheduler.getCurrentSchedule();
+    if (!currentSchedule) {
+      return [];
+    }
+
+    return executionBatch.parallelBatch.taskIds
+      .map(taskId => currentSchedule.scheduledTasks.get(taskId))
+      .filter(task => task !== undefined) as ScheduledTask[];
+  }
+
+  /**
+   * Simulate agent assignments to check if batch is feasible
+   */
+  private simulateAgentAssignments(scheduledTasks: ScheduledTask[], agents: Agent[]): boolean {
+    // Create a copy of agent states for simulation
+    const agentStates = agents.map(agent => ({
+      id: agent.id,
+      availableMemory: agent.capacity.maxMemoryMB - agent.currentUsage.memoryMB,
+      availableCpu: agent.capacity.maxCpuWeight - agent.currentUsage.cpuWeight,
+      availableSlots: agent.capacity.maxConcurrentTasks - agent.currentUsage.activeTasks
+    }));
+
+    // Try to assign each task to an agent
+    for (const task of scheduledTasks) {
+      const requiredMemory = task.assignedResources.memoryMB;
+      const requiredCpu = task.assignedResources.cpuWeight;
+
+      // Find an agent that can handle this task
+      const suitableAgent = agentStates.find(agent =>
+        agent.availableMemory >= requiredMemory &&
+        agent.availableCpu >= requiredCpu &&
+        agent.availableSlots > 0
+      );
+
+      if (!suitableAgent) {
+        // Cannot assign this task to any agent
+        return false;
+      }
+
+      // "Assign" the task to this agent (update simulation state)
+      suitableAgent.availableMemory -= requiredMemory;
+      suitableAgent.availableCpu -= requiredCpu;
+      suitableAgent.availableSlots -= 1;
+    }
+
+    return true; // All tasks can be assigned
   }
 
   // Agent status management
@@ -1758,6 +2023,268 @@ export class ExecutionCoordinator {
       case 'medium': return 2;
       case 'low': return 3;
       default: return 4;
+    }
+  }
+
+  // Execution State Synchronization Methods
+
+  /**
+   * Register a callback for execution state changes
+   */
+  onExecutionStateChange(callback: ExecutionStateChangeCallback): void {
+    this.stateChangeCallbacks.push(callback);
+  }
+
+  /**
+   * Remove a callback for execution state changes
+   */
+  removeExecutionStateChangeCallback(callback: ExecutionStateChangeCallback): void {
+    const index = this.stateChangeCallbacks.indexOf(callback);
+    if (index > -1) {
+      this.stateChangeCallbacks.splice(index, 1);
+    }
+  }
+
+  /**
+   * Set execution lifecycle hooks
+   */
+  setLifecycleHooks(hooks: ExecutionLifecycleHooks): void {
+    this.lifecycleHooks = { ...hooks };
+  }
+
+  /**
+   * Clear all lifecycle hooks
+   */
+  clearLifecycleHooks(): void {
+    this.lifecycleHooks = {};
+  }
+
+  /**
+   * Call a lifecycle hook if it exists
+   */
+  private async callLifecycleHook(
+    hookName: keyof ExecutionLifecycleHooks,
+    execution: TaskExecution,
+    error?: Error
+  ): Promise<void> {
+    const hook = this.lifecycleHooks[hookName];
+    if (!hook) {
+      return;
+    }
+
+    try {
+      if (hookName === 'onExecutionFailed' && error) {
+        await (hook as any)(execution, error);
+      } else if (hookName === 'onExecutionProgress') {
+        // Calculate progress based on execution time vs estimated time
+        const elapsed = Date.now() - execution.startTime.getTime();
+        const estimated = (execution.scheduledTask.task.estimatedHours || 1) * 60 * 60 * 1000;
+        const progress = Math.min(elapsed / estimated, 1.0);
+        await (hook as ExecutionLifecycleHooks['onExecutionProgress'])?.(execution, progress);
+      } else if (hookName === 'onExecutionFailed') {
+        // onExecutionFailed requires an error parameter - this should be called with the actual error
+        // For now, we'll skip this hook if no error is provided
+        return;
+      } else if (hookName === 'onExecutionStart' || hookName === 'onExecutionComplete' || hookName === 'onExecutionCancelled') {
+        await (hook as (execution: TaskExecution) => Promise<void> | void)(execution);
+      }
+    } catch (hookError) {
+      logger.warn('Error in lifecycle hook', {
+        hookName,
+        executionId: execution.metadata.executionId,
+        error: hookError instanceof Error ? hookError.message : String(hookError)
+      });
+    }
+  }
+
+  /**
+   * Notify all callbacks of execution state change
+   */
+  private notifyExecutionStateChange(
+    execution: TaskExecution,
+    previousStatus: ExecutionStatus,
+    newStatus: ExecutionStatus
+  ): void {
+    if (!this.config.enableExecutionStateEvents) {
+      return;
+    }
+
+    // Update internal state tracking
+    this.executionStateSync.set(execution.metadata.executionId, newStatus);
+
+    const event: ExecutionStateChangeEvent = {
+      executionId: execution.metadata.executionId,
+      taskId: execution.scheduledTask.task.id,
+      agentId: execution.agent.id,
+      previousStatus,
+      newStatus,
+      timestamp: new Date(),
+      metadata: {
+        retryCount: execution.metadata.retryCount,
+        timeoutCount: execution.metadata.timeoutCount
+      }
+    };
+
+    // Notify all registered callbacks
+    for (const callback of this.stateChangeCallbacks) {
+      try {
+        callback(event);
+      } catch (error) {
+        logger.warn('Error in execution state change callback', {
+          executionId: execution.metadata.executionId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    logger.debug('Execution state changed', {
+      executionId: execution.metadata.executionId,
+      taskId: execution.scheduledTask.task.id,
+      previousStatus,
+      newStatus,
+      callbackCount: this.stateChangeCallbacks.length
+    });
+  }
+
+  /**
+   * Update execution status with proper synchronization
+   */
+  private updateExecutionStatus(execution: TaskExecution, newStatus: ExecutionStatus): void {
+    const previousStatus = execution.status;
+    execution.status = newStatus;
+
+    // Notify state change
+    this.notifyExecutionStateChange(execution, previousStatus, newStatus);
+
+    // Handle completion with retention
+    if (newStatus === 'completed' || newStatus === 'failed' || newStatus === 'cancelled') {
+      this.handleExecutionCompletion(execution);
+    }
+  }
+
+  /**
+   * Handle execution completion with retention
+   */
+  private handleExecutionCompletion(execution: TaskExecution): void {
+    // Move to completed executions for retention
+    this.completedExecutions.set(execution.metadata.executionId, execution);
+
+    // Remove from active executions after a short delay to allow state tracking
+    setTimeout(() => {
+      this.activeExecutions.delete(execution.metadata.executionId);
+    }, 1000); // 1 second delay
+
+    // Schedule cleanup based on retention policy
+    setTimeout(() => {
+      this.completedExecutions.delete(execution.metadata.executionId);
+    }, this.config.executionRetentionMinutes * 60 * 1000);
+  }
+
+  /**
+   * Get execution by ID (checks both active and completed)
+   */
+  getExecution(executionId: string): TaskExecution | undefined {
+    return this.activeExecutions.get(executionId) || this.completedExecutions.get(executionId);
+  }
+
+  /**
+   * Get all executions (active and recently completed)
+   */
+  getAllExecutions(): TaskExecution[] {
+    return [
+      ...Array.from(this.activeExecutions.values()),
+      ...Array.from(this.completedExecutions.values())
+    ];
+  }
+
+  /**
+   * Get execution state synchronization status
+   */
+  getExecutionSyncStatus(): {
+    activeCount: number;
+    completedCount: number;
+    syncedCount: number;
+    callbackCount: number;
+  } {
+    return {
+      activeCount: this.activeExecutions.size,
+      completedCount: this.completedExecutions.size,
+      syncedCount: this.executionStateSync.size,
+      callbackCount: this.stateChangeCallbacks.length
+    };
+  }
+
+  // Execution Delay Control Methods
+
+  /**
+   * Set execution delay for a specific execution
+   */
+  setExecutionDelay(executionId: string, delayMs: number): void {
+    this.executionDelays.set(executionId, delayMs);
+    logger.debug('Execution delay set', { executionId, delayMs });
+  }
+
+  /**
+   * Pause an execution (prevents it from completing)
+   */
+  pauseExecution(executionId: string): void {
+    this.executionPauses.set(executionId, true);
+    logger.debug('Execution paused', { executionId });
+  }
+
+  /**
+   * Resume a paused execution
+   */
+  resumeExecution(executionId: string): void {
+    this.executionPauses.set(executionId, false);
+    logger.debug('Execution resumed', { executionId });
+  }
+
+  /**
+   * Check if execution is paused
+   */
+  isExecutionPaused(executionId: string): boolean {
+    return this.executionPauses.get(executionId) === true;
+  }
+
+  /**
+   * Clear all execution delays and pauses
+   */
+  clearExecutionControls(): void {
+    this.executionDelays.clear();
+    this.executionPauses.clear();
+    logger.debug('All execution controls cleared');
+  }
+
+  /**
+   * Apply execution delay if configured
+   */
+  private async applyExecutionDelay(executionId: string): Promise<void> {
+    if (!this.config.enableExecutionDelays) {
+      return;
+    }
+
+    // Check for specific delay for this execution
+    let delayMs = this.executionDelays.get(executionId);
+
+    // Use default delay if no specific delay set
+    if (delayMs === undefined) {
+      delayMs = this.config.defaultExecutionDelayMs;
+    }
+
+    if (delayMs > 0) {
+      logger.debug('Applying execution delay', { executionId, delayMs });
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  /**
+   * Wait for execution to be unpaused
+   */
+  private async waitForExecutionUnpause(executionId: string): Promise<void> {
+    while (this.isExecutionPaused(executionId)) {
+      logger.debug('Execution is paused, waiting...', { executionId });
+      await new Promise(resolve => setTimeout(resolve, 100)); // Check every 100ms
     }
   }
 }

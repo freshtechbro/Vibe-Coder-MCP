@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import yaml from 'yaml';
 import logger from '../../../logger.js';
 
@@ -45,7 +46,18 @@ export class PromptService {
   private promptsDir: string;
 
   private constructor() {
-    this.promptsDir = join(__dirname, '..', 'prompts');
+    // Try multiple possible paths for prompt directory
+    const possiblePaths = [
+      join(__dirname, '..', 'prompts'),  // Normal case: src/tools/vibe-task-manager/services -> src/tools/vibe-task-manager/prompts
+      join(__dirname, '..', '..', '..', '..', 'src', 'tools', 'vibe-task-manager', 'prompts'), // Test case: build/tools/vibe-task-manager/services -> src/tools/vibe-task-manager/prompts
+      join(process.cwd(), 'src', 'tools', 'vibe-task-manager', 'prompts'), // Fallback: from project root
+      join(process.cwd(), 'build', 'tools', 'vibe-task-manager', 'prompts') // Build directory
+    ];
+
+    // Find the first path that exists
+    this.promptsDir = possiblePaths.find(path => existsSync(path)) || possiblePaths[0];
+    
+    logger.debug({ promptsDir: this.promptsDir, testedPaths: possiblePaths }, 'PromptService initialized with prompts directory');
   }
 
   /**
@@ -106,10 +118,26 @@ export class PromptService {
       const filename = this.getPromptFilename(type);
       const filePath = join(this.promptsDir, filename);
       
-      logger.debug({ filePath, type }, 'Loading prompt configuration');
+      logger.debug({ filePath, type, promptsDir: this.promptsDir }, 'Loading prompt configuration');
+      
+      // Check if file exists before trying to read
+      if (!existsSync(filePath)) {
+        throw new Error(`Prompt file not found: ${filePath}`);
+      }
       
       const fileContent = await readFile(filePath, 'utf-8');
-      const config = yaml.parse(fileContent) as PromptConfig;
+      
+      // Check if file content is valid before parsing
+      if (!fileContent || fileContent.trim().length === 0) {
+        throw new Error(`Prompt file is empty: ${filePath}`);
+      }
+      
+      let config: PromptConfig;
+      try {
+        config = yaml.parse(fileContent) as PromptConfig;
+      } catch (yamlError) {
+        throw new Error(`Failed to parse YAML in ${filePath}: ${yamlError instanceof Error ? yamlError.message : String(yamlError)}`);
+      }
       
       // Validate configuration
       this.validatePromptConfig(config, type);
@@ -121,7 +149,15 @@ export class PromptService {
       
       return config;
     } catch (error) {
-      logger.error({ err: error, type }, 'Failed to load prompt configuration');
+      logger.error({ 
+        err: error, 
+        type, 
+        promptsDir: this.promptsDir,
+        filename: this.getPromptFilename(type),
+        fullPath: join(this.promptsDir, this.getPromptFilename(type)),
+        cwd: process.cwd(),
+        __dirname
+      }, 'Failed to load prompt configuration');
       throw error;
     }
   }

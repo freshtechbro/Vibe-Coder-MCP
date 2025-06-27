@@ -14,7 +14,7 @@ import type {
   FileReadResult
 } from '../../../services/file-search-service/index.js';
 import type { ParsedPRD, ParsedTaskList } from '../types/artifact-types.js';
-import type { ProjectContext } from '../core/atomic-detector.js';
+import type { ProjectContext } from '../types/project-context.js';
 import type { AtomicTask } from '../types/task.js';
 
 /**
@@ -597,13 +597,50 @@ export class ContextEnrichmentService {
 
       const projectContext: ProjectContext = {
         projectId: `prd-${prdData.metadata.projectName.toLowerCase().replace(/\s+/g, '-')}`,
+        projectPath: process.cwd(),
+        projectName: prdData.metadata.projectName,
+        description: prdData.overview.description,
         languages,
         frameworks,
+        buildTools: [],
         tools,
+        configFiles: [],
+        entryPoints: [],
+        architecturalPatterns: prdData.technical.architecturalPatterns,
         existingTasks: [],
         codebaseSize,
         teamSize,
-        complexity
+        complexity,
+        codebaseContext: {
+          relevantFiles: [],
+          contextSummary: prdData.overview.description,
+          gatheringMetrics: {
+            searchTime: 0,
+            readTime: 0,
+            scoringTime: 0,
+            totalTime: 0,
+            cacheHitRate: 0
+          },
+          totalContextSize: 0,
+          averageRelevance: 0
+        },
+        structure: {
+          sourceDirectories: ['src'],
+          testDirectories: ['test', 'tests', '__tests__'],
+          docDirectories: ['docs', 'documentation'],
+          buildDirectories: ['dist', 'build', 'lib']
+        },
+        dependencies: {
+          production: [],
+          development: [],
+          external: []
+        },
+        metadata: {
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: '1.0.0',
+          source: 'auto-detected'
+        }
       };
 
       logger.info({
@@ -652,13 +689,50 @@ export class ContextEnrichmentService {
 
       const projectContext: ProjectContext = {
         projectId: `task-list-${taskListData.metadata.projectName.toLowerCase().replace(/\s+/g, '-')}`,
+        projectPath: process.cwd(),
+        projectName: taskListData.metadata.projectName,
+        description: taskListData.overview.description,
         languages,
         frameworks,
+        buildTools: [],
         tools,
+        configFiles: [],
+        entryPoints: [],
+        architecturalPatterns: [],
         existingTasks,
         codebaseSize,
         teamSize,
-        complexity
+        complexity,
+        codebaseContext: {
+          relevantFiles: [],
+          contextSummary: taskListData.overview.description,
+          gatheringMetrics: {
+            searchTime: 0,
+            readTime: 0,
+            scoringTime: 0,
+            totalTime: 0,
+            cacheHitRate: 0
+          },
+          totalContextSize: 0,
+          averageRelevance: 0
+        },
+        structure: {
+          sourceDirectories: ['src'],
+          testDirectories: ['test', 'tests', '__tests__'],
+          docDirectories: ['docs', 'documentation'],
+          buildDirectories: ['dist', 'build', 'lib']
+        },
+        dependencies: {
+          production: [],
+          development: [],
+          external: []
+        },
+        metadata: {
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: '1.0.0',
+          source: 'auto-detected'
+        }
       };
 
       logger.info({

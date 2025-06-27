@@ -12,7 +12,7 @@ import { getProjectOperations } from '../../core/operations/project-operations.j
 import { ProjectAnalyzer } from '../../utils/project-analyzer.js';
 import { CLIUtils } from './index.js';
 import { AppError, ValidationError } from '../../../../utils/errors.js';
-import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
+import { OpenRouterConfigManager } from '../../../../utils/openrouter-config-manager.js';
 import { AtomicTask } from '../../types/task.js';
 import logger from '../../../../logger.js';
 
@@ -187,20 +187,9 @@ function createTaskDecomposeCommand(): Command {
         CLIUtils.info(`Decomposing task: ${task.title}`);
 
         // Get configuration
-        const config = await getVibeTaskManagerConfig();
-        if (!config) {
-          CLIUtils.error('Failed to load task manager configuration');
-          return;
-        }
-
-        // Convert LLMConfig to OpenRouterConfig format
-        const openRouterConfig = {
-          baseUrl: 'https://openrouter.ai/api/v1',
-          apiKey: process.env.OPENROUTER_API_KEY || '',
-          model: 'anthropic/claude-3-sonnet',
-          geminiModel: 'gemini-pro',
-          perplexityModel: 'llama-3.1-sonar-small-128k-online'
-        };
+        const configManager = OpenRouterConfigManager.getInstance();
+        await configManager.initialize();
+        const openRouterConfig = await configManager.getOpenRouterConfig();
 
         const decompositionService = new DecompositionService(openRouterConfig);
 
@@ -255,13 +244,50 @@ function createTaskDecomposeCommand(): Command {
           }),
           context: {
             projectId: task.projectId,
+            projectPath: process.cwd(),
+            projectName: task.projectId,
+            description: `CLI task decomposition for ${task.title}`,
             languages, // Dynamic detection using existing 35+ language infrastructure
             frameworks, // Dynamic detection using existing language handler methods
+            buildTools: [],
             tools, // Dynamic detection using Context Curator patterns
+            configFiles: [],
+            entryPoints: [],
+            architecturalPatterns: [],
             existingTasks: [],
             codebaseSize: 'medium' as const,
             teamSize: 1,
-            complexity: 'medium' as const
+            complexity: 'medium' as const,
+            codebaseContext: {
+              relevantFiles: [],
+              contextSummary: `CLI task decomposition context for ${task.title}`,
+              gatheringMetrics: {
+                searchTime: 0,
+                readTime: 0,
+                scoringTime: 0,
+                totalTime: 0,
+                cacheHitRate: 0
+              },
+              totalContextSize: 0,
+              averageRelevance: 0
+            },
+            structure: {
+              sourceDirectories: ['src'],
+              testDirectories: ['test', 'tests', '__tests__'],
+              docDirectories: ['docs', 'documentation'],
+              buildDirectories: ['dist', 'build', 'lib']
+            },
+            dependencies: {
+              production: [],
+              development: [],
+              external: []
+            },
+            metadata: {
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              version: '1.0.0',
+              source: 'manual' as const
+            }
           },
           sessionId: `cli-decompose-${Date.now()}`,
           options: {
@@ -369,20 +395,9 @@ function createProjectDecomposeCommand(): Command {
         CLIUtils.info(`Decomposing project: ${project.name}`);
 
         // Get configuration
-        const config = await getVibeTaskManagerConfig();
-        if (!config) {
-          CLIUtils.error('Failed to load task manager configuration');
-          return;
-        }
-
-        // Convert LLMConfig to OpenRouterConfig format
-        const openRouterConfig = {
-          baseUrl: 'https://openrouter.ai/api/v1',
-          apiKey: process.env.OPENROUTER_API_KEY || '',
-          model: 'anthropic/claude-3-sonnet',
-          geminiModel: 'gemini-pro',
-          perplexityModel: 'llama-3.1-sonar-small-128k-online'
-        };
+        const configManager = OpenRouterConfigManager.getInstance();
+        await configManager.initialize();
+        const openRouterConfig = await configManager.getOpenRouterConfig();
 
         const decompositionService = new DecompositionService(openRouterConfig);
 
@@ -442,13 +457,50 @@ function createProjectDecomposeCommand(): Command {
           task: projectTask,
           context: {
             projectId: project.id,
+            projectPath: process.cwd(),
+            projectName: project.name,
+            description: options.description || project.description,
             languages, // Dynamic detection with project techStack preference
             frameworks, // Dynamic detection with project techStack preference
+            buildTools: [],
             tools, // Dynamic detection with project techStack preference
+            configFiles: [],
+            entryPoints: [],
+            architecturalPatterns: [],
             existingTasks: [],
             codebaseSize: 'large' as const,
             teamSize: 1,
-            complexity: 'high' as const
+            complexity: 'high' as const,
+            codebaseContext: {
+              relevantFiles: [],
+              contextSummary: options.description || project.description,
+              gatheringMetrics: {
+                searchTime: 0,
+                readTime: 0,
+                scoringTime: 0,
+                totalTime: 0,
+                cacheHitRate: 0
+              },
+              totalContextSize: 0,
+              averageRelevance: 0
+            },
+            structure: {
+              sourceDirectories: ['src'],
+              testDirectories: ['test', 'tests', '__tests__'],
+              docDirectories: ['docs', 'documentation'],
+              buildDirectories: ['dist', 'build', 'lib']
+            },
+            dependencies: {
+              production: [],
+              development: [],
+              external: []
+            },
+            metadata: {
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              version: '1.0.0',
+              source: 'manual' as const
+            }
           },
           sessionId: `cli-project-decompose-${Date.now()}`,
           options: {

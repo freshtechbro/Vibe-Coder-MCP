@@ -7,6 +7,7 @@
 
 import path from 'path';
 import { EventEmitter } from 'events';
+import * as fs from 'fs-extra';
 import logger from '../../../logger.js';
 import { FileUtils } from '../utils/file-utils.js';
 import { createErrorContext } from '../utils/enhanced-errors.js';
@@ -545,7 +546,6 @@ export class WorkflowStateManager extends EventEmitter {
   private async persistWorkflow(workflow: WorkflowStateSnapshot): Promise<void> {
     try {
       // Ensure persistence directory exists
-      const fs = await import('fs-extra');
       await fs.ensureDir(this.persistenceDirectory);
 
       // Convert Map to object for serialization
@@ -624,7 +624,6 @@ export class WorkflowStateManager extends EventEmitter {
 
         // Remove persisted file
         try {
-          const fs = await import('fs-extra');
           const filePath = `${this.persistenceDirectory}/${workflowId}.json`;
           await fs.remove(filePath);
           cleanedCount++;

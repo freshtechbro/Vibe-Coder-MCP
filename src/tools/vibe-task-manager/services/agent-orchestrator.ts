@@ -662,27 +662,25 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
    */
   private async ensureTransportServicesStarted(): Promise<void> {
     try {
-      // Check if any transport services are running
-      const hasRunningTransports = transportManager.isTransportRunning('websocket') ||
-                                   transportManager.isTransportRunning('http') ||
-                                   transportManager.isTransportRunning('sse') ||
-                                   transportManager.isTransportRunning('stdio');
-
-      if (!hasRunningTransports) {
-        logger.info('No transport services running, starting transport services...');
-
-        // Configure and start transport services
-        transportManager.configure({
-          websocket: { enabled: true, port: 8080, path: '/agent-ws' },
-          http: { enabled: true, port: 3001, cors: true },
-          sse: { enabled: true },
-          stdio: { enabled: true }
-        });
-
-        await transportManager.startAll();
-        logger.info('Transport services started successfully');
-      } else {
-        logger.debug('Transport services already running');
+      // Ensure transport services are started using coordinator
+      try {
+        const { transportCoordinator } = await import('../../../services/transport-coordinator.js');
+        await transportCoordinator.ensureTransportsStarted();
+        logger.debug('Transport services ensured through coordinator');
+      } catch (error) {
+        logger.warn('Failed to ensure transport services through coordinator:', error);
+        // Fallback to direct transport manager if coordinator fails
+        const transportStatus = transportManager.getStatus();
+        if (!transportStatus.isStarted && !transportStatus.startupInProgress) {
+          logger.info('Fallback: Starting transport services directly...');
+          transportManager.configure({
+            websocket: { enabled: true, port: 8080, path: '/agent-ws' },
+            http: { enabled: true, port: 3001, cors: true },
+            sse: { enabled: true },
+            stdio: { enabled: true }
+          });
+          await transportManager.startAll();
+        }
       }
 
       // Verify WebSocket and HTTP services are available

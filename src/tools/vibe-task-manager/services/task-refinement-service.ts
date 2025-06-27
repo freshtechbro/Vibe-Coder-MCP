@@ -1,7 +1,7 @@
 import { AtomicTask, TaskPriority, TaskType } from '../types/task.js';
 import { getTaskOperations } from '../core/operations/task-operations.js';
 import { DecompositionService, DecompositionRequest } from './decomposition-service.js';
-import { ProjectContext } from '../core/atomic-detector.js';
+import { ProjectContext } from '../types/project-context.js';
 import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
 import { ProjectAnalyzer } from '../utils/project-analyzer.js';
 import { FileOperationResult } from '../utils/file-utils.js';
@@ -547,13 +547,50 @@ export class TaskRefinementService {
 
       const context: ProjectContext = {
         projectId: task.projectId,
+        projectPath: process.cwd(),
+        projectName: task.projectId,
+        description: `Task refinement context for ${task.title}`,
         languages, // Dynamic detection using existing 35+ language infrastructure
         frameworks, // Dynamic detection using existing language handler methods
+        buildTools: [],
         tools, // Dynamic detection using Context Curator patterns
+        configFiles: [],
+        entryPoints: [],
+        architecturalPatterns: [],
         existingTasks: [],
         codebaseSize: this.determineCodebaseSize(task.projectId), // Determine from project
         teamSize: this.getTeamSize(task.projectId), // Get from project config
-        complexity: this.determineTaskComplexity(task) // Determine from task analysis
+        complexity: this.determineTaskComplexity(task), // Determine from task analysis
+        codebaseContext: {
+          relevantFiles: [],
+          contextSummary: `Task refinement context for ${task.title}`,
+          gatheringMetrics: {
+            searchTime: 0,
+            readTime: 0,
+            scoringTime: 0,
+            totalTime: 0,
+            cacheHitRate: 0
+          },
+          totalContextSize: 0,
+          averageRelevance: 0
+        },
+        structure: {
+          sourceDirectories: ['src'],
+          testDirectories: ['test', 'tests', '__tests__'],
+          docDirectories: ['docs', 'documentation'],
+          buildDirectories: ['dist', 'build', 'lib']
+        },
+        dependencies: {
+          production: [],
+          development: [],
+          external: []
+        },
+        metadata: {
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: '1.0.0',
+          source: 'auto-detected'
+        }
       };
 
       // Create decomposition request

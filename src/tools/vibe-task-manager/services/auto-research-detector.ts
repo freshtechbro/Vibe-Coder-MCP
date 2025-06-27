@@ -9,7 +9,7 @@
  */
 
 import { AtomicTask } from '../types/task.js';
-import { ProjectContext } from '../core/atomic-detector.js';
+import { ProjectContext } from '../types/project-context.js';
 import { ContextResult } from './context-enrichment-service.js';
 import {
   AutoResearchDetectorConfig,
@@ -717,5 +717,14 @@ export class AutoResearchDetector {
   clearCache(): void {
     this.evaluationCache.clear();
     logger.debug('Auto-research detector cache cleared');
+  }
+
+  resetPerformanceMetrics(): void {
+    this.performanceMetrics = {
+      totalEvaluations: 0,
+      cacheHits: 0,
+      averageEvaluationTime: 0
+    };
+    logger.debug('Auto-research detector performance metrics reset');
   }
 }

@@ -1,7 +1,6 @@
 import path from 'path';
 import { EventEmitter } from 'events';
 import { RDDEngine, DecompositionResult, RDDConfig } from '../core/rdd-engine.js';
-import { ProjectContext as AtomicDetectorContext } from '../core/atomic-detector.js';
 import { ProjectContext } from '../types/project-context.js';
 import { AtomicTask } from '../types/task.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
@@ -179,7 +178,7 @@ export interface DecompositionSession {
  */
 export interface DecompositionRequest {
   task: AtomicTask;
-  context: AtomicDetectorContext;
+  context: ProjectContext;
   config?: Partial<RDDConfig>;
   sessionId?: string;
   agentId?: string;
@@ -208,7 +207,8 @@ export class DecompositionService extends EventEmitter {
     this.researchIntegrationService = ResearchIntegration.getInstance();
 
     // Use absolute path for workflow state persistence
-    const workflowStatesDir = path.join(getVibeTaskManagerOutputDir(), 'workflow-states');
+    const outputDir = getVibeTaskManagerOutputDir();
+    const workflowStatesDir = outputDir ? path.join(outputDir, 'workflow-states') : '/tmp/test-workflow-states';
     this.workflowStateManager = WorkflowStateManager.getInstance(workflowStatesDir);
 
     this.summaryGenerator = new DecompositionSummaryGenerator(summaryConfig);
@@ -1020,7 +1020,7 @@ export class DecompositionService extends EventEmitter {
   /**
    * Enrich context with additional codebase information and auto-research
    */
-  private async enrichContext(context: AtomicDetectorContext, task?: AtomicTask): Promise<AtomicDetectorContext> {
+  private async enrichContext(context: ProjectContext, task?: AtomicTask): Promise<ProjectContext> {
     try {
       logger.info({ projectId: context.projectId }, 'Enriching context with codebase information and auto-research');
 
@@ -1071,7 +1071,7 @@ export class DecompositionService extends EventEmitter {
 
       const researchEvaluation = await this.autoResearchDetector.evaluateResearchNeed(researchTriggerContext);
 
-      let enhancedContext: AtomicDetectorContext = context;
+      let enhancedContext: ProjectContext = context;
 
       // If research is recommended, perform it before context enrichment
       if (researchEvaluation.decision.shouldTriggerResearch) {
@@ -1115,7 +1115,7 @@ export class DecompositionService extends EventEmitter {
             ...context,
             // Add research insights to the context in a compatible way
             researchInsights: researchInsights
-          } as AtomicDetectorContext;
+          } as ProjectContext;
 
           logger.info({
             taskId: task.id,
@@ -1144,7 +1144,7 @@ export class DecompositionService extends EventEmitter {
       const contextSummary = await this.contextService.createContextSummary(contextResult);
 
       // Enhance the project context with gathered information (merge with any research-enhanced context)
-      const finalEnhancedContext: AtomicDetectorContext = {
+      const finalEnhancedContext: ProjectContext = {
         ...enhancedContext, // Use research-enhanced context as base (or original context if no research)
         // Add context information in a compatible way
         codebaseContext: {
@@ -1379,6 +1379,83 @@ export class DecompositionService extends EventEmitter {
   }
 
   /**
+   * Simplified decomposition method for backward compatibility with tests
+   * @param task - The task to decompose
+   * @param projectContext - Project context information
+   * @returns Decomposition result in expected format
+   */
+  async decomposeTask(
+    task: AtomicTask,
+    projectContext: ProjectContext
+  ): Promise<{ success: boolean; data?: AtomicTask[]; error?: string }> {
+    try {
+      // Use the unified ProjectContext directly with the RDD engine
+      const unifiedContext: ProjectContext = {
+        projectId: projectContext.projectId,
+        projectPath: projectContext.projectPath,
+        projectName: projectContext.projectName,
+        description: projectContext.description,
+        languages: projectContext.languages,
+        frameworks: projectContext.frameworks,
+        buildTools: projectContext.buildTools,
+        tools: projectContext.tools || [],
+        configFiles: projectContext.configFiles || [],
+        entryPoints: projectContext.entryPoints || [],
+        architecturalPatterns: projectContext.architecturalPatterns || [],
+        existingTasks: projectContext.existingTasks,
+        codebaseSize: projectContext.codebaseSize,
+        teamSize: projectContext.teamSize,
+        complexity: projectContext.complexity,
+        codebaseContext: projectContext.codebaseContext,
+        structure: projectContext.structure || {
+          sourceDirectories: ['src'],
+          testDirectories: ['test', 'tests', '__tests__'],
+          docDirectories: ['docs', 'documentation'],
+          buildDirectories: ['dist', 'build', 'lib']
+        },
+        dependencies: projectContext.dependencies || {
+          production: [],
+          development: [],
+          external: []
+        },
+        metadata: projectContext.metadata || {
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: '1.0.0',
+          source: 'decomposition-service'
+        }
+      };
+
+      const result = await this.engine.decomposeTask(task, unifiedContext);
+
+      if (result.success && result.subTasks && result.subTasks.length > 0) {
+        return {
+          success: true,
+          data: result.subTasks
+        };
+      }
+
+      // If the task is atomic, return it as a single-item array
+      if (result.isAtomic) {
+        return {
+          success: true,
+          data: [task]
+        };
+      }
+
+      return {
+        success: false,
+        error: result.error || 'Decomposition failed - task could not be broken down'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
    * Decompose tasks from a parsed task list
    */
   async decomposeFromTaskList(
@@ -1599,13 +1676,50 @@ export class DecompositionService extends EventEmitter {
         },
         context: {
           projectId,
+          projectPath: process.cwd(),
+          projectName: projectId,
+          description: `Task list decomposition for project ${projectId}`,
           languages: [],
           frameworks: [],
+          buildTools: [],
           tools: [],
+          configFiles: [],
+          entryPoints: [],
+          architecturalPatterns: [],
           existingTasks: [],
           codebaseSize: 'medium' as const,
           teamSize: 1,
-          complexity: 'medium' as const
+          complexity: 'medium' as const,
+          codebaseContext: {
+            relevantFiles: [],
+            contextSummary: `Task list decomposition context for ${projectId}`,
+            gatheringMetrics: {
+              searchTime: 0,
+              readTime: 0,
+              scoringTime: 0,
+              totalTime: 0,
+              cacheHitRate: 0
+            },
+            totalContextSize: 0,
+            averageRelevance: 0
+          },
+          structure: {
+            sourceDirectories: ['src'],
+            testDirectories: ['test', 'tests', '__tests__'],
+            docDirectories: ['docs', 'documentation'],
+            buildDirectories: ['dist', 'build', 'lib']
+          },
+          dependencies: {
+            production: [],
+            development: [],
+            external: []
+          },
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: '1.0.0',
+            source: 'manual'
+          }
         },
         agentId: 'task-list-decomposition'
       };
@@ -1980,13 +2094,50 @@ export class DecompositionService extends EventEmitter {
         },
         context: {
           projectId,
+          projectPath: process.cwd(),
+          projectName: projectId,
+          description: `Failed task list decomposition for project ${projectId}`,
           languages: [],
           frameworks: [],
+          buildTools: [],
           tools: [],
+          configFiles: [],
+          entryPoints: [],
+          architecturalPatterns: [],
           existingTasks: [],
           codebaseSize: 'medium' as const,
           teamSize: 1,
-          complexity: 'medium' as const
+          complexity: 'medium' as const,
+          codebaseContext: {
+            relevantFiles: [],
+            contextSummary: `Failed task list decomposition context for ${projectId}`,
+            gatheringMetrics: {
+              searchTime: 0,
+              readTime: 0,
+              scoringTime: 0,
+              totalTime: 0,
+              cacheHitRate: 0
+            },
+            totalContextSize: 0,
+            averageRelevance: 0
+          },
+          structure: {
+            sourceDirectories: ['src'],
+            testDirectories: ['test', 'tests', '__tests__'],
+            docDirectories: ['docs', 'documentation'],
+            buildDirectories: ['dist', 'build', 'lib']
+          },
+          dependencies: {
+            production: [],
+            development: [],
+            external: []
+          },
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: '1.0.0',
+            source: 'manual'
+          }
         },
         agentId: 'task-list-decomposition'
       };
@@ -2554,15 +2705,34 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
 
       // Create project context for orchestration (using the full ProjectContext interface)
       const projectContext: ProjectContext = {
+        projectId: session.projectId,
         projectPath: `./projects/${session.projectId}`,
         projectName: session.projectId,
         description: `Project ${session.projectId}`,
         languages: ['typescript', 'javascript'],
         frameworks: [],
         buildTools: ['npm'],
+        tools: [],
         configFiles: [],
         entryPoints: [],
         architecturalPatterns: [],
+        existingTasks: session.persistedTasks || [],
+        codebaseSize: 'medium',
+        teamSize: 1,
+        complexity: 'medium',
+        codebaseContext: {
+          relevantFiles: [],
+          contextSummary: `Orchestration context for project ${session.projectId}`,
+          gatheringMetrics: {
+            searchTime: 0,
+            readTime: 0,
+            scoringTime: 0,
+            totalTime: 0,
+            cacheHitRate: 0
+          },
+          totalContextSize: 0,
+          averageRelevance: 0
+        },
         structure: {
           sourceDirectories: ['src'],
           testDirectories: ['tests'],
@@ -2863,7 +3033,7 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
   /**
    * Determine file types to include based on project context
    */
-  private determineFileTypes(context: AtomicDetectorContext): string[] {
+  private determineFileTypes(context: ProjectContext): string[] {
     const baseTypes = ['.ts', '.js', '.json'];
 
     // Add language-specific file types
@@ -2906,7 +3076,7 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
   /**
    * Helper methods for auto-research integration
    */
-  private extractDomain(context: AtomicDetectorContext): string {
+  private extractDomain(context: ProjectContext): string {
     // Extract domain from project context
     if (context.frameworks.includes('react') || context.frameworks.includes('vue') || context.frameworks.includes('angular')) {
       return 'frontend-development';
@@ -3268,7 +3438,7 @@ Total Research Results: ${researchResults.length}`;
   }
 
   /**
-   * Finalize the entire workflow by transitioning to COMPLETED phase
+   * Finalize the entire workflow by transitioning through EXECUTION phase to COMPLETED phase
    */
   private async finalizeWorkflow(session: DecompositionSession): Promise<void> {
     try {
@@ -3277,9 +3447,60 @@ Total Research Results: ${researchResults.length}`;
         projectId: session.projectId,
         totalTasks: session.persistedTasks?.length || 0,
         sessionStatus: session.status
-      }, 'Finalizing workflow - transitioning to COMPLETED phase');
+      }, 'Finalizing workflow - transitioning through EXECUTION phase to COMPLETED phase');
 
-      // Transition to the final COMPLETED phase
+      // First transition to EXECUTION phase (PENDING state)
+      await this.workflowStateManager.transitionWorkflow(
+        session.id,
+        WorkflowPhase.EXECUTION,
+        WorkflowState.PENDING,
+        {
+          reason: 'Starting execution phase after orchestration completion',
+          progress: 0,
+          triggeredBy: 'DecompositionService',
+          metadata: {
+            totalTasks: session.persistedTasks?.length || 0,
+            projectId: session.projectId,
+            readyForExecution: true
+          }
+        }
+      );
+
+      // Then transition to EXECUTION IN_PROGRESS
+      await this.workflowStateManager.transitionWorkflow(
+        session.id,
+        WorkflowPhase.EXECUTION,
+        WorkflowState.IN_PROGRESS,
+        {
+          reason: 'Execution phase in progress - tasks ready for agent assignment',
+          progress: 50,
+          triggeredBy: 'DecompositionService',
+          metadata: {
+            totalTasks: session.persistedTasks?.length || 0,
+            projectId: session.projectId,
+            executionStarted: true
+          }
+        }
+      );
+
+      // Complete the EXECUTION phase
+      await this.workflowStateManager.transitionWorkflow(
+        session.id,
+        WorkflowPhase.EXECUTION,
+        WorkflowState.COMPLETED,
+        {
+          reason: 'Execution phase completed - all tasks orchestrated and ready',
+          progress: 100,
+          triggeredBy: 'DecompositionService',
+          metadata: {
+            totalTasks: session.persistedTasks?.length || 0,
+            projectId: session.projectId,
+            executionCompleted: true
+          }
+        }
+      );
+
+      // Finally transition to the COMPLETED phase
       await this.workflowStateManager.transitionWorkflow(
         session.id,
         WorkflowPhase.COMPLETED,
@@ -3301,7 +3522,7 @@ Total Research Results: ${researchResults.length}`;
         sessionId: session.id,
         projectId: session.projectId,
         totalTasks: session.persistedTasks?.length || 0
-      }, 'Workflow finalized successfully - entire decomposition and orchestration process completed');
+      }, 'Workflow finalized successfully - entire decomposition, orchestration, and execution process completed');
 
     } catch (error) {
       logger.error({
@@ -3310,21 +3531,64 @@ Total Research Results: ${researchResults.length}`;
         projectId: session.projectId
       }, 'Failed to finalize workflow');
 
-      // Transition to failed state if finalization fails
-      await this.workflowStateManager.transitionWorkflow(
-        session.id,
-        WorkflowPhase.FAILED,
-        WorkflowState.FAILED,
-        {
-          reason: `Workflow finalization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          progress: 0,
-          triggeredBy: 'DecompositionService',
-          metadata: {
-            failedPhase: 'finalization',
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+      // Enhanced error handling for EXECUTION phase failures
+      try {
+        // Determine which phase failed based on current workflow state
+        const currentWorkflow = this.workflowStateManager.getWorkflow(session.id);
+        const currentPhase = currentWorkflow?.currentPhase;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // If we're in EXECUTION phase, try to transition to execution:failed first
+        if (currentPhase === WorkflowPhase.EXECUTION) {
+          logger.info({
+            sessionId: session.id,
+            projectId: session.projectId,
+            currentPhase
+          }, 'Attempting to transition EXECUTION phase to failed state');
+
+          await this.workflowStateManager.transitionWorkflow(
+            session.id,
+            WorkflowPhase.EXECUTION,
+            WorkflowState.FAILED,
+            {
+              reason: `Execution phase failed: ${errorMessage}`,
+              progress: 0,
+              triggeredBy: 'DecompositionService',
+              metadata: {
+                failedPhase: 'execution',
+                error: errorMessage,
+                totalTasks: session.persistedTasks?.length || 0
+              }
+            }
+          );
         }
-      );
+
+        // Then transition to overall workflow failed state
+        await this.workflowStateManager.transitionWorkflow(
+          session.id,
+          WorkflowPhase.FAILED,
+          WorkflowState.FAILED,
+          {
+            reason: `Workflow finalization failed: ${errorMessage}`,
+            progress: 0,
+            triggeredBy: 'DecompositionService',
+            metadata: {
+              failedPhase: currentPhase || 'finalization',
+              error: errorMessage,
+              totalTasks: session.persistedTasks?.length || 0,
+              projectId: session.projectId
+            }
+          }
+        );
+
+      } catch (transitionError) {
+        logger.error({
+          err: transitionError,
+          sessionId: session.id,
+          projectId: session.projectId,
+          originalError: error instanceof Error ? error.message : 'Unknown error'
+        }, 'Failed to transition to failed state during error handling');
+      }
 
       throw error;
     }

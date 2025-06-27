@@ -280,6 +280,20 @@ export class TaskScheduler {
   }
 
   /**
+   * Reset current instance (for testing and cleanup)
+   */
+  static resetCurrentInstance(): void {
+    TaskScheduler.currentInstance = null;
+  }
+
+  /**
+   * Check if current instance exists
+   */
+  static hasCurrentInstance(): boolean {
+    return TaskScheduler.currentInstance !== null;
+  }
+
+  /**
    * Generate execution schedule for a set of tasks
    */
   async generateSchedule(
@@ -601,6 +615,9 @@ export class TaskScheduler {
       };
     }
 
+    // Wait for dependencies before executing tasks
+    await this.waitForExecutionDependencies();
+
     const executedTasks: string[] = [];
     const queuedTasks: string[] = [];
     const errors: Array<{ taskId: string; error: string }> = [];
@@ -630,15 +647,34 @@ export class TaskScheduler {
         try {
           // Create project context for task execution
           const projectContext: ProjectContext = {
+            projectId: scheduledTask.task.projectId,
             projectPath: process.cwd(),
             projectName: scheduledTask.task.projectId,
             description: `Scheduled task execution for ${scheduledTask.task.title}`,
             languages: ['typescript', 'javascript'], // Default languages
             frameworks: [],
             buildTools: ['npm'],
+            tools: [],
             configFiles: [],
             entryPoints: [],
             architecturalPatterns: [],
+            existingTasks: [],
+            codebaseSize: 'medium',
+            teamSize: 1,
+            complexity: 'medium',
+            codebaseContext: {
+              relevantFiles: [],
+              contextSummary: `Scheduled task execution for ${scheduledTask.task.title}`,
+              gatheringMetrics: {
+                searchTime: 0,
+                readTime: 0,
+                scoringTime: 0,
+                totalTime: 0,
+                cacheHitRate: 0
+              },
+              totalContextSize: 0,
+              averageRelevance: 0
+            },
             structure: {
               sourceDirectories: ['src'],
               testDirectories: ['test', 'tests'],
@@ -730,12 +766,83 @@ export class TaskScheduler {
    * Cleanup and dispose of scheduler
    */
   dispose(): void {
+    // Prevent multiple disposal calls
+    if (this.isDisposed) {
+      return;
+    }
+    this.isDisposed = true;
+
     if (this.optimizationTimer) {
       clearInterval(this.optimizationTimer);
       this.optimizationTimer = null;
     }
 
+    // Clear current schedule
+    this.currentSchedule = null;
+
+    // Reset static instance if this is the current instance
+    if (TaskScheduler.currentInstance === this) {
+      TaskScheduler.currentInstance = null;
+    }
+
     logger.info('TaskScheduler disposed');
+  }
+
+  /**
+   * Check if scheduler is disposed
+   */
+  private isDisposed = false;
+
+  /**
+   * Wait for execution dependencies to be ready
+   */
+  private async waitForExecutionDependencies(): Promise<void> {
+    const maxWaitTime = 15000; // 15 seconds
+    const checkInterval = 500; // 500ms
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Check if ExecutionCoordinator is available and ready
+        try {
+          const { ExecutionCoordinator } = await import('./execution-coordinator.js');
+          const coordinator = await ExecutionCoordinator.getInstance();
+
+          // Check if coordinator is running
+          if (!(coordinator as any).isRunning) {
+            throw new Error('ExecutionCoordinator not running');
+          }
+        } catch (error) {
+          // ExecutionCoordinator might not be available in all environments
+          logger.debug('ExecutionCoordinator not available, continuing without it');
+        }
+
+        // Check if Transport Manager is ready (if available)
+        try {
+          const { TransportManager } = await import('../../../services/transport-manager/index.js');
+          const transportManager = TransportManager.getInstance();
+          const status = transportManager.getStatus();
+
+          // Only wait for transport manager if it's configured to start
+          if (status.isConfigured && !status.isStarted) {
+            throw new Error('Transport Manager not ready');
+          }
+        } catch (error) {
+          // Transport Manager might not be available in all environments
+          logger.debug('Transport Manager not available, continuing without it');
+        }
+
+        // All dependencies are ready
+        logger.debug('All execution dependencies ready for TaskScheduler');
+        return;
+
+      } catch (error) {
+        // Wait before next check
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+    }
+
+    logger.warn('Timeout waiting for execution dependencies, proceeding anyway');
   }
 
   // Private helper methods
@@ -1740,10 +1847,11 @@ export class TaskScheduler {
     let currentTime = new Date();
     let batchId = 0;
 
+    // Process tasks in sorted order, respecting batch constraints
     for (const batch of parallelBatches) {
-      const batchTasks = batch.taskIds
-        .map(id => sortedTasks.find(t => t.id === id))
-        .filter(task => task !== undefined) as AtomicTask[];
+      // Get tasks for this batch in shortest-job order
+      const batchTaskIds = new Set(batch.taskIds);
+      const batchTasks = sortedTasks.filter(task => batchTaskIds.has(task.id));
 
       for (const task of batchTasks) {
         const scores = taskScores.get(task.id);
