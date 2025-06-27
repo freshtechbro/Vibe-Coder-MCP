@@ -39,23 +39,18 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Run unit tests
         run: npm run test:unit
-        continue-on-error: true
 
       - name: Run integration tests
         run: npm run test:integration
-        continue-on-error: true
 
       - name: Run end-to-end tests
         run: npm run test:e2e
-        continue-on-error: true
 
       - name: Generate coverage report
         run: npm run coverage
-        continue-on-error: true
 
       - name: Ensure output directories exist
         run: |

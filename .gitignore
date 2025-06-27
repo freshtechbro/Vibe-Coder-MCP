@@ -1,6 +1,8 @@
 # Project-specific directories and files
 .env
 workflow-agent-files/
+.claude/
+CLAUDE.md
 
 # Dependency directories
 node_modules/

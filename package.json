@@ -13,8 +13,8 @@
     "dev:sse": "tsc -w & cross-env NODE_ENV=development nodemon build/index.js --sse | pino-pretty",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run --exclude '**/e2e/**'",
-    "test:unit": "vitest run \"src/**/__tests__/**/*.test.ts\"",
-    "test:integration": "vitest run \"src/**/__integration__/**/*.test.ts\"",
+    "test:unit": "vitest run --exclude '**/e2e/**' --exclude '**/__integration__/**' --exclude '**/integration/**' --exclude '**/integrations/**' --exclude '**/live/**'",
+    "test:integration": "vitest run '**/integration/**/*.test.ts' '**/integrations/**/*.test.ts' '**/__integration__/**/*.test.ts'",
     "test:e2e": "E2E_MODE=mock vitest run \"test/e2e/**/*.test.ts\" --testTimeout=30000",
     "test:e2e:real": "E2E_MODE=real vitest run \"test/e2e/**/*.test.ts\" --testTimeout=120000",
     "test:e2e:perf": "E2E_MODE=real E2E_SKIP_SLOW=false vitest run \"test/e2e/**/*.test.ts\" --testTimeout=300000",
@@ -38,7 +38,11 @@
     "test:agent-integration": "node test-agent-task-integration.cjs",
     "test:multi-transport": "node test-multi-transport-agents.cjs",
     "test:agent-response": "node test-agent-response-integration.cjs",
-    "test:full-integration": "npm run test:agent-integration && npm run test:multi-transport && npm run test:agent-response"
+    "test:full-integration": "npm run test:agent-integration && npm run test:multi-transport && npm run test:agent-response",
+    "test:memory": "cross-env NODE_OPTIONS='--expose-gc --max-old-space-size=2048' vitest run --exclude '**/e2e/**'",
+    "test:memory:debug": "cross-env NODE_OPTIONS='--expose-gc --max-old-space-size=2048' MEMORY_DEBUG=true vitest run --exclude '**/e2e/**'",
+    "test:optimized": "cross-env NODE_OPTIONS='--expose-gc --max-old-space-size=1024' vitest run --exclude '**/e2e/**' --reporter=basic",
+    "test:fast": "cross-env NODE_OPTIONS='--expose-gc' vitest run --exclude '**/e2e/**' --reporter=basic --run --no-coverage"
   },
   "keywords": [
     "MCP",
@@ -91,6 +95,7 @@
     "@types/node": "^22.13.14",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@vitest/coverage-v8": "^3.0.9",
+    "@vitest/ui": "^3.0.9",
     "@xenova/transformers": "^2.17.1",
     "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
