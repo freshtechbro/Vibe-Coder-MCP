@@ -25,8 +25,8 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
-        perplexityModel: 'pplx-7b-online',
+        geminiModel: 'google/gemini-2.5-flash-preview-05-20',
+        perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
         tools: {
           'vibe-task-manager': {
             allowedReadDirectory: '/test/read/directory',
@@ -57,8 +57,8 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
-        perplexityModel: 'pplx-7b-online',
+        geminiModel: 'google/gemini-2.5-flash-preview-05-20',
+        perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
         tools: {},
         config: {},
         llm_mapping: {}
@@ -81,8 +81,8 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
-        perplexityModel: 'pplx-7b-online',
+        geminiModel: 'google/gemini-2.5-flash-preview-05-20',
+        perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
         tools: {
           'vibe-task-manager': {
             allowedReadDirectory: '/test/read',
@@ -157,8 +157,8 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
-        perplexityModel: 'pplx-7b-online',
+        geminiModel: 'google/gemini-2.5-flash-preview-05-20',
+        perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
         tools: {
           'vibe-task-manager': {
             allowedReadDirectory: '/test/read',

@@ -11,6 +11,7 @@ import path from 'path';
 import logger from '../../../logger.js';
 import type { TaskListInfo, ParsedTaskList, TaskListItem, TaskListMetadata } from '../types/artifact-types.js';
 import type { AtomicTask } from '../types/task.js';
+import { validateSecurePath } from '../utils/path-security-validator.js';
 
 /**
  * Task List parsing result
@@ -189,22 +190,32 @@ export class TaskListIntegrationService {
   }
 
   /**
-   * Validate task list file path
+   * Validate task list file path with security checks
    */
   private async validateTaskListPath(taskListFilePath: string): Promise<void> {
     try {
-      await fs.access(taskListFilePath);
-      const stats = await fs.stat(taskListFilePath);
-      
-      if (!stats.isFile()) {
-        throw new Error('Task list path is not a file');
+      // Use secure path validation
+      const validationResult = await validateSecurePath(taskListFilePath);
+
+      if (!validationResult.isValid) {
+        throw new Error(`Security validation failed: ${validationResult.error}`);
       }
 
+      // Log any security warnings
+      if (validationResult.warnings && validationResult.warnings.length > 0) {
+        logger.warn({
+          taskListFilePath,
+          warnings: validationResult.warnings
+        }, 'Task list path validation warnings');
+      }
+
+      // Additional task list specific validation
       if (!taskListFilePath.endsWith('.md')) {
         throw new Error('Task list file must be a Markdown file (.md)');
       }
 
     } catch (error) {
+      logger.error({ err: error, taskListFilePath }, 'Task list path validation failed');
       throw new Error(`Invalid task list file path: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -351,10 +362,16 @@ export class TaskListIntegrationService {
     const startTime = Date.now();
 
     try {
+      // Validate file path before accessing file system
+      const validationResult = await validateSecurePath(filePath);
+      if (!validationResult.isValid) {
+        throw new Error(`Security validation failed: ${validationResult.error}`);
+      }
+
       const lines = content.split('\n');
       const fileName = path.basename(filePath);
       const { projectName, createdAt, listType } = this.extractTaskListMetadataFromFilename(fileName);
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(validationResult.sanitizedPath!);
 
       // Initialize parsed task list structure
       const parsedTaskList: ParsedTaskList = {

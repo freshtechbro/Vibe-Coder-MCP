@@ -1,6 +1,7 @@
 import { performResearchQuery } from '../../../utils/researchHelper.js';
 import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
+import { OpenRouterConfigManager } from '../../../utils/openrouter-config-manager.js';
 import type { OpenRouterConfig } from '../../../types/workflow.js';
 import type { AtomicTask } from '../types/task.js';
 import logger from '../../../logger.js';
@@ -222,7 +223,15 @@ export class ResearchIntegration extends EventEmitter {
         const cachedResult = this.getCachedResearch(requestId, request.optimization.cacheStrategy);
         if (cachedResult) {
           logger.debug({ requestId, cacheStrategy: request.optimization.cacheStrategy }, 'Returning cached research result');
-          return cachedResult;
+          // Mark as cache hit
+          const cachedResultWithHit = {
+            ...cachedResult,
+            performance: {
+              ...cachedResult.performance,
+              cacheHit: true
+            }
+          };
+          return cachedResultWithHit;
         }
       }
 
@@ -700,26 +709,29 @@ Return only the queries, one per line, without numbering or formatting.
   // Private helper methods
 
   /**
-   * Initialize OpenRouter configuration
+   * Initialize OpenRouter configuration using centralized manager
    */
   private async initializeConfig(): Promise<void> {
     try {
-      const config = await getVibeTaskManagerConfig();
-      if (config?.llm) {
-        this.openRouterConfig = {
-          baseUrl: 'https://openrouter.ai/api/v1',
-          apiKey: process.env.OPENROUTER_API_KEY || '',
-          geminiModel: 'gemini-pro',
-          perplexityModel: 'perplexity/sonar-deep-research'
-        };
-      }
+      const configManager = OpenRouterConfigManager.getInstance();
+      this.openRouterConfig = await configManager.getOpenRouterConfig();
+
+      logger.debug({
+        hasApiKey: Boolean(this.openRouterConfig.apiKey),
+        baseUrl: this.openRouterConfig.baseUrl,
+        mappingCount: Object.keys(this.openRouterConfig.llm_mapping || {}).length
+      }, 'Research integration initialized with centralized OpenRouter config');
+
     } catch (error) {
-      logger.warn({ err: error }, 'Failed to initialize OpenRouter config, using defaults');
+      logger.warn({ err: error }, 'Failed to initialize OpenRouter config with centralized manager, using fallback');
+
+      // Fallback to basic configuration if centralized manager fails
       this.openRouterConfig = {
-        baseUrl: 'https://openrouter.ai/api/v1',
+        baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
         apiKey: process.env.OPENROUTER_API_KEY || '',
-        geminiModel: 'gemini-pro',
-        perplexityModel: 'perplexity/sonar-deep-research'
+        geminiModel: process.env.GEMINI_MODEL || process.env.VIBE_DEFAULT_LLM_MODEL || 'google/gemini-2.5-flash-preview-05-20',
+        perplexityModel: process.env.PERPLEXITY_MODEL || 'perplexity/llama-3.1-sonar-small-128k-online',
+        llm_mapping: {}
       };
     }
   }

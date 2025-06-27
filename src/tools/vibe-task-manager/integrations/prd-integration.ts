@@ -11,6 +11,7 @@ import path from 'path';
 import logger from '../../../logger.js';
 import type { PRDInfo, ParsedPRD } from '../types/artifact-types.js';
 import type { ProjectContext } from '../types/project-context.js';
+import { PathSecurityValidator } from '../utils/path-security-validator.js';
 
 /**
  * PRD parsing result
@@ -98,6 +99,7 @@ export class PRDIntegrationService {
   private config: PRDIntegrationConfig;
   private prdCache = new Map<string, PRDInfo>();
   private performanceMetrics = new Map<string, PRDMetadata['performanceMetrics']>();
+  private pathValidator: PathSecurityValidator;
 
   private constructor() {
     this.config = {
@@ -106,6 +108,13 @@ export class PRDIntegrationService {
       maxCacheSize: 50,
       enablePerformanceMonitoring: true
     };
+
+    // Initialize path security validator with PRD-specific configuration
+    this.pathValidator = new PathSecurityValidator({
+      allowedExtensions: ['.md'],
+      strictMode: true,
+      allowSymlinks: false
+    });
 
     logger.debug('PRD integration service initialized');
   }
@@ -212,22 +221,32 @@ export class PRDIntegrationService {
   }
 
   /**
-   * Validate PRD file path
+   * Validate PRD file path with security checks
    */
   private async validatePRDPath(prdFilePath: string): Promise<void> {
     try {
-      await fs.access(prdFilePath);
-      const stats = await fs.stat(prdFilePath);
-      
-      if (!stats.isFile()) {
-        throw new Error('PRD path is not a file');
+      // Use secure path validation
+      const validationResult = await this.pathValidator.validatePath(prdFilePath);
+
+      if (!validationResult.isValid) {
+        throw new Error(`Security validation failed: ${validationResult.error}`);
       }
 
+      // Log any security warnings
+      if (validationResult.warnings && validationResult.warnings.length > 0) {
+        logger.warn({
+          prdFilePath,
+          warnings: validationResult.warnings
+        }, 'PRD path validation warnings');
+      }
+
+      // Additional PRD-specific validation
       if (!prdFilePath.endsWith('.md')) {
         throw new Error('PRD file must be a Markdown file (.md)');
       }
 
     } catch (error) {
+      logger.error({ err: error, prdFilePath }, 'PRD path validation failed');
       throw new Error(`Invalid PRD file path: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -370,10 +389,16 @@ export class PRDIntegrationService {
     const startTime = Date.now();
 
     try {
+      // Validate file path before accessing file system
+      const validationResult = await this.pathValidator.validatePath(filePath);
+      if (!validationResult.isValid) {
+        throw new Error(`Security validation failed: ${validationResult.error}`);
+      }
+
       const lines = content.split('\n');
       const fileName = path.basename(filePath);
       const { projectName, createdAt } = this.extractPRDMetadataFromFilename(fileName);
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(validationResult.sanitizedPath!);
 
       // Initialize parsed PRD structure
       const parsedPRD: ParsedPRD = {
@@ -570,6 +595,9 @@ export class PRDIntegrationService {
    */
   async getPRDMetadata(prdFilePath: string): Promise<PRDMetadata> {
     try {
+      // Validate PRD file path first
+      await this.validatePRDPath(prdFilePath);
+
       const stats = await fs.stat(prdFilePath);
       const fileName = path.basename(prdFilePath);
       const { projectName, createdAt } = this.extractPRDMetadataFromFilename(fileName);

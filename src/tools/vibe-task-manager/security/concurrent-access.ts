@@ -135,6 +135,23 @@ export class ConcurrentAccessManager {
   }
 
   /**
+   * Reset singleton instance (for testing)
+   */
+  static resetInstance(): void {
+    if (ConcurrentAccessManager.instance) {
+      ConcurrentAccessManager.instance.dispose();
+      ConcurrentAccessManager.instance = null;
+    }
+  }
+
+  /**
+   * Check if singleton instance exists
+   */
+  static hasInstance(): boolean {
+    return ConcurrentAccessManager.instance !== null;
+  }
+
+  /**
    * Acquire lock on resource
    */
   async acquireLock(
@@ -726,6 +743,41 @@ export class ConcurrentAccessManager {
       totalDeadlocks: deadlocks,
       averageLockDuration: avgDuration
     };
+  }
+
+  /**
+   * Clear all active locks (for testing)
+   */
+  async clearAllLocks(): Promise<void> {
+    const lockIds = Array.from(this.activeLocks.keys());
+    let clearedCount = 0;
+
+    for (const lockId of lockIds) {
+      try {
+        await this.releaseLock(lockId);
+        clearedCount++;
+      } catch (error) {
+        logger.warn({ lockId, error }, 'Failed to clear lock');
+      }
+    }
+
+    // Clear any remaining waiters
+    for (const waiters of this.lockWaiters.values()) {
+      for (const waiter of waiters) {
+        clearTimeout(waiter.timeout);
+        waiter.reject(new Error('All locks cleared'));
+      }
+    }
+    this.lockWaiters.clear();
+
+    logger.debug({ clearedCount }, 'All locks cleared');
+  }
+
+  /**
+   * Dispose of the concurrent access manager
+   */
+  async dispose(): Promise<void> {
+    await this.shutdown();
   }
 
   /**
