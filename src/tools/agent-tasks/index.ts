@@ -6,9 +6,9 @@
  */
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { AgentRegistry } from '../agent-registry/index.js';
 import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
+import { dependencyContainer } from '../../services/dependency-container.js';
 import { z } from 'zod';
 
 // Unified task assignment interface (compatible with agent-orchestrator)
@@ -48,6 +48,7 @@ class AgentTaskQueue {
   private queues = new Map<string, TaskAssignment[]>(); // agentId -> tasks
   private taskHistory = new Map<string, TaskAssignment>(); // taskId -> task
   private assignmentCounter = 0;
+  private agentRegistryCache: any = null; // Cache for safe agent registry access
 
   static getInstance(): AgentTaskQueue {
     if (AgentTaskQueue.isInitializing) {
@@ -94,6 +95,16 @@ class AgentTaskQueue {
     return fallback;
   }
 
+  /**
+   * Get AgentRegistry instance using dependency container
+   */
+  private async getAgentRegistry(): Promise<any | null> {
+    if (!this.agentRegistryCache) {
+      this.agentRegistryCache = await dependencyContainer.getAgentRegistry();
+    }
+    return this.agentRegistryCache;
+  }
+
   async addTask(agentId: string, task: Omit<TaskAssignment, 'taskId' | 'assignedAt'>): Promise<string> {
     // Generate unique task ID
     const taskId = this.generateTaskId();
@@ -119,7 +130,8 @@ class AgentTaskQueue {
     await this.updateAgentTaskCount(agentId);
 
     // Send SSE notification if agent uses SSE transport
-    const agent = await AgentRegistry.getInstance().getAgent(agentId);
+    const agentRegistry = await this.getAgentRegistry();
+    const agent = agentRegistry ? await agentRegistry.getAgent(agentId) : null;
     if (agent?.transportType === 'sse') {
       await this.sendSSETaskNotification(agentId, taskAssignment);
     }
@@ -138,8 +150,8 @@ class AgentTaskQueue {
     const tasks = queue.splice(0, Math.min(maxTasks, queue.length));
 
     // Update agent last seen
-    const agentRegistry = AgentRegistry.getInstance();
-    const agent = await agentRegistry.getAgent(agentId);
+    const agentRegistry = await this.getAgentRegistry();
+    const agent = agentRegistry ? await agentRegistry.getAgent(agentId) : null;
     if (agent) {
       agent.lastSeen = Date.now();
       await this.updateAgentTaskCount(agentId);
@@ -183,9 +195,9 @@ class AgentTaskQueue {
   }
 
   private async updateAgentTaskCount(agentId: string): Promise<void> {
-    const agentRegistry = AgentRegistry.getInstance();
-    const agent = await agentRegistry.getAgent(agentId);
-    if (agent) {
+    const agentRegistry = await this.getAgentRegistry();
+    const agent = agentRegistry ? await agentRegistry.getAgent(agentId) : null;
+    if (agent && agentRegistry) {
       const queueLength = await this.getQueueLength(agentId);
       agent.currentTasks = Array.from({ length: queueLength }, (_, i) => `pending-${i + 1}`);
 
@@ -201,7 +213,8 @@ class AgentTaskQueue {
 
   private async sendSSETaskNotification(agentId: string, task: TaskAssignment): Promise<void> {
     try {
-      const agent = await AgentRegistry.getInstance().getAgent(agentId);
+      const agentRegistry = await this.getAgentRegistry();
+      const agent = agentRegistry ? await agentRegistry.getAgent(agentId) : null;
 
       if (agent?.sessionId) {
         // Send to specific agent session
@@ -236,11 +249,11 @@ class AgentTaskQueue {
 
   // Find best available agent for a task
   async findBestAgent(requiredCapabilities: string[]): Promise<string | null> {
-    const agentRegistry = AgentRegistry.getInstance();
-    const onlineAgents = await agentRegistry.getOnlineAgents();
+    const agentRegistry = await this.getAgentRegistry();
+    const onlineAgents = agentRegistry ? await agentRegistry.getOnlineAgents() : [];
 
     // Filter agents by capabilities
-    const capableAgents = onlineAgents.filter(agent =>
+    const capableAgents = onlineAgents.filter((agent: any) =>
       requiredCapabilities.every(cap => agent.capabilities.includes(cap))
     );
 
@@ -250,7 +263,7 @@ class AgentTaskQueue {
 
     // Sort by current task load (ascending)
     const agentsWithLoad = await Promise.all(
-      capableAgents.map(async agent => ({
+      capableAgents.map(async (agent: any) => ({
         agent,
         queueLength: await this.getQueueLength(agent.agentId)
       }))
@@ -317,8 +330,8 @@ export async function handleGetAgentTasks(args: any): Promise<CallToolResult> {
     const { agentId, maxTasks = 1 } = args;
 
     // Verify agent exists and is registered
-    const agentRegistry = AgentRegistry.getInstance();
-    const agent = await agentRegistry.getAgent(agentId);
+    const agentRegistry = await dependencyContainer.getAgentRegistry();
+    const agent = agentRegistry ? await agentRegistry.getAgent(agentId) : null;
 
     if (!agent) {
       return {

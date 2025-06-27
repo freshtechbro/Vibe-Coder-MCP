@@ -10,6 +10,7 @@ import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
 import { transportManager } from '../../services/transport-manager/index.js';
 import { InitializationMonitor } from '../../utils/initialization-monitor.js';
+import { dependencyContainer } from '../../services/dependency-container.js';
 import { z } from 'zod';
 
 // Agent registration interface
@@ -101,16 +102,13 @@ class AgentRegistry {
   }
 
   /**
-   * Initialize integration bridge (lazy loading to avoid circular dependencies)
+   * Initialize integration bridge using dependency container
    */
   private async initializeIntegrationBridge(): Promise<void> {
     if (!this.integrationBridge) {
-      try {
-        const { AgentIntegrationBridge } = await import('../vibe-task-manager/services/agent-integration-bridge.js');
-        this.integrationBridge = AgentIntegrationBridge.getInstance();
-      } catch (error) {
-        console.warn('Integration bridge not available:', error);
-        this.integrationBridge = null;
+      this.integrationBridge = await dependencyContainer.getAgentIntegrationBridge();
+      if (!this.integrationBridge) {
+        console.warn('Integration bridge not available, using fallback');
       }
     }
   }

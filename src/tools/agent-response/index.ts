@@ -6,12 +6,11 @@
  */
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { AgentRegistry } from '../agent-registry/index.js';
-import { AgentTaskQueue } from '../agent-tasks/index.js';
 import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { jobManager } from '../../services/job-manager/index.js';
 import { getTaskOperations } from '../vibe-task-manager/core/operations/task-operations.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
+import { dependencyContainer } from '../../services/dependency-container.js';
 import { z } from 'zod';
 
 // Agent response interface
@@ -37,6 +36,8 @@ class AgentResponseProcessor {
   private static instance: AgentResponseProcessor;
   private static isInitializing = false; // Initialization guard to prevent circular initialization
   private responseHistory = new Map<string, AgentResponse>(); // taskId -> response
+  private agentRegistryCache: any = null; // Cache for safe agent registry access
+  private agentTaskQueueCache: any = null; // Cache for safe agent task queue access
 
   static getInstance(): AgentResponseProcessor {
     if (AgentResponseProcessor.isInitializing) {
@@ -80,6 +81,26 @@ class AgentResponseProcessor {
     return fallback;
   }
 
+  /**
+   * Get AgentRegistry instance using dependency container
+   */
+  private async getAgentRegistry(): Promise<any | null> {
+    if (!this.agentRegistryCache) {
+      this.agentRegistryCache = await dependencyContainer.getAgentRegistry();
+    }
+    return this.agentRegistryCache;
+  }
+
+  /**
+   * Get AgentTaskQueue instance using dependency container
+   */
+  private async getAgentTaskQueue(): Promise<any | null> {
+    if (!this.agentTaskQueueCache) {
+      this.agentTaskQueueCache = await dependencyContainer.getAgentTaskQueue();
+    }
+    return this.agentTaskQueueCache;
+  }
+
   async processResponse(response: AgentResponse): Promise<void> {
     try {
       // Validate response
@@ -111,15 +132,15 @@ class AgentResponseProcessor {
 
   private async validateResponse(response: AgentResponse): Promise<void> {
     // Verify agent exists
-    const agentRegistry = AgentRegistry.getInstance();
-    const agent = await agentRegistry.getAgent(response.agentId);
+    const agentRegistry = await this.getAgentRegistry();
+    const agent = agentRegistry ? await agentRegistry.getAgent(response.agentId) : null;
     if (!agent) {
       throw new Error(`Agent ${response.agentId} not found`);
     }
 
     // Verify task exists
-    const taskQueue = AgentTaskQueue.getInstance();
-    const task = await taskQueue.getTask(response.taskId);
+    const taskQueue = await this.getAgentTaskQueue();
+    const task = taskQueue ? await taskQueue.getTask(response.taskId) : null;
     if (!task) {
       throw new Error(`Task ${response.taskId} not found`);
     }
@@ -210,15 +231,17 @@ class AgentResponseProcessor {
 
   private async updateAgentStatus(response: AgentResponse): Promise<void> {
     try {
-      const agentRegistry = AgentRegistry.getInstance();
-      const taskQueue = AgentTaskQueue.getInstance();
+      const agentRegistry = await this.getAgentRegistry();
+      const taskQueue = await this.getAgentTaskQueue();
 
       // Remove completed task from queue
-      await taskQueue.removeTask(response.taskId);
+      if (taskQueue) {
+        await taskQueue.removeTask(response.taskId);
+      }
 
       // Update agent last seen and task count
-      const agent = await agentRegistry.getAgent(response.agentId);
-      if (agent) {
+      const agent = agentRegistry ? await agentRegistry.getAgent(response.agentId) : null;
+      if (agent && agentRegistry && taskQueue) {
         agent.lastSeen = Date.now();
 
         // Update current tasks list
@@ -252,8 +275,8 @@ class AgentResponseProcessor {
       });
 
       // Send specific notification to agent's session if SSE transport
-      const agentRegistry = AgentRegistry.getInstance();
-      const agent = await agentRegistry.getAgent(response.agentId);
+      const agentRegistry = await this.getAgentRegistry();
+      const agent = agentRegistry ? await agentRegistry.getAgent(response.agentId) : null;
 
       if (agent?.transportType === 'sse' && agent.sessionId) {
         await sseNotifier.sendEvent(agent.sessionId, 'responseReceived', {
