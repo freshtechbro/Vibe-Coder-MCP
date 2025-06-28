@@ -1,6 +1,7 @@
 # Project-specific directories and files
 .env
 workflow-agent-files/
+.augment/
 
 # Dependency directories
 node_modules/
