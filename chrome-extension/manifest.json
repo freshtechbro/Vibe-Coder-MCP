@@ -10,14 +10,14 @@
     "tabs"
   ],
   "optional_permissions": [
-    "fileSystem",
-    "downloads"
+    "downloads",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://github.com/*",
     "https://api.github.com/*",
-    "http://localhost:*",
-    "https://localhost:*"
+    "http://localhost/*",
+    "https://localhost/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -25,9 +25,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://github.com/*"],
-      "js": ["content/github-integration.js"],
-      "css": ["content/github-styles.css"],
+      "matches": [
+        "https://github.com/*"
+      ],
+      "js": [
+        "content/github-integration.js"
+      ],
+      "css": [
+        "content/github-styles.css"
+      ],
       "run_at": "document_end"
     }
   ],
@@ -57,11 +63,12 @@
         "assets/*",
         "content/*"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
   }
 }
-

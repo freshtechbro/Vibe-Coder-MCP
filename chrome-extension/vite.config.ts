@@ -16,6 +16,10 @@ export default defineConfig({
           src: 'assets/**/*',
           dest: 'assets',
         },
+        {
+          src: 'src/content/github-styles.css',
+          dest: 'content',
+        },
       ],
     }),
   ],
@@ -27,21 +31,21 @@ export default defineConfig({
         popup: resolve(__dirname, 'popup/index.html'),
         sidepanel: resolve(__dirname, 'sidepanel/index.html'),
         options: resolve(__dirname, 'options/index.html'),
-        
+
         // Background script
-        'background/service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
-        
+        'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
+
         // Content scripts
-        'content/github-integration': resolve(__dirname, 'src/content/github-integration.ts'),
+        'github-integration': resolve(__dirname, 'src/content/github-integration.ts'),
       },
       output: {
         entryFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId;
-          if (facadeModuleId?.includes('background/')) {
-            return 'background/[name].js';
+          if (facadeModuleId?.includes('service-worker')) {
+            return 'background/service-worker.js';
           }
-          if (facadeModuleId?.includes('content/')) {
-            return 'content/[name].js';
+          if (facadeModuleId?.includes('github-integration')) {
+            return 'content/github-integration.js';
           }
           return 'assets/[name]-[hash].js';
         },

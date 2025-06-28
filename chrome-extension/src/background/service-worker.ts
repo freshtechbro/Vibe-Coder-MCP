@@ -48,8 +48,36 @@ class RepotoolsServiceWorker {
       }
     });
 
-    // Handle side panel requests
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    // Handle side panel requests (check if API is available)
+    this.initializeSidePanel();
+  }
+
+  private initializeSidePanel(): void {
+    try {
+      // Check if chrome object exists
+      if (typeof chrome === 'undefined') {
+        console.warn('Chrome APIs not available');
+        return;
+      }
+
+      // Check if sidePanel API exists
+      if (!chrome.sidePanel) {
+        console.warn('Side panel API not available in this Chrome version');
+        return;
+      }
+
+      // Check if setPanelBehavior method exists
+      if (typeof chrome.sidePanel.setPanelBehavior !== 'function') {
+        console.warn('setPanelBehavior method not available');
+        return;
+      }
+
+      // Try to set panel behavior
+      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+      console.log('Side panel behavior set successfully');
+    } catch (error) {
+      console.warn('Failed to initialize side panel:', error);
+    }
   }
 
   private async setupInitialState(): Promise<void> {
@@ -71,8 +99,8 @@ class RepotoolsServiceWorker {
   }
 
   private async handleMessage(
-    message: TaskMessage, 
-    _sender: chrome.runtime.MessageSender, 
+    message: TaskMessage,
+    _sender: chrome.runtime.MessageSender,
     sendResponse: (response?: any) => void
   ): Promise<void> {
     try {
@@ -80,30 +108,30 @@ class RepotoolsServiceWorker {
         case 'START_TASK':
           await this.startTask(message);
           break;
-        
+
         case 'TASK_CONTROL':
           await this.controlTask(message);
           break;
-        
+
         case 'TOOL_ACTION':
           await this.handleToolAction(message);
           break;
-        
+
         case 'GET_STATUS':
           sendResponse({
             tasks: Array.from(this.activeTasks.values()),
             serverConnection: this.serverConnection,
           });
           break;
-        
+
         case 'CONNECT_SERVER':
           await this.connectToServer();
           break;
-        
+
         case 'DISCONNECT_SERVER':
           await this.disconnectFromServer();
           break;
-        
+
         default:
           console.warn('Unknown message type:', message.type);
       }
@@ -168,7 +196,7 @@ class RepotoolsServiceWorker {
   private async handleToolAction(message: TaskMessage): Promise<void> {
     // Handle quick tool actions from popup
     console.log('Tool action:', message.tool);
-    
+
     // This would typically communicate with the lightweight server
     // For now, we'll just log the action
   }
@@ -185,7 +213,7 @@ class RepotoolsServiceWorker {
       }
 
       currentTask.progress = Math.min(currentTask.progress + Math.random() * 10, 100);
-      
+
       if (currentTask.progress >= 100) {
         currentTask.status = 'completed';
         clearInterval(interval);
@@ -222,7 +250,7 @@ class RepotoolsServiceWorker {
       // This would typically connect to the lightweight server
       // For now, we'll simulate a connection
       this.serverConnection = { connected: true, url: 'http://localhost:3001' };
-      
+
       await chrome.storage.local.set({
         serverConnection: this.serverConnection,
       });
@@ -237,7 +265,7 @@ class RepotoolsServiceWorker {
   private async disconnectFromServer(): Promise<void> {
     try {
       this.serverConnection = { connected: false };
-      
+
       await chrome.storage.local.set({
         serverConnection: this.serverConnection,
       });
@@ -253,7 +281,7 @@ class RepotoolsServiceWorker {
     try {
       // Inject GitHub integration content script if needed
       console.log('GitHub page loaded:', tab.url);
-      
+
       // This could trigger automatic repository detection
       // and offer to start analysis
     } catch (error) {

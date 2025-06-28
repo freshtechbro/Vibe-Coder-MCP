@@ -1,0 +1,255 @@
+/* GitHub Integration Styles for Repotools Chrome Extension */
+
+/* Repotools button on GitHub repository pages */
+.repotools-github-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  margin-left: 8px;
+}
+
+.repotools-github-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+}
+
+.repotools-github-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.repotools-github-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Repotools floating action button */
+.repotools-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+  transition: all 0.3s ease;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.repotools-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.repotools-fab svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Repotools tooltip */
+.repotools-tooltip {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.repotools-fab:hover .repotools-tooltip {
+  opacity: 1;
+}
+
+/* Repotools context menu */
+.repotools-context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  padding: 8px 0;
+  min-width: 200px;
+  z-index: 10000;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: all 0.15s ease;
+}
+
+.repotools-context-menu.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.repotools-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  color: #374151;
+}
+
+.repotools-context-menu-item:hover {
+  background-color: #f3f4f6;
+}
+
+.repotools-context-menu-item svg {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+}
+
+.repotools-context-menu-separator {
+  height: 1px;
+  background-color: #e5e7eb;
+  margin: 4px 0;
+}
+
+/* Code selection highlight */
+.repotools-code-selection {
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  position: relative;
+}
+
+.repotools-code-selection::after {
+  content: "Selected for Repotools";
+  position: absolute;
+  top: -24px;
+  left: 0;
+  background: #3b82f6;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Repository analysis indicator */
+.repotools-analysis-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.repotools-analysis-indicator.analyzing {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.repotools-analysis-indicator svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .repotools-fab {
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+  }
+  
+  .repotools-fab svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .repotools-github-button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  
+  .repotools-context-menu {
+    min-width: 180px;
+  }
+}
+
+/* Dark mode support for GitHub */
+@media (prefers-color-scheme: dark) {
+  .repotools-context-menu {
+    background: #1f2937;
+    border-color: #374151;
+  }
+  
+  .repotools-context-menu-item {
+    color: #f9fafb;
+  }
+  
+  .repotools-context-menu-item:hover {
+    background-color: #374151;
+  }
+  
+  .repotools-context-menu-separator {
+    background-color: #4b5563;
+  }
+}
+
+/* GitHub-specific integration styles */
+.js-repo-nav .repotools-github-button {
+  margin-left: 8px;
+}
+
+.file-navigation .repotools-github-button {
+  margin-left: 16px;
+}
+
+/* Animation for loading states */
+@keyframes repotools-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.repotools-loading {
+  animation: repotools-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Hide elements when Repotools is not active */
+.repotools-hidden {
+  display: none !important;
+}

@@ -14,7 +14,12 @@
     "test:watch": "jest --watch",
     "clean": "rimraf dist build",
     "setup:shadcn": "npx shadcn-ui@latest init",
-    "add:component": "npx shadcn-ui@latest add"
+    "add:component": "npx shadcn-ui@latest add",
+    "icons": "node scripts/generate-icons.js",
+    "dev:full": "npm run icons && npm run dev",
+    "build:full": "npm run icons && npm run build",
+    "validate": "npm run type-check && npm run lint",
+    "setup": "npm install && npm run icons && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
