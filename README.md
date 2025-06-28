@@ -1232,20 +1232,28 @@ All platform and infrastructure issues resolved:
 
 ## Current Known Issues
 
-### Free Models Integration (v2.5.0)
-**Status**: Currently being debugged and not yet functional with free OpenRouter models.
+### Free Models Integration (v2.5.0) - CRITICAL SYSTEM ISSUE
+**Status**: LLM integration completely non-functional across ALL models (tested 2025-06-28).
 
 **Issue**: API calls succeed with HTTP 200 responses, but response content extraction fails in the LLM helper response parsing logic.
 
-**Affected Models**: 
-- All free models from OpenRouter (qwen/qwen3-30b-a3b:free, deepseek/deepseek-r1-0528-qwen3-8b:free, etc.)
-- Some paid models may also be affected
+**Affected Components**: 
+- All LLM-dependent tools (User Stories, PRD, Task List, Rules, Research generators)
+- Sequential thinking fallback routing
+- Any tool requiring OpenRouter API integration
 
 **Current Error**: "Invalid API response structure received from LLM - unable to extract content"
 
-**Workaround**: Use models known to work with standard OpenAI response format (google/gemini-2.5-flash-preview-05-20 is confirmed working)
+**Scope**: This affects the entire core functionality of the system. Only non-LLM tools work.
 
-**Status**: Active debugging in progress. Debug logging has been added to identify exact response formats from different models.
+**Working Components**:
+- Sequential thinking tool (without LLM)
+- Process request router (basic routing)
+- Job management system
+- Configuration loading
+- Build system
+
+**Status**: Critical system issue requiring immediate attention. System is 40% functional.
 
 ### Response Structure Analysis
 **Problem Location**: The issue is in the response content extraction logic within `performDirectLlmCall()`. API calls succeed but fail at content validation where `responseText` evaluates to falsy despite valid response structure.
@@ -1268,27 +1276,22 @@ All platform and infrastructure issues resolved:
 - Most Google models via OpenRouter
 - Standard OpenAI-compatible models
 
-### ⚠️ Currently Not Working (Under Investigation)
-- `qwen/qwen3-30b-a3b:free`
-- `deepseek/deepseek-r1-0528-qwen3-8b:free` 
-- `meta-llama/llama-4-maverick:free`
-- Other free OpenRouter models
+### ⚠️ Currently Not Working (Confirmed Non-Functional)
+- ALL OpenRouter models (free and paid)
+- ALL LLM-dependent functionality
+- System is essentially non-functional for AI operations
 
-### 🔧 Model Configuration
-To use working models while debugging continues:
-1. Edit your `llm_config.json` file
-2. Replace model entries with confirmed working models:
-   ```json
-   {
-     "llm_mapping": {
-       "user_stories_generation": "google/gemini-2.5-flash-preview-05-20",
-       "prd_generation": "google/gemini-2.5-flash-preview-05-20",
-       "task_list_generation": "google/gemini-2.5-flash-preview-05-20"
-     }
-   }
-   ```
-3. Rebuild: `npm run build`
-4. Restart Claude Desktop
+### 🔧 Current System Status
+**Critical Issue**: The LLM integration is completely broken. No workaround available.
+
+**For Immediate Use**: Only non-AI tools work:
+1. Sequential thinking (without LLM processing)
+2. Basic request routing
+3. Configuration management
+
+**System Functionality**: 40% (core infrastructure only)
+
+**Recommendation**: Do not deploy this version for production use until LLM integration is fixed.
 
 ## Contributing
 
