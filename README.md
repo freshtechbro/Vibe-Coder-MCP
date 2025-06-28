@@ -1232,7 +1232,7 @@ All platform and infrastructure issues resolved:
 
 ## Current Known Issues
 
-### Free Models Integration (v2.5.0) - CRITICAL SYSTEM ISSUE
+### Free Models Integration (v2.5.0) - CRITICAL LLM ISSUE
 **Status**: LLM integration completely non-functional across ALL models (tested 2025-06-28).
 
 **Issue**: API calls succeed with HTTP 200 responses, but response content extraction fails in the LLM helper response parsing logic.
@@ -1252,8 +1252,34 @@ All platform and infrastructure issues resolved:
 - Job management system
 - Configuration loading
 - Build system
+ 
+### ✅ CONFIRMED WORKING
+- **Sequential Thinking Tool**: Fully functional without external dependencies
+- **Process Request Router**: Basic routing functionality works (can analyze requests and suggest tools)
+- **Job Management System**: Background jobs can be created and tracked
+- **MCP Server Integration**: Server starts successfully and accepts tool calls
+- **Configuration Loading**: Environment variables and config files load correctly
+- **Build System**: TypeScript compilation and build process works
+- **Debug Tools**: All consolidated debug scripts function properly
 
-**Status**: Critical system issue requiring immediate attention. System is 40% functional.
+### ❌ CONFIRMED NOT WORKING
+- **All LLM-dependent tools**: Any tool requiring OpenRouter API calls fails with "Invalid API response structure received from LLM - unable to extract content"
+  - User Stories Generator
+  - PRD Generator 
+  - Task List Generator
+  - Rules Generator
+  - Research Manager
+- **Code Map Generator**: Starts but fails during processing (may be LLM-related)
+- **Vibe Task Manager**: Path validation issues prevent basic operations
+
+### ⚠️ PARTIALLY WORKING
+- **Semantic Routing**: Basic tool selection works but LLM fallback fails
+- **Background Job System**: Job creation works but LLM-dependent jobs fail
+
+
+**Status**: Critical LLM issue requiring immediate attention. System is mostly functional and heavily tested, see [DEBUG_README](debug/DEBUG_README.md)
+ for full details.
+ 
 
 ### Response Structure Analysis
 **Problem Location**: The issue is in the response content extraction logic within `performDirectLlmCall()`. API calls succeed but fail at content validation where `responseText` evaluates to falsy despite valid response structure.
