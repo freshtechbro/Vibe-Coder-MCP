@@ -7,11 +7,11 @@
     "storage",
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "sidePanel"
   ],
   "optional_permissions": [
-    "downloads",
-    "sidePanel"
+    "downloads"
   ],
   "host_permissions": [
     "https://github.com/*",
@@ -38,7 +38,6 @@
     }
   ],
   "action": {
-    "default_popup": "popup/index.html",
     "default_title": "Repotools",
     "default_icon": {
       "16": "assets/icons/icon-16.png",

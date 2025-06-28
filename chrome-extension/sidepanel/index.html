@@ -1,14 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Repotools Side Panel</title>
   <link rel="stylesheet" href="../src/styles/globals.css">
+  <script>
+    // Suppress ResizeObserver loop completed with undelivered notifications warning
+    window.addEventListener('error', function (e) {
+      if (e.message && e.message.includes('ResizeObserver loop completed with undelivered notifications')) {
+        e.stopImmediatePropagation();
+        return false;
+      }
+    });
+  </script>
 </head>
+
 <body class="extension-sidepanel">
   <div id="sidepanel-root"></div>
   <script type="module" src="./sidepanel.tsx"></script>
 </body>
-</html>
 
+</html>

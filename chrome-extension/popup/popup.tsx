@@ -1,15 +1,18 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { extensionUtils } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { extensionUtils } from '@/lib/extension-utils';
 import { mcpBridge } from '@/lib/mcp-bridge';
-import { 
-  FileText, 
-  Search, 
-  Settings, 
-  Zap, 
+import { initializeErrorSuppression } from '@/utils/error-suppression';
+import {
+  FileText,
+  Search,
+  Settings,
+  Zap,
   Shield,
   FileCode,
   Users,
@@ -21,58 +24,32 @@ import {
   Brain,
   UserPlus,
   ListTodo,
-  Send
+  Send,
+  Paperclip,
+  Plus,
+  Clock,
+  Gamepad2
 } from 'lucide-react';
 import '../src/styles/globals.css';
 
-interface ToolCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-  progress?: number;
-  isActive?: boolean;
-}
 
-const ToolCard: React.FC<ToolCardProps> = ({ 
-  icon, 
-  title, 
-  description, 
-  onClick, 
-  progress,
-  isActive = false 
-}) => (
-  <Card className={`cursor-pointer transition-all duration-300 hover:shadow-md ${
-    isActive ? 'ring-2 ring-blue-400 bg-blue-50/80' : ''
-  }`} onClick={onClick}>
-    <CardHeader className="pb-2 pt-3">
-      <div className="flex items-center space-x-3">
-        <div className="p-1.5 rounded-lg bg-gradient-primary text-white">
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
-          <CardDescription className="text-xs text-slate-500 truncate">{description}</CardDescription>
-        </div>
-      </div>
-    </CardHeader>
-    {progress !== undefined && (
-      <CardContent className="pt-0 pb-3">
-        <Progress value={progress} className="h-1.5" />
-        <p className="text-xs text-slate-500 mt-1">{progress}% complete</p>
-      </CardContent>
-    )}
-  </Card>
-);
 
 const PopupApp: React.FC = () => {
   const [isConnected, setIsConnected] = React.useState<boolean>(false);
-  const [isConnecting, setIsConnecting] = React.useState<boolean>(false);
+
+  const [selectedTool, setSelectedTool] = React.useState<string>('');
+  const [query, setQuery] = React.useState<string>('');
+  const [output, setOutput] = React.useState<string>('');
+  const [isExecuting, setIsExecuting] = React.useState<boolean>(false);
+  const [attachedFiles, setAttachedFiles] = React.useState<File[]>([]);
 
   React.useEffect(() => {
+    // Initialize error suppression
+    initializeErrorSuppression();
+
     // Check connection status
     setIsConnected(mcpBridge.isConnected());
-    
+
     // Try to connect on startup
     if (!mcpBridge.isConnected()) {
       handleConnect();
@@ -80,22 +57,16 @@ const PopupApp: React.FC = () => {
   }, []);
 
   const handleConnect = async () => {
-    setIsConnecting(true);
     try {
       await mcpBridge.connect();
       setIsConnected(true);
     } catch (error) {
       console.error('Failed to connect to MCP server:', error);
       setIsConnected(false);
-    } finally {
-      setIsConnecting(false);
     }
   };
 
-  const handleDisconnect = () => {
-    mcpBridge.disconnect();
-    setIsConnected(false);
-  };
+
 
   const handleOpenSidePanel = async () => {
     try {
@@ -106,23 +77,52 @@ const PopupApp: React.FC = () => {
     }
   };
 
-  const handleToolAction = async (tool: string) => {
+  const handleOpenSettings = () => {
+    // Open settings page
+    chrome.runtime.openOptionsPage();
+    window.close();
+  };
+
+  const handleFileAttachment = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setAttachedFiles(prev => [...prev, ...files]);
+  };
+
+  const removeAttachedFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleExecuteTool = async () => {
+    if (!selectedTool || !query.trim()) return;
+
+    setIsExecuting(true);
+    setOutput('Executing...');
+
     try {
       if (!isConnected) {
         await handleConnect();
       }
 
-      // For now, just open side panel - actual tool execution will be implemented in side panel
-      await handleOpenSidePanel();
-      
-      // Send message to side panel about which tool to execute
-      await extensionUtils.sendMessage({
-        type: 'TOOL_SELECTED',
-        tool,
-        timestamp: Date.now(),
+      // Execute the selected tool with the query and attached files
+      const result = await mcpBridge.executeTool(selectedTool, {
+        query: query.trim(),
+        files: attachedFiles.map(file => ({
+          name: file.name,
+          size: file.size,
+          type: file.type
+        }))
       });
+
+      if (result.success) {
+        setOutput(JSON.stringify(result.data, null, 2));
+      } else {
+        setOutput(`Error: ${result.error}`);
+      }
     } catch (error) {
-      console.error(`Failed to execute ${tool}:`, error);
+      console.error(`Failed to execute ${selectedTool}:`, error);
+      setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsExecuting(false);
     }
   };
 
@@ -230,72 +230,133 @@ const PopupApp: React.FC = () => {
   return (
     <div className="w-[480px] h-[700px] p-6 space-y-4 bg-gradient-to-br from-slate-50 to-blue-50 overflow-y-auto">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="flex items-center justify-center space-x-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
           <div className="p-2 rounded-xl bg-gradient-primary text-white">
             <Zap size={24} />
           </div>
-          <h1 className="text-2xl font-light text-slate-800">Repotools</h1>
+          <h1 className="text-xl font-light text-slate-800">Repotools</h1>
         </div>
-        <p className="text-sm text-slate-600">AI-powered development tools</p>
-      </div>
-
-      {/* Connection Status */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-green-400' : 'bg-red-400'
-            }`} />
-            <span className="text-sm text-slate-700">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={isConnected ? handleDisconnect : handleConnect}
-            disabled={isConnecting}
-          >
-            {isConnecting ? 'Connecting...' : (isConnected ? 'Disconnect' : 'Connect')}
+        <div className="flex items-center space-x-2">
+          <Button variant="ghost" size="sm" onClick={handleOpenSidePanel}>
+            <Plus size={16} />
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Clock size={16} />
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Gamepad2 size={16} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleOpenSettings}>
+            <Settings size={16} />
           </Button>
         </div>
+      </div>
+
+      {/* Main Input Section */}
+      <Card className="p-4 space-y-4">
+        {/* Tools Dropdown and File Attachment */}
+        <div className="flex items-center space-x-2">
+          <Select value={selectedTool} onValueChange={setSelectedTool}>
+            <SelectTrigger className="flex-1 bg-white/60 backdrop-blur-md border border-white/30">
+              <SelectValue placeholder="Select a tool..." />
+            </SelectTrigger>
+            <SelectContent className="bg-white/95 backdrop-blur-md border border-white/30">
+              {tools.map((tool) => (
+                <SelectItem key={tool.id} value={tool.id} className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
+                    {tool.icon}
+                    <span>{tool.title}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="relative">
+            <input
+              type="file"
+              multiple
+              onChange={handleFileAttachment}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              id="file-input"
+            />
+            <Button variant="outline" size="sm" asChild>
+              <label htmlFor="file-input" className="cursor-pointer">
+                <Paperclip size={16} />
+              </label>
+            </Button>
+          </div>
+        </div>
+
+        {/* Attached Files */}
+        {attachedFiles.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-600">Attached Files:</p>
+            <div className="flex flex-wrap gap-2">
+              {attachedFiles.map((file, index) => (
+                <div key={index} className="flex items-center space-x-1 bg-slate-100 rounded-lg px-2 py-1 text-xs">
+                  <span>{file.name}</span>
+                  <button
+                    onClick={() => removeAttachedFile(index)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Query Input */}
+        <Input
+          placeholder="What can I help you with?"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="bg-white/60 backdrop-blur-md border border-white/30"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleExecuteTool();
+            }
+          }}
+        />
+
+        {/* Execute Button */}
+        <Button
+          onClick={handleExecuteTool}
+          disabled={!selectedTool || !query.trim() || isExecuting}
+          className="w-full"
+          variant="default"
+        >
+          {isExecuting ? 'Executing...' : 'Send'}
+        </Button>
       </Card>
 
-      {/* Quick Actions */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-light text-slate-800">Quick Actions</h2>
-        
-        <Button 
-          className="w-full justify-start space-x-3" 
-          variant="glass"
-          onClick={handleOpenSidePanel}
-        >
-          <FileText size={18} />
-          <span>Open Side Panel</span>
-        </Button>
-
-        <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto">
-          {tools.map((tool) => (
-            <ToolCard
-              key={tool.id}
-              icon={tool.icon}
-              title={tool.title}
-              description={tool.description}
-              onClick={() => handleToolAction(tool.id)}
-              progress={tool.progress}
+      {/* Output Section */}
+      {output && (
+        <Card className="p-4">
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-slate-700">Output:</h3>
+            <Textarea
+              value={output}
+              readOnly
+              className="min-h-[120px] bg-slate-50 border border-slate-200 text-sm font-mono"
             />
-          ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Connection Status */}
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center space-x-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+          <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
         </div>
+        <span>v1.0.0</span>
       </div>
 
-      {/* Footer */}
-      <div className="flex justify-between items-center pt-4 border-t border-white/20">
-        <Button variant="ghost" size="sm">
-          <Settings size={16} />
-        </Button>
-        <p className="text-xs text-slate-500">v1.0.0</p>
-      </div>
     </div>
   );
 };

@@ -50,6 +50,11 @@ class RepotoolsServiceWorker {
 
     // Handle side panel requests (check if API is available)
     this.initializeSidePanel();
+
+    // Handle extension icon clicks
+    chrome.action.onClicked.addListener((tab) => {
+      this.handleActionClick(tab);
+    });
   }
 
   private initializeSidePanel(): void {
@@ -77,6 +82,29 @@ class RepotoolsServiceWorker {
       console.log('Side panel behavior set successfully');
     } catch (error) {
       console.warn('Failed to initialize side panel:', error);
+    }
+  }
+
+  private async handleActionClick(tab: chrome.tabs.Tab): Promise<void> {
+    try {
+      if (!chrome.sidePanel) {
+        console.warn('Side panel API not available');
+        return;
+      }
+
+      if (!tab.id || !tab.windowId) {
+        console.warn('Tab ID or Window ID not available');
+        return;
+      }
+
+      // Open the side panel for this tab
+      await chrome.sidePanel.open({
+        tabId: tab.id,
+        windowId: tab.windowId
+      });
+      console.log('Side panel opened for tab:', tab.id);
+    } catch (error) {
+      console.error('Failed to open side panel:', error);
     }
   }
 
