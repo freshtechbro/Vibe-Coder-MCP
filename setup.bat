@@ -1,5 +1,5 @@
 @echo off
-REM Setup script for Vibe Coder MCP Server (Production Ready v2.3)
+REM Setup script for Vibe Coder MCP Server (Production Ready v2.4.0)
 setlocal enabledelayedexpansion
 
 REM Color codes for Windows (using PowerShell for colored output)
@@ -9,7 +9,7 @@ set "YELLOW=[33m"
 set "BLUE=[34m"
 set "NC=[0m"
 
-echo Setting up Vibe Coder MCP Server v2.3...
+echo Setting up Vibe Coder MCP Server v2.4.0...
 echo ==================================================
 echo Production-ready MCP server with complete agent integration
 echo Multi-transport support • Real-time notifications • Dynamic port allocation
@@ -292,7 +292,7 @@ if exist "VibeCoderOutput" if exist "build" if exist "src" (
 echo.
 powershell -Command "Write-Host '✓ Setup completed successfully!' -ForegroundColor Green"
 echo ==================================================
-echo Vibe Coder MCP Server v2.3 (Production Ready) is now set up with complete agent integration:
+echo Vibe Coder MCP Server v2.4.0 (Production Ready) is now set up with complete agent integration:
 echo.
 echo 📋 PLANNING ^& DOCUMENTATION TOOLS:
 echo   - Research Manager (research-manager) - AI-powered research with Perplexity Sonar

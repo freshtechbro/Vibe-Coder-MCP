@@ -1,6 +1,0 @@
-echo Installing Sharp for Windows...
-cd /d "C:\Users\Ascension\Claude\root\vibe-coder-mcp"
-npm install --platform=win32 --arch=x64 sharp
-echo Rebuilding project...
-npm run build
-echo Done! Try starting the server now.
