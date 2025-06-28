@@ -1,6 +1,6 @@
 {
   "name": "vibe-coder-mcp",
-  "version": "1.1.0",
+  "version": "2.1.0",
   "description": "Advanced MCP server providing tools for semantic routing, code generation, workflows, and AI-assisted development.",
   "main": "build/index.js",
   "type": "module",
