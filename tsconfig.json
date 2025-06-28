@@ -14,9 +14,14 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false, // Explicitly disallow .ts extensions in imports
     "noEmit": false, // Explicitly ensure files are emitted (default is false anyway)
-    "types": ["vitest/globals"]
+    "types": [
+      "vitest/globals",
+      "node"
+    ]
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*"
+  ],
   "exclude": [
     "node_modules",
     "build",

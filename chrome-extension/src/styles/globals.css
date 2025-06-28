@@ -1,0 +1,216 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  /* Glass morphism components */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20 
+           shadow-glass rounded-2xl p-8 m-6
+           hover:bg-white/90 hover:shadow-glass-hover 
+           transition-all duration-300 ease-out;
+  }
+
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-xl border-r border-white/20 
+           shadow-glass h-full
+           transition-all duration-300 ease-out;
+  }
+
+  .glass-button {
+    @apply bg-gradient-primary text-white font-medium
+           rounded-xl shadow-lg hover:shadow-xl 
+           transition-all duration-300 transform hover:scale-105
+           backdrop-blur-sm border border-white/20;
+  }
+
+  .glass-input {
+    @apply bg-white/60 backdrop-blur-md border border-white/30
+           rounded-xl px-4 py-3 text-slate-800 placeholder-slate-500
+           focus:bg-white/80 focus:border-blue-400 focus:ring-2 focus:ring-blue-200
+           transition-all duration-200;
+  }
+
+  /* Generous spacing utilities */
+  .space-generous > * + * {
+    @apply mt-8;
+  }
+
+  .p-generous {
+    @apply p-8;
+  }
+
+  .m-generous {
+    @apply m-6;
+  }
+
+  .gap-generous {
+    @apply gap-8;
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  /* Hover effects */
+  .hover-lift {
+    @apply transition-transform duration-300 hover:scale-[1.02] hover:shadow-glass-hover;
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300 hover:shadow-lg hover:shadow-blue-200/50;
+  }
+
+  /* Text styles */
+  .text-glass {
+    @apply text-slate-800/90 font-light;
+  }
+
+  .text-glass-muted {
+    @apply text-slate-600/80 font-light;
+  }
+
+  /* Background patterns */
+  .bg-glass-pattern {
+    background-image: 
+      radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+  }
+
+  /* Chrome extension specific styles */
+  .extension-popup {
+    @apply w-96 h-[600px] bg-gradient-to-br from-slate-50 to-blue-50;
+  }
+
+  .extension-sidepanel {
+    @apply w-full h-screen bg-gradient-to-b from-white to-slate-50;
+  }
+
+  /* Scrollbar styling */
+  .glass-scrollbar::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .glass-scrollbar::-webkit-scrollbar-track {
+    @apply bg-white/20 rounded-full;
+  }
+
+  .glass-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-300/50 rounded-full hover:bg-slate-400/50;
+  }
+}
+
+@layer utilities {
+  /* Custom backdrop blur utilities */
+  .backdrop-blur-xs {
+    backdrop-filter: blur(2px);
+  }
+
+  /* Glass shadow utilities */
+  .shadow-glass {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+  }
+
+  .shadow-glass-hover {
+    box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.15);
+  }
+
+  .shadow-glass-inset {
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* Gradient text utilities */
+  .text-gradient-primary {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+
+  .text-gradient-secondary {
+    @apply bg-gradient-secondary bg-clip-text text-transparent;
+  }
+
+  .text-gradient-accent {
+    @apply bg-gradient-accent bg-clip-text text-transparent;
+  }
+}

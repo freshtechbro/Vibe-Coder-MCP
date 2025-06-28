@@ -1,0 +1,20 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#gradient)" stroke="white" stroke-width="4"/>
+  
+  <!-- Code symbol -->
+  <path d="M40 45L25 60L40 75" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M88 45L103 60L88 75" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M55 35L73 85" stroke="white" stroke-width="4" stroke-linecap="round" fill="none"/>
+  
+  <!-- AI spark -->
+  <circle cx="75" cy="35" r="3" fill="white"/>
+  <path d="M75 28L77 32L81 30L79 34L83 36L79 38L81 42L77 40L75 44L73 40L69 42L71 38L67 36L71 34L69 30L73 32Z" fill="white"/>
+</svg>
