@@ -252,42 +252,107 @@ export async function performDirectLlmCall(
     // Enhanced response validation to handle different OpenRouter model formats
     let responseText: string | null = null;
     
-    // Try different response format patterns
-    if (response.data?.choices?.[0]?.message?.content) {
-      // Standard OpenAI format  
-      responseText = response.data.choices[0].message.content.trim();
-    } else if (response.data?.content) {
+    // CRITICAL FIX: More thorough response extraction with detailed logging
+    console.error(`\n=== CRITICAL RESPONSE EXTRACTION DEBUG ===`);
+    console.error(`Response data type: ${typeof response.data}`);
+    console.error(`Response data is null/undefined: ${response.data == null}`);
+    
+    if (response.data) {
+      console.error(`Response data keys: ${Object.keys(response.data)}`);
+      console.error(`Has choices: ${Boolean(response.data.choices)}`);
+      
+      if (response.data.choices) {
+        console.error(`Choices array length: ${response.data.choices.length}`);
+        if (response.data.choices[0]) {
+          console.error(`First choice keys: ${Object.keys(response.data.choices[0])}`);
+          console.error(`Has message: ${Boolean(response.data.choices[0].message)}`);
+          
+          if (response.data.choices[0].message) {
+            console.error(`Message keys: ${Object.keys(response.data.choices[0].message)}`);
+            console.error(`Content value: ${JSON.stringify(response.data.choices[0].message.content)}`);
+            console.error(`Content type: ${typeof response.data.choices[0].message.content}`);
+            console.error(`Content length: ${response.data.choices[0].message.content?.length || 'N/A'}`);
+          }
+        }
+      }
+    }
+    console.error(`=== END RESPONSE EXTRACTION DEBUG ===\n`);
+    
+    // Try different response format patterns with detailed checking
+    if (response.data?.choices?.[0]?.message?.content !== undefined) {
+      // Standard OpenAI format - check for empty string, null, etc
+      const content = response.data.choices[0].message.content;
+      if (content !== null && content !== undefined) {
+        responseText = String(content).trim();
+        console.error(`EXTRACTION SUCCESS: OpenAI format, length: ${responseText.length}`);
+      }
+    } else if (response.data?.content !== undefined) {
       // Some models return content directly
-      responseText = response.data.content.trim();
-    } else if (response.data?.text) {
+      const content = response.data.content;
+      if (content !== null && content !== undefined) {
+        responseText = String(content).trim();
+        console.error(`EXTRACTION SUCCESS: Direct content, length: ${responseText.length}`);
+      }
+    } else if (response.data?.text !== undefined) {
       // Some models return text field
-      responseText = response.data.text.trim();
-    } else if (response.data?.response) {
+      const content = response.data.text;
+      if (content !== null && content !== undefined) {
+        responseText = String(content).trim();
+        console.error(`EXTRACTION SUCCESS: Text field, length: ${responseText.length}`);
+      }
+    } else if (response.data?.response !== undefined) {
       // Some models return response field
-      responseText = response.data.response.trim();
+      const content = response.data.response;
+      if (content !== null && content !== undefined) {
+        responseText = String(content).trim();
+        console.error(`EXTRACTION SUCCESS: Response field, length: ${responseText.length}`);
+      }
     } else if (typeof response.data === 'string') {
       // Some models return string directly
       responseText = response.data.trim();
-    } else if (response.data?.outputs?.[0]?.text) {
+      console.error(`EXTRACTION SUCCESS: Direct string, length: ${responseText.length}`);
+    } else if (response.data?.outputs?.[0]?.text !== undefined) {
       // Some models use outputs array format
-      responseText = response.data.outputs[0].text.trim();
+      const content = response.data.outputs[0].text;
+      if (content !== null && content !== undefined) {
+        responseText = String(content).trim();
+        console.error(`EXTRACTION SUCCESS: Outputs array, length: ${responseText.length}`);
+      }
     }
 
-    if (responseText) {
+    // Additional debug for the final responseText value
+    console.error(`\n=== FINAL EXTRACTION RESULT ===`);
+    console.error(`responseText: ${JSON.stringify(responseText)}`);
+    console.error(`responseText type: ${typeof responseText}`);
+    console.error(`responseText is null: ${responseText === null}`);
+    console.error(`responseText is undefined: ${responseText === undefined}`);
+    console.error(`responseText is empty string: ${responseText === ''}`);
+    console.error(`responseText length: ${responseText?.length || 'N/A'}`);
+    console.error(`responseText truthiness: ${Boolean(responseText)}`);
+    console.error(`=== END FINAL EXTRACTION RESULT ===\n`);
+
+    if (responseText && responseText.length > 0) {
       // Process Qwen3 thinking mode responses
       const processedResponse = processQwenThinkingResponse(responseText, modelToUse, logicalTaskName);
       logger.debug({ modelUsed: modelToUse, responseLength: processedResponse.length, responseFormat: 'detected', hadThinkingBlocks: processedResponse !== responseText }, "Direct LLM call successful with flexible parsing");
       return processedResponse;
     } else {
+      console.error(`\n=== EXTRACTION FAILURE ===`);
+      console.error(`Failed to extract content. Dumping full response structure:`);
+      console.error(JSON.stringify(response.data, null, 2));
+      console.error(`=== END EXTRACTION FAILURE ===\n`);
+      
       logger.warn({ 
         responseData: response.data, 
         modelUsed: modelToUse,
         responseKeys: response.data ? Object.keys(response.data) : 'no data',
-        responseType: typeof response.data
+        responseType: typeof response.data,
+        extractedText: responseText,
+        extractedTextType: typeof responseText
       }, "Received response but could not extract content with any known format");
       throw new ParsingError(
         "Invalid API response structure received from LLM - unable to extract content",
-        { responseData: response.data, modelUsed: modelToUse, logicalTaskName }
+        { responseData: response.data, modelUsed: modelToUse, logicalTaskName, extractedText: responseText }
       );
     }
   } catch (error) {
