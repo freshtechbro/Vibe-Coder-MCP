@@ -45,7 +45,7 @@ class WebSocketServerManager {
     return WebSocketServerManager.instance;
   }
 
-  async start(port: number): Promise<void> {
+  async start(port: number = 8080): Promise<void> {
     try {
       // Validate port parameter (should be pre-allocated by Transport Manager)
       if (!port || port <= 0 || port > 65535) {

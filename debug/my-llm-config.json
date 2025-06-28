@@ -1,0 +1,21 @@
+{
+  "llm_mapping": {
+    "research_query": "perplexity/sonar-deep-research",
+    "sequential_thought_generation": "deepseek/deepseek-r1-0528:free",
+    "task_list_initial_generation": "meta-llama/llama-4-maverick:free",
+    "task_list_decomposition": "meta-llama/llama-4-maverick:free",
+    "prd_generation": "meta-llama/llama-4-maverick:free",
+    "rules_generation": "deepseek/deepseek-r1-0528:free",
+    "user_stories_generation": "meta-llama/llama-4-maverick:free",
+    "dependency_analysis": "deepseek/deepseek-r1-distill-llama-70b:free",
+    "fullstack_starter_kit_generation": "meta-llama/llama-4-maverick:free",
+    "context_curator_intent_analysis": "deepseek/deepseek-r1-0528:free",
+    "context_curator_file_discovery": "deepseek/deepseek-r1-distill-llama-70b:free",
+    "context_curator_relevance_scoring": "meta-llama/llama-4-maverick:free",
+    "context_curator_architectural_analysis": "deepseek/deepseek-r1-distill-llama-70b:free",
+    "map_codebase_analysis": "deepseek/deepseek-r1-distill-llama-70b:free",
+    "vibe_task_manager": "deepseek/deepseek-r1-0528:free",
+    "project_analysis": "deepseek/deepseek-r1-distill-llama-70b:free",
+    "default_generation": "meta-llama/llama-4-maverick:free"
+  }
+}

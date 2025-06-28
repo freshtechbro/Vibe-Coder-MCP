@@ -6,6 +6,45 @@ import { AppError, ApiError, ConfigurationError, ParsingError } from './errors.j
 import { selectModelForTask } from './configLoader.js';
 import { getPromptOptimizer } from './prompt-optimizer.js';
 
+/**
+ * Processes Qwen3 thinking mode responses by extracting actual content
+ * and handling thinking blocks appropriately
+ */
+function processQwenThinkingResponse(responseText: string, modelUsed: string, logicalTaskName: string): string {
+  // Check if this is a Qwen3 model that might use thinking mode
+  const isQwenModel = modelUsed.toLowerCase().includes('qwen');
+  
+  if (!isQwenModel) {
+    return responseText; // Not a Qwen model, return as-is
+  }
+  
+  // Check if response contains thinking blocks
+  const thinkingBlockRegex = /<think[^>]*>([\s\S]*?)<\/think>/gi;
+  const hasThinkingBlocks = thinkingBlockRegex.test(responseText);
+  
+  if (!hasThinkingBlocks) {
+    return responseText; // No thinking blocks, return as-is
+  }
+  
+  logger.debug({ modelUsed, logicalTaskName, originalLength: responseText.length }, "Processing Qwen thinking mode response");
+  
+  // For markdown generation tasks, we want to extract the content after thinking blocks
+  if (logicalTaskName.includes('generation') || logicalTaskName.includes('markdown')) {
+    // Remove thinking blocks and extract the actual content
+    let processed = responseText.replace(thinkingBlockRegex, '').trim();
+    
+    // If there's remaining content after removing thinking blocks, use it
+    if (processed.length > 0) {
+      logger.debug({ modelUsed, logicalTaskName, processedLength: processed.length }, "Extracted content after thinking blocks");
+      return processed;
+    }
+  }
+  
+  // For other tasks or if no content remains, return the original response
+  // This preserves thinking blocks for tasks that might need them
+  return responseText;
+}
+
 // Configure axios with SSL settings to handle SSL/TLS issues
 const httpsAgent = new https.Agent({
   rejectUnauthorized: true, // Keep SSL verification enabled for security
@@ -52,6 +91,16 @@ export async function performDirectLlmCall(
   if (!config.apiKey) {
     throw new ConfigurationError("OpenRouter API key (OPENROUTER_API_KEY) is not configured.");
   }
+
+  // Enhanced debug logging for API call
+  logger.info({
+    logicalTaskName,
+    apiKeyPresent: Boolean(config.apiKey),
+    apiKeyLength: config.apiKey?.length || 0,
+    baseUrl: config.baseUrl,
+    promptLength: prompt.length,
+    systemPromptLength: systemPrompt.length
+  }, "DEBUG: About to make API call");
 
   // Apply prompt optimization for JSON generation tasks with explicit format control
   let optimizedSystemPrompt = systemPrompt;
@@ -124,20 +173,44 @@ export async function performDirectLlmCall(
   // Provide a sensible default if no specific model is found or configured
   const defaultModel = config.geminiModel || "google/gemini-2.5-flash-preview-05-20"; // Use a known default
   const modelToUse = selectModelForTask(config, logicalTaskName, defaultModel);
-  logger.info({ modelSelected: modelToUse, logicalTaskName }, `Selected model for direct LLM call.`);
+  logger.info({ modelSelected: modelToUse, logicalTaskName, apiKey: config.apiKey?.substring(0, 20) + '...' }, `Selected model for direct LLM call.`);
+
+  const requestPayload = {
+    model: modelToUse,
+    messages: [
+      { role: "system", content: optimizedSystemPrompt },
+      { role: "user", content: optimizedUserPrompt }
+    ],
+    max_tokens: 8000,
+    temperature: temperature
+  };
+
+  logger.info({
+  requestPayload: {
+  ...requestPayload,
+  messages: requestPayload.messages.map(m => ({ role: m.role, contentLength: m.content.length }))
+  },
+  headers: {
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${config.apiKey?.substring(0, 20)}...`,
+  "HTTP-Referer": "https://vibe-coder-mcp.local"
+  }
+  }, "DEBUG: Making API request");
+
+    // CRITICAL DEBUG: Log the actual API call details before making the request
+    console.error(`\n=== CRITICAL DEBUG INFO ===`);
+    console.error(`Model selected: ${modelToUse}`);
+    console.error(`API endpoint: ${config.baseUrl}/chat/completions`);
+    console.error(`Request payload model: ${requestPayload.model}`);
+    console.error(`System prompt length: ${requestPayload.messages[0].content.length}`);
+    console.error(`User prompt length: ${requestPayload.messages[1].content.length}`);
+    console.error(`API key present: ${Boolean(config.apiKey)}`);
+    console.error(`=== END DEBUG ===\n`);
 
   try {
     const response = await axios.post(
       `${config.baseUrl}/chat/completions`,
-      {
-        model: modelToUse,
-        messages: [
-          { role: "system", content: optimizedSystemPrompt },
-          { role: "user", content: optimizedUserPrompt }
-        ],
-        max_tokens: 8000, // Increased from 4000 to handle larger template generations
-        temperature: temperature // Use the provided or default temperature
-      },
+      requestPayload,
       {
         headers: {
           "Content-Type": "application/json",
@@ -151,14 +224,69 @@ export async function performDirectLlmCall(
       }
     );
 
+    logger.info({
+    modelUsed: modelToUse,
+    responseStatus: response.status,
+    responseData: response.data,
+    responseHeaders: response.headers
+    }, "DEBUG: Received API response");
+
+        // CRITICAL DEBUG: Log the actual response structure
+        console.error(`\n=== RESPONSE DEBUG ===`);
+        console.error(`Response status: ${response.status}`);
+        console.error(`Response data type: ${typeof response.data}`);
+        console.error(`Response data keys: ${response.data ? Object.keys(response.data) : 'no data'}`);
+        if (response.data?.choices) {
+            console.error(`Choices array length: ${response.data.choices.length}`);
+            if (response.data.choices[0]) {
+                console.error(`First choice keys: ${Object.keys(response.data.choices[0])}`);
+                if (response.data.choices[0].message) {
+                    console.error(`Message keys: ${Object.keys(response.data.choices[0].message)}`);
+                    console.error(`Content length: ${response.data.choices[0].message.content?.length || 'no content'}`);
+                    console.error(`Content preview: ${response.data.choices[0].message.content?.substring(0, 100) || 'no content'}`);
+                }
+            }
+        }
+        console.error(`=== END RESPONSE DEBUG ===\n`);
+
+    // Enhanced response validation to handle different OpenRouter model formats
+    let responseText: string | null = null;
+    
+    // Try different response format patterns
     if (response.data?.choices?.[0]?.message?.content) {
-      const responseText = response.data.choices[0].message.content.trim();
-      logger.debug({ modelUsed: modelToUse, responseLength: responseText.length }, "Direct LLM call successful");
-      return responseText;
+      // Standard OpenAI format  
+      responseText = response.data.choices[0].message.content.trim();
+    } else if (response.data?.content) {
+      // Some models return content directly
+      responseText = response.data.content.trim();
+    } else if (response.data?.text) {
+      // Some models return text field
+      responseText = response.data.text.trim();
+    } else if (response.data?.response) {
+      // Some models return response field
+      responseText = response.data.response.trim();
+    } else if (typeof response.data === 'string') {
+      // Some models return string directly
+      responseText = response.data.trim();
+    } else if (response.data?.outputs?.[0]?.text) {
+      // Some models use outputs array format
+      responseText = response.data.outputs[0].text.trim();
+    }
+
+    if (responseText) {
+      // Process Qwen3 thinking mode responses
+      const processedResponse = processQwenThinkingResponse(responseText, modelToUse, logicalTaskName);
+      logger.debug({ modelUsed: modelToUse, responseLength: processedResponse.length, responseFormat: 'detected', hadThinkingBlocks: processedResponse !== responseText }, "Direct LLM call successful with flexible parsing");
+      return processedResponse;
     } else {
-      logger.warn({ responseData: response.data, modelUsed: modelToUse }, "Received empty or unexpected response structure from LLM");
+      logger.warn({ 
+        responseData: response.data, 
+        modelUsed: modelToUse,
+        responseKeys: response.data ? Object.keys(response.data) : 'no data',
+        responseType: typeof response.data
+      }, "Received response but could not extract content with any known format");
       throw new ParsingError(
-        "Invalid API response structure received from LLM",
+        "Invalid API response structure received from LLM - unable to extract content",
         { responseData: response.data, modelUsed: modelToUse, logicalTaskName }
       );
     }

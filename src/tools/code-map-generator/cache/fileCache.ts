@@ -113,8 +113,15 @@ export class FileCache<T> {
       // Load metadata if it exists
       try {
         const metadataContent = await fs.readFile(this.metadataPath, 'utf-8');
-        this.metadata = JSON.parse(metadataContent) as CacheMetadata;
-        logger.debug(`Loaded cache metadata for ${this.name} with ${this.metadata.size} entries`);
+        // Check if content looks like JSON before parsing
+        if (metadataContent.trim().startsWith('{') && metadataContent.trim().endsWith('}')) {
+          this.metadata = JSON.parse(metadataContent) as CacheMetadata;
+          logger.debug(`Loaded cache metadata for ${this.name} with ${this.metadata.size} entries`);
+        } else {
+          // Content is not JSON, recreate metadata
+          logger.warn(`Cache metadata file contains invalid JSON content, recreating: ${this.metadataPath}`);
+          await this.saveMetadata();
+        }
       } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
           // Metadata file doesn't exist, create it

@@ -400,12 +400,18 @@ export class FileUtils {
       return { valid: false, error: 'Path traversal not allowed' };
     }
 
-    // Check for absolute paths outside allowed directories (allow test paths)
-    if (path.isAbsolute(filePath) &&
-        !filePath.startsWith(process.cwd()) &&
-        !filePath.startsWith('/test/') &&
-        !filePath.startsWith('/tmp/')) {
-      return { valid: false, error: 'Absolute paths outside project directory not allowed' };
+    // Check for absolute paths outside allowed directories (allow project root and subdirectories)
+    if (path.isAbsolute(filePath)) {
+      const projectRoot = process.cwd();
+      const normalizedPath = path.resolve(filePath).replace(/\\/g, '/');
+      const normalizedProject = path.resolve(projectRoot).replace(/\\/g, '/');
+      
+      // Allow paths within project root, test directories, or temp directories
+      if (!normalizedPath.startsWith(normalizedProject) &&
+          !filePath.startsWith('/test/') &&
+          !filePath.startsWith('/tmp/')) {
+        return { valid: false, error: 'Absolute paths outside project directory not allowed' };
+      }
     }
 
     // Check file extension

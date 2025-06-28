@@ -24,9 +24,11 @@ if (!process.env.OPENROUTER_BASE_URL) {
   process.env.OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 }
 
-// Set test-specific environment variables
-process.env.NODE_ENV = 'test';
-process.env.LOG_LEVEL = 'info';
+// Set test-specific environment variables ONLY if we're actually running tests
+if (process.argv.includes('--test') || process.argv.includes('test') || process.env.VITEST === 'true') {
+  process.env.NODE_ENV = 'test';
+  process.env.LOG_LEVEL = 'info';
+}
 
 // Epic creation test configurations
 process.env.EPIC_CREATION_TEST_MODE = 'true';

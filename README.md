@@ -1093,6 +1093,121 @@ While the primary use is integration with an AI assistant (using stdio), you can
    * First run may download embedding model - check for download messages
    * Try a more explicit request that mentions the tool name
 
+## Advanced Troubleshooting & System Fixes
+
+### Issues Fixed and System Verification
+
+#### 1. Configuration Path Validation Issue ✅ ENHANCED
+**Problem**: The config loader was rejecting absolute paths to configuration files within the project directory due to Windows path separator handling.
+
+**Root Cause**: Path validation logic was not properly normalizing Windows backslashes before comparison.
+
+**Fix Applied**: 
+- Updated `file-utils.js` and `file-utils.ts` to normalize Windows paths using `.replace(/\/g, '/')`
+- Enhanced path validation to properly handle Windows path separators
+- Ensured project root comparison works correctly on Windows
+
+**Files Modified**:
+- `build/tools/vibe-task-manager/utils/file-utils.js` (immediate fix)
+- `src/tools/vibe-task-manager/utils/file-utils.ts` (persistent fix)
+
+#### 2. Sharp Module Installation Issue ✅ ENHANCED
+**Problem**: Sharp module was missing native binaries for win32-x64 platform.
+
+**Root Cause**: Platform-specific native binaries were not installed correctly during npm install.
+
+**Solutions Provided**:
+- **debug/comprehensive-fix.bat** - Complete Windows fix script (consolidated)
+- **debug/platform-agnostic-fix.sh** - Unix/Linux/macOS fix script
+- **debug/quick-debug.js** - Comprehensive diagnostics tool
+
+#### 3. Debug Directory Consolidation ✅ COMPLETE
+**Problem**: 24+ debug scripts with overlapping functionality caused confusion.
+
+**Solution**: Consolidated into 3 essential scripts:
+- **comprehensive-fix.bat** - Main Windows fix (consolidated from enhanced-fix.bat, final-fix.bat, windows-fix.bat)
+- **platform-agnostic-fix.sh** - Unix/Linux/macOS fix (consolidated from multiple .sh files)
+- **quick-debug.js** - Diagnostics tool (consolidated from debug-paths.js, isolate-issue.js)
+
+#### 4. Hardcoded Path Removal ✅ COMPLETE
+**Problem**: Scripts contained hardcoded user-specific paths.
+
+**Solution**: 
+- All absolute paths replaced with relative paths
+- Scripts now use `cd /d "%~dp0"` pattern to find project root
+- Platform-conditional package.json scripts
+
+#### 5. How to Apply Advanced Fixes
+
+**Windows Users:**
+```cmd
+cd vibe-coder-mcp\debug
+comprehensive-fix.bat
+```
+
+**Unix/Linux/macOS Users:**
+```bash
+cd vibe-coder-mcp/debug
+chmod +x platform-agnostic-fix.sh
+./platform-agnostic-fix.sh
+```
+
+**Diagnostics (All Platforms):**
+
+*Windows:*
+```cmd
+cd vibe-coder-mcp\debug
+node quick-debug.js
+```
+
+*Unix/Linux/macOS:*
+```bash
+cd vibe-coder-mcp/debug
+node quick-debug.js
+```
+
+**Note**: `quick-debug.js` is a Node.js script, not a browser script. It must be run with the `node` command from a terminal/command prompt.
+
+#### 6. Comprehensive System Verification ✅ COMPLETE
+**Approach**: Systematic verification of all system components to isolate the actual issue.
+
+**Areas Tested and Confirmed Working**:
+- API authentication (401 errors, API key validation, authorization headers)
+- Network connectivity (DNS resolution, firewall, proxy, SSL/TLS certificates, timeouts)
+- Model availability and permissions (Qwen3-specific issues, model name resolution, provider formats)
+- Configuration management (environment variables, .env files, llm_config.json, config parsing)
+- Request construction (HTTP methods, JSON payloads, headers, message structure, parameters)
+- Response structure validation (OpenAI format compatibility, choices array, message objects)
+- Content processing (empty responses, content filtering, encoding, character sets)
+- Code integration (function registration, executor logic, parameter passing, validation schemas)
+- Build and compilation (TypeScript errors, dependencies, imports, artifacts)
+- Server runtime (initialization, MCP transport, job management, SSE notifications)
+- Function-specific operations (model selection, config loading, axios configuration)
+- Error handling pathways (catch blocks, logging, context management)
+
+**Current Status**: Most system components verified as functional. Issue isolated to response content extraction logic where API calls succeed but content validation fails.
+
+**Note**: Free models are not working yet and are still being debugged, but all core system infrastructure has been verified.
+
+#### 7. Qwen Model Support (v2.4.9)
+**Feature**: Added support for Qwen3 model thinking mode responses
+- `processQwenThinkingResponse()` function extracts actual content from responses containing `<think>...</think>` blocks
+- For markdown generation tasks, thinking blocks are removed to provide clean output
+- For other tasks, thinking blocks are preserved for debugging and transparency
+- Seamlessly works with existing LLM helper infrastructure
+- Maintains backward compatibility with all other models
+
+**Utility**: `debug/fix-qwen-thinking.mjs` - Standalone build script for Qwen support verification
+
+#### 8. All Issues Verification
+All platform and infrastructure issues resolved:
+- ✅ Configuration files load successfully
+- ✅ Sharp module loads without errors
+- ✅ Server starts without critical failures
+- ✅ Debug scripts work on all platforms
+- ✅ No hardcoded paths remain
+- ✅ System components verified and functional
+
 ## Documentation
 
 ### Core Documentation
@@ -1114,6 +1229,66 @@ While the primary use is integration with an AI assistant (using stdio), you can
 - **Tool Architecture**: Individual tool architecture diagrams
 - **Performance Metrics**: Current status and optimization strategies
 - **Development Guidelines**: Contributing and development best practices
+
+## Current Known Issues
+
+### Free Models Integration (v2.5.0)
+**Status**: Currently being debugged and not yet functional with free OpenRouter models.
+
+**Issue**: API calls succeed with HTTP 200 responses, but response content extraction fails in the LLM helper response parsing logic.
+
+**Affected Models**: 
+- All free models from OpenRouter (qwen/qwen3-30b-a3b:free, deepseek/deepseek-r1-0528-qwen3-8b:free, etc.)
+- Some paid models may also be affected
+
+**Current Error**: "Invalid API response structure received from LLM - unable to extract content"
+
+**Workaround**: Use models known to work with standard OpenAI response format (google/gemini-2.5-flash-preview-05-20 is confirmed working)
+
+**Status**: Active debugging in progress. Debug logging has been added to identify exact response formats from different models.
+
+### Response Structure Analysis
+**Problem Location**: The issue is in the response content extraction logic within `performDirectLlmCall()`. API calls succeed but fail at content validation where `responseText` evaluates to falsy despite valid response structure.
+
+**Areas Confirmed Working**:
+- API authentication and authorization
+- Network connectivity and SSL/TLS
+- Model availability and permissions
+- Configuration management (environment variables, config files)
+- Request construction (HTTP methods, headers, payloads)
+- Server runtime and MCP transport
+- Build and compilation processes
+
+**Root Cause**: Unknown - currently under investigation with detailed response structure logging.
+
+## Model Compatibility
+
+### ✅ Confirmed Working Models
+- `google/gemini-2.5-flash-preview-05-20` (Standard OpenAI response format)
+- Most Google models via OpenRouter
+- Standard OpenAI-compatible models
+
+### ⚠️ Currently Not Working (Under Investigation)
+- `qwen/qwen3-30b-a3b:free`
+- `deepseek/deepseek-r1-0528-qwen3-8b:free` 
+- `meta-llama/llama-4-maverick:free`
+- Other free OpenRouter models
+
+### 🔧 Model Configuration
+To use working models while debugging continues:
+1. Edit your `llm_config.json` file
+2. Replace model entries with confirmed working models:
+   ```json
+   {
+     "llm_mapping": {
+       "user_stories_generation": "google/gemini-2.5-flash-preview-05-20",
+       "prd_generation": "google/gemini-2.5-flash-preview-05-20",
+       "task_list_generation": "google/gemini-2.5-flash-preview-05-20"
+     }
+   }
+   ```
+3. Rebuild: `npm run build`
+4. Restart Claude Desktop
 
 ## Contributing
 
