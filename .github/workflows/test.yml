@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [20.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -39,23 +39,19 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
-      - name: Run unit tests
-        run: npm run test:unit
-        continue-on-error: true
+      - name: Run CI-fast tests (30s timeout limit, no live LLM calls)
+        run: npm run test:ci-fast
+        env:
+          TEST_TYPE: ci
 
-      - name: Run integration tests
-        run: npm run test:integration
-        continue-on-error: true
-
-      - name: Run end-to-end tests
-        run: npm run test:e2e
-        continue-on-error: true
+      # E2E tests excluded from CI/CD - they require live LLM calls
+      # Run manually with: npm run test:e2e:real
+      # - name: Run end-to-end tests
+      #   run: npm run test:e2e
 
       - name: Generate coverage report
         run: npm run coverage
-        continue-on-error: true
 
       - name: Ensure output directories exist
         run: |
