@@ -27,7 +27,7 @@ interface HTTPTaskResponse {
   taskId: string;
   status: 'DONE' | 'ERROR' | 'PARTIAL';
   response: string;
-  completionDetails?: any;
+  completionDetails?: unknown;
 }
 
 interface HTTPAgentRegistration {
@@ -43,7 +43,7 @@ interface HTTPAgentRegistration {
 class HTTPAgentAPIServer {
   private static instance: HTTPAgentAPIServer;
   private app: express.Application;
-  private server?: any;
+  private server?: import('http').Server;
   private port: number = 3001;
 
   static getInstance(): HTTPAgentAPIServer {
@@ -84,7 +84,7 @@ class HTTPAgentAPIServer {
     });
 
     // Error handling middleware
-    this.app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
+    this.app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
       logger.error({ err: error, url: req.url, method: req.method }, 'HTTP API error');
       res.status(500).json({
         success: false,
@@ -251,7 +251,14 @@ class HTTPAgentAPIServer {
         taskId,
         status: responseData.status,
         response: responseData.response,
-        completionDetails: responseData.completionDetails,
+        completionDetails: responseData.completionDetails as {
+          filesModified?: string[];
+          testsPass?: boolean;
+          buildSuccessful?: boolean;
+          executionTime?: number;
+          errorDetails?: string;
+          partialProgress?: number;
+        } | undefined,
         receivedAt: Date.now()
       });
 
@@ -394,9 +401,9 @@ class HTTPAgentAPIServer {
     }
   }
 
-  private async deliverTaskToAgent(agent: any, taskRequest: HTTPTaskRequest): Promise<boolean> {
+  private async deliverTaskToAgent(agent: unknown, taskRequest: HTTPTaskRequest): Promise<boolean> {
     try {
-      if (!agent.httpEndpoint) {
+      if (!(agent as { httpEndpoint?: string }).httpEndpoint) {
         return false;
       }
 
@@ -404,12 +411,13 @@ class HTTPAgentAPIServer {
         'Content-Type': 'application/json'
       };
 
-      if (agent.httpAuthToken) {
-        headers['Authorization'] = `Bearer ${agent.httpAuthToken}`;
+      const agentTyped = agent as { httpEndpoint?: string; httpAuthToken?: string };
+      if (agentTyped.httpAuthToken) {
+        headers['Authorization'] = `Bearer ${agentTyped.httpAuthToken}`;
       }
 
       // Use fetch to send task to agent's endpoint
-      const response = await fetch(agent.httpEndpoint, {
+      const response = await fetch(agentTyped.httpEndpoint!, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -424,16 +432,16 @@ class HTTPAgentAPIServer {
       const success = response.ok;
 
       logger.info({
-        agentId: agent.agentId,
+        agentId: (agent as { agentId?: string }).agentId,
         taskId: taskRequest.taskId,
-        httpEndpoint: agent.httpEndpoint,
+        httpEndpoint: agentTyped.httpEndpoint,
         success
       }, 'Task delivery attempt to agent HTTP endpoint');
 
       return success;
 
     } catch (error) {
-      logger.error({ err: error, agentId: agent.agentId }, 'Failed to deliver task to agent HTTP endpoint');
+      logger.error({ err: error, agentId: (agent as { agentId?: string }).agentId }, 'Failed to deliver task to agent HTTP endpoint');
       return false;
     }
   }
@@ -493,7 +501,7 @@ class HTTPAgentAPIServer {
     try {
       if (this.server) {
         await new Promise<void>((resolve) => {
-          this.server.close(() => resolve());
+          this.server!.close(() => resolve());
         });
       }
 

@@ -32,7 +32,7 @@ interface WebSocketConnection {
 class WebSocketServerManager {
   private static instance: WebSocketServerManager;
   private server?: WebSocketServer;
-  private httpServer?: any;
+  private httpServer?: import('http').Server;
   private connections = new Map<string, WebSocketConnection>(); // sessionId -> connection
   private agentConnections = new Map<string, string>(); // agentId -> sessionId
   private port: number = 8080;
@@ -149,7 +149,7 @@ class WebSocketServerManager {
     }
   }
 
-  private handleConnection(ws: WebSocket, request: any): void {
+  private handleConnection(ws: WebSocket, request: import('http').IncomingMessage): void {
     const sessionId = this.generateSessionId();
     const connection: WebSocketConnection = {
       ws,
@@ -179,7 +179,7 @@ class WebSocketServerManager {
     });
   }
 
-  private async handleMessage(sessionId: string, data: any): Promise<void> {
+  private async handleMessage(sessionId: string, data: unknown): Promise<void> {
     try {
       const connection = this.connections.get(sessionId);
       if (!connection) {
@@ -193,7 +193,7 @@ class WebSocketServerManager {
       // Parse message
       let message: WebSocketMessage;
       try {
-        message = JSON.parse(data.toString());
+        message = JSON.parse(String(data));
       } catch {
         this.sendError(sessionId, 'Invalid JSON message format');
         return;
@@ -296,8 +296,8 @@ class WebSocketServerManager {
       const taskData = message.data as { 
         taskId?: string; 
         status?: string; 
-        response?: any; 
-        completionDetails?: any 
+        response?: unknown; 
+        completionDetails?: unknown 
       } || {};
 
       // Validate required fields
@@ -311,8 +311,15 @@ class WebSocketServerManager {
         agentId: connection.agentId,
         taskId: taskData.taskId,
         status: taskData.status as "DONE" | "ERROR" | "PARTIAL",
-        response: taskData.response,
-        completionDetails: taskData.completionDetails,
+        response: String(taskData.response),
+        completionDetails: taskData.completionDetails as {
+          filesModified?: string[];
+          testsPass?: boolean;
+          buildSuccessful?: boolean;
+          executionTime?: number;
+          errorDetails?: string;
+          partialProgress?: number;
+        } | undefined,
         receivedAt: Date.now()
       });
 
@@ -340,7 +347,7 @@ class WebSocketServerManager {
     }
   }
 
-  private async handleHeartbeat(sessionId: string, message: WebSocketMessage): Promise<void> {
+  private async handleHeartbeat(sessionId: string, _message: WebSocketMessage): Promise<void> {
     const connection = this.connections.get(sessionId);
     if (connection) {
       connection.lastSeen = Date.now();

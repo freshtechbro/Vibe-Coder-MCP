@@ -1095,13 +1095,13 @@ class TransportManager {
     startupInProgress: boolean;
     startedServices: string[];
     config: TransportConfig;
-    serviceDetails: Record<string, any>;
+    serviceDetails: Record<string, unknown>;
     websocket?: { running: boolean; port?: number; path?: string; connections?: number };
     http?: { running: boolean; port?: number; cors?: boolean };
     sse?: { running: boolean; connections?: number };
     stdio?: { running: boolean };
   } {
-    const serviceDetails: Record<string, any> = {};
+    const serviceDetails: Record<string, unknown> = {};
 
     // WebSocket service details
     const websocketRunning = this.startedServices.includes('websocket');
@@ -1184,7 +1184,7 @@ class TransportManager {
   /**
    * Get configuration for a specific transport
    */
-  getTransportConfig(transport: keyof TransportConfig): any {
+  getTransportConfig(transport: keyof TransportConfig): unknown {
     return this.config[transport];
   }
 
@@ -1266,8 +1266,8 @@ class TransportManager {
   /**
    * Get health status of all transports
    */
-  async getHealthStatus(): Promise<Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: any }>> {
-    const health: Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: any }> = {};
+  async getHealthStatus(): Promise<Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: unknown }>> {
+    const health: Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: unknown }> = {};
 
     // Check stdio transport
     health.stdio = {
