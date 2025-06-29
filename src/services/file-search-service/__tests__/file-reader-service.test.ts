@@ -32,7 +32,7 @@ vi.mock('../file-search-engine.js', () => ({
 
 describe('FileReaderService', () => {
   let fileReaderService: FileReaderService;
-  let mockFileSearchService: any;
+  let mockFileSearchService: FileSearchService;
 
   beforeEach(() => {
     fileReaderService = FileReaderService.getInstance();
@@ -63,7 +63,7 @@ describe('FileReaderService', () => {
         mtime: new Date('2023-01-01'),
         isFile: () => true,
         isDirectory: () => false
-      } as any);
+      } as fs.Stats);
 
       // Mock file reading
       mockFs.readFile.mockResolvedValue(Buffer.from('test content'));
@@ -93,7 +93,7 @@ describe('FileReaderService', () => {
         .mockResolvedValueOnce({
           size: 1024,
           mtime: new Date('2023-01-01')
-        } as any)
+        } as fs.Stats)
         .mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
 
       const result = await fileReaderService.readFiles(filePaths, {
@@ -114,7 +114,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 20 * 1024 * 1024, // 20MB
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       const result = await fileReaderService.readFiles(filePaths, {
         maxFileSize: 10 * 1024 * 1024, // 10MB limit
@@ -198,7 +198,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('test content'));
 
@@ -234,7 +234,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('test content'));
 
@@ -263,7 +263,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from(content));
 
@@ -283,7 +283,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('test content'));
 
@@ -302,7 +302,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValueOnce({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('original content'));
 
@@ -312,7 +312,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValueOnce({
         size: 1024,
         mtime: new Date('2023-01-02') // Different modification time
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('modified content'));
 
@@ -338,7 +338,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('test content'));
 
@@ -368,7 +368,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('text content'));
 
@@ -388,7 +388,7 @@ describe('FileReaderService', () => {
       mockFs.stat.mockResolvedValue({
         size: 1024,
         mtime: new Date('2023-01-01')
-      } as any);
+      } as fs.Stats);
 
       mockFs.readFile.mockResolvedValue(Buffer.from('image data'));
 

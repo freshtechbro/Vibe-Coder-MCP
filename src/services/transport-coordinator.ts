@@ -189,7 +189,18 @@ export class TransportCoordinator {
   getStatus(): {
     isInitialized: boolean;
     initializationInProgress: boolean;
-    transportManagerStatus: any;
+    transportManagerStatus: {
+      isStarted: boolean;
+      isConfigured: boolean;
+      startupInProgress: boolean;
+      startedServices: string[];
+      config: unknown;
+      serviceDetails: Record<string, unknown>;
+      websocket?: { running: boolean; port?: number; path?: string; connections?: number };
+      http?: { running: boolean; port?: number; cors?: boolean };
+      sse?: { running: boolean; connections?: number };
+      stdio?: { running: boolean };
+    };
   } {
     return {
       isInitialized: this.isInitialized,
