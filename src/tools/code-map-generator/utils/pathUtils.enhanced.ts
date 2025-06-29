@@ -91,13 +91,18 @@ export function validatePathSecurity(
  * @returns Whether the child path is within the parent path
  */
 export function isPathWithin(childPath: string, parentPath: string): boolean {
-  // Normalize both paths to absolute paths with consistent separators
+  // Cross-platform path normalization
   const normalizedChild = path.resolve(childPath).replace(/\\/g, '/');
   const normalizedParent = path.resolve(parentPath).replace(/\\/g, '/');
 
+  // Cross-platform path comparison (case-insensitive on Windows, case-sensitive on Unix/Mac)
+  const isWindows = process.platform === 'win32';
+  const childToCheck = isWindows ? normalizedChild.toLowerCase() : normalizedChild;
+  const parentToCheck = isWindows ? normalizedParent.toLowerCase() : normalizedParent;
+
   // Check if the child path starts with the parent path
   // We add a trailing slash to the parent path to ensure we're checking for a directory boundary
-  return normalizedChild.startsWith(normalizedParent + '/') || normalizedChild === normalizedParent;
+  return childToCheck.startsWith(parentToCheck + '/') || childToCheck === parentToCheck;
 }
 
 /**

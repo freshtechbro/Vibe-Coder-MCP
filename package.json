@@ -1,6 +1,6 @@
 {
   "name": "vibe-coder-mcp",
-  "version": "2.6.3",
+  "version": "2.6.4",
   "description": "Production-ready MCP server with complete agent integration, multi-transport support, and comprehensive development automation tools for AI-assisted workflows.",
   "main": "build/index.js",
   "type": "module",

@@ -403,15 +403,21 @@ export class FileUtils {
     // Check for absolute paths outside allowed directories (allow project root and subdirectories)
     if (path.isAbsolute(filePath)) {
       const projectRoot = process.cwd();
-      // CRITICAL FIX: Proper Windows path normalization
-      const normalizedPath = path.resolve(filePath).replace(/\\/g, '/').toLowerCase();
-      const normalizedProject = path.resolve(projectRoot).replace(/\\/g, '/').toLowerCase();
+      
+      // Cross-platform path normalization
+      const normalizedPath = path.resolve(filePath).replace(/\\/g, '/');
+      const normalizedProject = path.resolve(projectRoot).replace(/\\/g, '/');
+      
+      // Cross-platform path comparison (case-insensitive on Windows, case-sensitive on Unix/Mac)
+      const isWindows = process.platform === 'win32';
+      const pathToCheck = isWindows ? normalizedPath.toLowerCase() : normalizedPath;
+      const projectToCheck = isWindows ? normalizedProject.toLowerCase() : normalizedProject;
       
       // Allow paths within project root, test directories, or temp directories
-      // CRITICAL FIX: Case-insensitive comparison for Windows compatibility
-      if (!normalizedPath.startsWith(normalizedProject) &&
-          !normalizedPath.startsWith('/test/') &&
-          !normalizedPath.startsWith('/tmp/')) {
+      const isWithinProject = pathToCheck.startsWith(projectToCheck);
+      const isTestDir = pathToCheck.startsWith('/test/') || pathToCheck.startsWith('/tmp/');
+      
+      if (!isWithinProject && !isTestDir) {
         return { valid: false, error: `Absolute paths outside project directory not allowed. Path: ${normalizedPath}, Project: ${normalizedProject}` };
       }
     }
