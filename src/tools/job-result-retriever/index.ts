@@ -30,8 +30,8 @@ export const getJobResult: ToolExecutor = async (
   try {
     logger.info({ jobId, sessionId, transportType }, `Attempting to retrieve result for job.`);
 
-    // Use the new rate-limited job retrieval
-    const { job, waitTime, shouldWait } = jobManager.getJobWithRateLimit(jobId);
+    // Get job directly without rate limiting (fixed infinite polling loop, so no need for band-aid rate limiting)
+    const job = jobManager.getJob(jobId, false); // Don't update access tracking
 
     if (!job) {
       logger.warn({ jobId }, `Job not found.`);
@@ -41,33 +41,6 @@ export const getJobResult: ToolExecutor = async (
         content: [{ type: 'text', text: notFoundError.message }],
         isError: true,
         errorDetails: notFoundError
-      };
-    }
-
-    // If rate limited, return a message with the wait time
-    if (shouldWait) {
-      logger.info({ jobId, waitTime }, `Rate limited job status request.`);
-
-      // Create a standardized job status message
-      const statusMessage = createJobStatusMessage(
-        jobId,
-        job.toolName,
-        job.status,
-        `Rate limited: Please wait ${Math.ceil(waitTime / 1000)} seconds before checking again.`,
-        undefined,
-        job.createdAt,
-        job.updatedAt,
-        includeDetails ? job.details : undefined
-      );
-
-      return {
-        content: [{
-          type: 'text',
-          text: `Job '${jobId}' (${job.toolName}) status is being checked too frequently. Please wait ${Math.ceil(waitTime / 1000)} seconds before checking again. Current status: ${job.status}, last updated at: ${new Date(job.updatedAt).toISOString()}.`
-        }],
-        isError: false,
-        pollInterval: waitTime,
-        jobStatus: statusMessage
       };
     }
 

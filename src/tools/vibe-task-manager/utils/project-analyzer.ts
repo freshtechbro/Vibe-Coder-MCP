@@ -307,12 +307,13 @@ export class ProjectAnalyzer {
   }
 
   /**
-   * Helper method to get language from extension using existing configurations
+   * RESTORED: Helper method to get language from extension using existing configurations
+   * Uses the 35+ language support from Code Map Generator
    */
   private getLanguageFromExtension(extension: string): string | null {
-    // Use existing language configurations from Code Map Generator
+    // RESTORED: Use existing language configurations for 35+ language support
     for (const [ext, config] of Object.entries(languageConfigurations)) {
-      if (ext === extension) {
+      if (ext === extension.toLowerCase()) {
         return config.name.toLowerCase();
       }
     }
@@ -320,7 +321,7 @@ export class ProjectAnalyzer {
   }
 
   /**
-   * Helper method to get extensions for a language
+   * RESTORED: Helper method to get extensions for a language
    */
   private getExtensionsForLanguage(language: string): string[] {
     // Find all extensions that map to this language
@@ -334,24 +335,47 @@ export class ProjectAnalyzer {
   }
 
   /**
-   * Helper method to get sample file content for framework detection (SAFE)
+   * RESTORED: Helper method to get sample file content for framework detection
+   * WITH INFINITE LOOP PROTECTION: Limits file reading to prevent hangs
    */
   private async getSampleFileContent(projectPath: string, extension: string): Promise<string | null> {
     try {
+      // INFINITE LOOP PROTECTION: Set timeout and limits
+      const timeoutMs = 5000; // 5 second timeout
+      const maxFileSize = 50000; // 50KB max file size
+      
       const files = await readDirSecure(projectPath, projectPath);
       const targetFile = files.find((f: fs.Dirent) => f.isFile() && f.name.endsWith(extension));
 
       if (targetFile) {
-        // Read first 1000 characters for framework detection
+        // Read with size and timeout protection
         const fsPromises = await import('fs/promises');
         const filePath = path.join(projectPath, targetFile.name);
-        const content = await fsPromises.readFile(filePath, 'utf-8');
-        return content.substring(0, 1000);
+        
+        // Check file size first
+        const stats = await fsPromises.stat(filePath);
+        if (stats.size > maxFileSize) {
+          logger.debug({ filePath, size: stats.size, maxFileSize }, 'File too large for framework detection');
+          return null;
+        }
+        
+        // Read with timeout protection
+        const content = await Promise.race([
+          fsPromises.readFile(filePath, 'utf-8'),
+          new Promise<null>((_, reject) => {
+            setTimeout(() => reject(new Error('File read timeout')), timeoutMs);
+          })
+        ]);
+        
+        if (typeof content === 'string') {
+          // Return first 1000 characters for framework detection
+          return content.substring(0, 1000);
+        }
       }
 
       return null;
     } catch (error) {
-      logger.warn({ error, projectPath, extension }, 'Failed to read sample file content');
+      logger.warn({ error, projectPath, extension }, 'Failed to read sample file content (protected)');
       return null;
     }
   }
