@@ -64,7 +64,7 @@ export class PromptOptimizer {
    * Reset the singleton instance (for testing purposes)
    */
   public static resetInstance(): void {
-    PromptOptimizer.instance = undefined as any;
+    PromptOptimizer.instance = undefined as unknown as PromptOptimizer;
   }
 
   /**
@@ -191,7 +191,7 @@ Your response must be a single JSON object that can be parsed by JSON.parse() wi
   /**
    * Enhance user prompt with JSON optimization
    */
-  private enhanceUserPrompt(userPrompt: string, template: JsonPromptTemplate, schema?: object): string {
+  private enhanceUserPrompt(userPrompt: string, template: JsonPromptTemplate, _schema?: object): string {
     let enhanced = userPrompt;
 
     // Always add output format instructions for JSON tasks
@@ -223,7 +223,7 @@ Your response must be a single JSON object that can be parsed by JSON.parse() wi
     const rules: string[] = [];
 
     // Add rules based on error patterns
-    for (const [pattern, errorData] of this.errorPatterns) {
+    for (const [, errorData] of this.errorPatterns) {
       if (errorData.frequency > 1) { // Include errors that occur more than once
         rules.push(`AVOID: ${errorData.preventionRule}`);
       }

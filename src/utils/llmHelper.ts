@@ -340,7 +340,7 @@ function preProcessJsonResponse(rawResponse: string, jobId?: string): string {
 
   try {
     logger.debug({ jobId, stage: 'pre-processing', originalLength: rawResponse.length, processedLength: sanitized.length }, "Stage 1 pre-processing completed");
-  } catch (logError) {
+  } catch {
     // Ignore logger errors to prevent them from breaking the parsing
   }
   return sanitized;
@@ -353,16 +353,7 @@ function preProcessJsonResponse(rawResponse: string, jobId?: string): string {
 function sanitizeControlCharacters(jsonString: string, jobId?: string): string {
   let sanitized = jsonString;
 
-  // Basic control character mapping
-  const controlCharMap: Record<string, string> = {
-    '\n': '\\n',
-    '\r': '\\r',
-    '\t': '\\t',
-    '\b': '\\b',
-    '\f': '\\f',
-    '"': '\\"',
-    '\\': '\\\\',
-  };
+  // Control character mapping removed - using direct replacement logic
 
   // Handle control characters in ALL string values (not just "content")
   sanitized = sanitized.replace(/"([^"]*[\x00-\x1F][^"]*)"/g, (match, content) => {

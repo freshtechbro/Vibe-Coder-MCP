@@ -102,7 +102,7 @@ export class PortAllocator {
         });
       });
 
-      server.on('error', (err: any) => {
+      server.on('error', (err: NodeJS.ErrnoException) => {
         const duration = Date.now() - startTime;
         if (err.code === 'EADDRINUSE') {
           logger.debug({
@@ -381,7 +381,7 @@ export class PortAllocator {
     const cleanupStartTime = Date.now();
     logger.info({ operation: 'cleanup_start' }, 'Starting port cleanup for orphaned processes');
 
-    let cleanedCount = 0;
+    const cleanedCount = 0;
     let checkedCount = 0;
     let occupiedCount = 0;
     const commonPortRanges = [

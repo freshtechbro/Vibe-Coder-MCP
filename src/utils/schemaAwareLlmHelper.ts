@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { performFormatAwareLlmCall, intelligentJsonParse } from './llmHelper.js';
 import { OpenRouterConfig } from '../types/workflow.js';
-import { ValidationError, ParsingError } from './errors.js';
+import { ValidationError } from './errors.js';
 import logger from '../logger.js';
 
 /**

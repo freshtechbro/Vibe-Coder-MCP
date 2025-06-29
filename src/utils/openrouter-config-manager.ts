@@ -254,7 +254,7 @@ export class OpenRouterConfigManager {
       }
 
       // Parse and validate JSON structure
-      let parsedConfig: any;
+      let parsedConfig: unknown;
       try {
         parsedConfig = JSON.parse(configContent);
       } catch (parseError) {
@@ -278,7 +278,7 @@ export class OpenRouterConfigManager {
         );
       }
 
-      if (!parsedConfig.llm_mapping || typeof parsedConfig.llm_mapping !== 'object') {
+      if (!(parsedConfig as any).llm_mapping || typeof (parsedConfig as any).llm_mapping !== 'object') {
         throw new ValidationError(
           'LLM configuration must contain llm_mapping object',
           context,
