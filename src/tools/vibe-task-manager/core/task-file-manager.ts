@@ -205,7 +205,7 @@ export class TaskFileManager {
         };
       }
 
-      let content = JSON.stringify(task, null, 2);
+      const content = JSON.stringify(task, null, 2);
 
       // Ensure tasks directory exists
       await fs.ensureDir(path.dirname(filePath));

@@ -312,15 +312,33 @@ export class RDDEngine {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('timed out');
 
+      // Enhanced error context logging
+      const errorContext = {
+        err: error,
+        taskId: task.id,
+        operation: 'task_splitting',
+        taskTitle: task.title,
+        taskType: task.type,
+        taskPriority: task.priority,
+        estimatedHours: task.estimatedHours,
+        projectId: task.projectId,
+        epicId: task.epicId,
+        contextSize: context ? {
+          languagesCount: context.languages?.length || 0,
+          frameworksCount: context.frameworks?.length || 0,
+          complexity: context.complexity
+        } : null,
+        stackTrace: error instanceof Error ? error.stack : undefined
+      };
+
       if (isTimeout) {
         logger.error({
-          err: error,
-          taskId: task.id,
+          ...errorContext,
           timeout: true,
-          operation: 'task_splitting'
+          timeoutType: 'llm_call'
         }, 'Task splitting timed out - LLM call exceeded timeout limit');
       } else {
-        logger.error({ err: error, taskId: task.id }, 'Failed to split task');
+        logger.error(errorContext, 'Failed to split task - comprehensive error context captured');
       }
 
       // Return empty array to trigger fallback to atomic task handling
@@ -504,6 +522,47 @@ CRITICAL REMINDER:
 
 
   /**
+   * Validate the structure of a task object
+   */
+  private validateTaskStructure(task: any): boolean {
+    const requiredFields = ['title', 'description', 'type', 'priority', 'estimatedHours'];
+    return requiredFields.every(field => task.hasOwnProperty(field) && task[field] != null);
+  }
+
+  /**
+   * Validate the response structure before parsing
+   */
+  private validateResponseStructure(parsed: any): { isValid: boolean; error?: string } {
+    // Check if it's a tasks array format
+    if (parsed.tasks && Array.isArray(parsed.tasks)) {
+      const invalidTasks = parsed.tasks.filter((task: any) => !this.validateTaskStructure(task));
+      if (invalidTasks.length > 0) {
+        return { isValid: false, error: `Invalid task structure in tasks array: missing required fields` };
+      }
+      return { isValid: true };
+    }
+
+    // Check if it's a subTasks array format (backward compatibility)
+    if (parsed.subTasks && Array.isArray(parsed.subTasks)) {
+      const invalidTasks = parsed.subTasks.filter((task: any) => !this.validateTaskStructure(task));
+      if (invalidTasks.length > 0) {
+        return { isValid: false, error: `Invalid task structure in subTasks array: missing required fields` };
+      }
+      return { isValid: true };
+    }
+
+    // Check if it's a single task object
+    if (parsed.title && parsed.description) {
+      if (!this.validateTaskStructure(parsed)) {
+        return { isValid: false, error: `Invalid single task structure: missing required fields` };
+      }
+      return { isValid: true };
+    }
+
+    return { isValid: false, error: `Invalid response format: no tasks array or single task found` };
+  }
+
+  /**
    * Parse the LLM response for task splitting
    */
   private parseSplitResponse(response: string, originalTask: AtomicTask): AtomicTask[] {
@@ -515,10 +574,27 @@ CRITICAL REMINDER:
 
       const parsed = JSON.parse(jsonMatch[0]);
 
-      // Support both "tasks" and "subTasks" for backward compatibility, but prefer "tasks"
-      const tasksArray = parsed.tasks || parsed.subTasks;
+      // Validate response structure first
+      const validation = this.validateResponseStructure(parsed);
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Invalid response structure');
+      }
 
-      if (!tasksArray || !Array.isArray(tasksArray)) {
+      // Support both "tasks" and "subTasks" for backward compatibility, but prefer "tasks"
+      let tasksArray = parsed.tasks || parsed.subTasks;
+
+      // Handle case where LLM returns a single task object instead of an array
+      if (!tasksArray) {
+        // Check if the parsed object itself is a single task (has title, description, etc.)
+        if (parsed.title && parsed.description) {
+          logger.info({ taskId: originalTask.id }, 'LLM returned single task object, converting to array');
+          tasksArray = [parsed];
+        } else {
+          throw new Error('Invalid response format: no tasks array or single task found');
+        }
+      }
+
+      if (!Array.isArray(tasksArray)) {
         throw new Error('Invalid tasks array in response');
       }
 
@@ -578,9 +654,70 @@ CRITICAL REMINDER:
       });
 
     } catch (error) {
-      logger.warn({ err: error, response }, 'Failed to parse split response');
-      throw new Error(`Failed to parse decomposition response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.warn({ err: error, response, taskId: originalTask.id }, 'Failed to parse split response, falling back to default task generation');
+      
+      // Fallback: Create a simplified version of the original task
+      return this.generateFallbackTasks(originalTask, error instanceof Error ? error.message : 'Unknown parsing error');
     }
+  }
+
+  /**
+   * Generate fallback tasks when LLM parsing fails
+   */
+  private generateFallbackTasks(originalTask: AtomicTask, errorMessage: string): AtomicTask[] {
+    logger.info({ taskId: originalTask.id, errorMessage }, 'Generating fallback tasks due to parsing failure');
+    
+    // Create a single simplified task based on the original
+    const fallbackTask: AtomicTask = {
+      id: `${originalTask.id}-fallback-01`,
+      title: `Review and plan: ${originalTask.title}`,
+      description: `Review the requirements for "${originalTask.title}" and create a detailed implementation plan. Original description: ${originalTask.description}`,
+      type: 'research',
+      priority: originalTask.priority,
+      status: 'pending',
+      projectId: originalTask.projectId,
+      epicId: originalTask.epicId,
+      estimatedHours: Math.min(originalTask.estimatedHours, 0.5), // Cap at 30 minutes
+      actualHours: 0,
+      filePaths: [],
+      acceptanceCriteria: ['Detailed implementation plan is created'],
+      tags: [...(originalTask.tags || []), 'fallback-generated', 'needs-review'],
+      dependencies: [],
+      dependents: [],
+      testingRequirements: originalTask.testingRequirements || {
+        unitTests: [],
+        integrationTests: [],
+        performanceTests: [],
+        coverageTarget: 80
+      },
+      performanceCriteria: originalTask.performanceCriteria || {},
+      qualityCriteria: originalTask.qualityCriteria || {
+        codeQuality: [],
+        documentation: [],
+        typeScript: true,
+        eslint: true
+      },
+      integrationCriteria: originalTask.integrationCriteria || {
+        compatibility: [],
+        patterns: []
+      },
+      validationMethods: originalTask.validationMethods || {
+        automated: [],
+        manual: []
+      },
+      assignedAgent: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: originalTask.createdBy,
+      metadata: {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: originalTask.createdBy,
+        tags: [...(originalTask.tags || []), 'fallback-generated', `error:${errorMessage.slice(0, 50)}`]
+      }
+    };
+
+    return [fallbackTask];
   }
 
   /**

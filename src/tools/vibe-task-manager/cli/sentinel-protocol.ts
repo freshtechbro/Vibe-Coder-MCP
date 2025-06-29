@@ -170,7 +170,7 @@ export class SentinelProtocol {
       const lines = responseText.split('\n');
       let status: AgentStatus | null = null;
       let message = '';
-      let taskId = expectedTaskId || '';
+      const taskId = expectedTaskId || '';
 
       // Find status line
       for (const line of lines) {

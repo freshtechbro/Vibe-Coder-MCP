@@ -457,6 +457,11 @@ export class OptimizedDependencyGraph {
    * Get topological ordering of tasks
    */
   getTopologicalOrder(): string[] {
+    // Ensure topologicalOrder is initialized
+    if (!this.topologicalOrder) {
+      this.topologicalOrder = [];
+    }
+    
     if (!this.isDirty && this.topologicalOrder.length > 0) {
       return [...this.topologicalOrder];
     }
@@ -514,12 +519,17 @@ export class OptimizedDependencyGraph {
    * Calculate critical path through the graph
    */
   getCriticalPath(): string[] {
+    // Ensure criticalPath is initialized
+    if (!this.criticalPath) {
+      this.criticalPath = [];
+    }
+    
     if (!this.isDirty && this.criticalPath.length > 0) {
       return [...this.criticalPath];
     }
 
     const topOrder = this.getTopologicalOrder();
-    if (topOrder.length === 0) {
+    if (!topOrder || topOrder.length === 0) {
       return [];
     }
 
@@ -581,12 +591,17 @@ export class OptimizedDependencyGraph {
    * Identify parallel execution batches
    */
   getParallelBatches(): ParallelBatch[] {
+    // Ensure parallelBatches is initialized
+    if (!this.parallelBatches) {
+      this.parallelBatches = [];
+    }
+    
     if (!this.isDirty && this.parallelBatches.length > 0) {
       return [...this.parallelBatches];
     }
 
     const topOrder = this.getTopologicalOrder();
-    if (topOrder.length === 0) {
+    if (!topOrder || topOrder.length === 0) {
       return [];
     }
 
@@ -2749,4 +2764,528 @@ export class OptimizedDependencyGraph {
     // This would be implemented with actual file system access
     throw new Error('File system access not implemented in this context');
   }
+
+  // ===== INTELLIGENT DEPENDENCY DETECTION =====
+
+  /**
+   * Automatically detect and add dependencies between tasks based on content analysis
+   */
+  autoDetectDependencies(tasks: AtomicTask[]): DependencySuggestion[] {
+    const suggestions: DependencySuggestion[] = [];
+    
+    for (let i = 0; i < tasks.length; i++) {
+      for (let j = 0; j < tasks.length; j++) {
+        if (i === j) continue;
+        
+        const fromTask = tasks[i];
+        const toTask = tasks[j];
+        
+        const suggestion = this.analyzePotentialDependency(fromTask, toTask);
+        if (suggestion) {
+          suggestions.push(suggestion);
+        }
+      }
+    }
+    
+    // Apply high-confidence suggestions automatically
+    const autoApplied = suggestions.filter(s => s.confidence >= 0.8);
+    autoApplied.forEach(suggestion => {
+      this.addDependency(
+        suggestion.fromTaskId,
+        suggestion.toTaskId,
+        suggestion.dependencyType,
+        suggestion.confidence,
+        suggestion.impact === 'high'
+      );
+    });
+    
+    logger.info({
+      totalSuggestions: suggestions.length,
+      autoApplied: autoApplied.length,
+      pending: suggestions.length - autoApplied.length
+    }, 'Dependency detection completed');
+    
+    return suggestions;
+  }
+
+  /**
+   * Analyze potential dependency between two tasks
+   */
+  private analyzePotentialDependency(fromTask: AtomicTask, toTask: AtomicTask): DependencySuggestion | null {
+    const dependencies = this.detectDependencyPatterns(fromTask, toTask);
+    
+    if (dependencies.length === 0) return null;
+    
+    // Find the strongest dependency pattern
+    const strongest = dependencies.reduce((max, dep) => 
+      dep.confidence > max.confidence ? dep : max
+    );
+    
+    return {
+      type: 'add',
+      fromTaskId: toTask.id, // Note: toTask depends on fromTask
+      toTaskId: fromTask.id,
+      dependencyType: strongest.type,
+      reason: strongest.reason,
+      confidence: strongest.confidence,
+      impact: strongest.impact
+    };
+  }
+
+  /**
+   * Detect specific dependency patterns between tasks
+   */
+  private detectDependencyPatterns(task1: AtomicTask, task2: AtomicTask): Array<{
+    type: ExtendedDependencyType;
+    confidence: number;
+    reason: string;
+    impact: 'low' | 'medium' | 'high';
+  }> {
+    const patterns: Array<{
+      type: ExtendedDependencyType;
+      confidence: number;
+      reason: string;
+      impact: 'low' | 'medium' | 'high';
+    }> = [];
+
+    // Sequential workflow patterns
+    const sequentialDep = this.detectSequentialDependency(task1, task2);
+    if (sequentialDep) patterns.push(sequentialDep);
+
+    // File-based dependencies
+    const fileDep = this.detectFileDependency(task1, task2);
+    if (fileDep) patterns.push(fileDep);
+
+    // Framework/setup dependencies
+    const frameworkDep = this.detectFrameworkDependency(task1, task2);
+    if (frameworkDep) patterns.push(frameworkDep);
+
+    // Testing dependencies
+    const testDep = this.detectTestingDependency(task1, task2);
+    if (testDep) patterns.push(testDep);
+
+    // Environment dependencies
+    const envDep = this.detectEnvironmentDependency(task1, task2);
+    if (envDep) patterns.push(envDep);
+
+    return patterns;
+  }
+
+  /**
+   * Detect sequential workflow dependencies (setup -> implementation -> testing)
+   */
+  private detectSequentialDependency(task1: AtomicTask, task2: AtomicTask): {
+    type: ExtendedDependencyType;
+    confidence: number;
+    reason: string;
+    impact: 'low' | 'medium' | 'high';
+  } | null {
+    const t1 = task1.title.toLowerCase() + ' ' + task1.description.toLowerCase();
+    const t2 = task2.title.toLowerCase() + ' ' + task2.description.toLowerCase();
+
+    // Setup -> Implementation patterns
+    if (this.containsKeywords(t1, ['setup', 'configure', 'install', 'initialize']) &&
+        this.containsKeywords(t2, ['implement', 'create', 'build', 'develop'])) {
+      return {
+        type: 'task',
+        confidence: 0.85,
+        reason: 'Setup task must complete before implementation',
+        impact: 'high'
+      };
+    }
+
+    // Implementation -> Testing patterns
+    if (this.containsKeywords(t1, ['implement', 'create', 'build', 'develop']) &&
+        this.containsKeywords(t2, ['test', 'spec', 'unit test', 'integration test'])) {
+      return {
+        type: 'task',
+        confidence: 0.9,
+        reason: 'Implementation must complete before testing',
+        impact: 'high'
+      };
+    }
+
+    // Database -> API patterns
+    if (this.containsKeywords(t1, ['database', 'schema', 'model', 'migration']) &&
+        this.containsKeywords(t2, ['api', 'endpoint', 'route', 'controller'])) {
+      return {
+        type: 'task',
+        confidence: 0.8,
+        reason: 'Database setup required before API implementation',
+        impact: 'high'
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Detect file-based dependencies
+   */
+  private detectFileDependency(task1: AtomicTask, task2: AtomicTask): {
+    type: ExtendedDependencyType;
+    confidence: number;
+    reason: string;
+    impact: 'low' | 'medium' | 'high';
+  } | null {
+    const files1 = task1.filePaths || [];
+    const files2 = task2.filePaths || [];
+
+    // Check for shared files
+    const sharedFiles = files1.filter(file => files2.includes(file));
+    if (sharedFiles.length > 0) {
+      return {
+        type: 'task',
+        confidence: 0.7,
+        reason: `Both tasks modify shared files: ${sharedFiles.join(', ')}`,
+        impact: 'medium'
+      };
+    }
+
+    // Check for import relationships
+    const hasImportRelation = this.detectImportRelationship(task1, task2);
+    if (hasImportRelation) {
+      return {
+        type: 'import',
+        confidence: 0.75,
+        reason: 'Tasks have import/export relationship',
+        impact: 'medium'
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Detect framework and setup dependencies
+   */
+  private detectFrameworkDependency(task1: AtomicTask, task2: AtomicTask): {
+    type: ExtendedDependencyType;
+    confidence: number;
+    reason: string;
+    impact: 'low' | 'medium' | 'high';
+  } | null {
+    const t1 = task1.title.toLowerCase() + ' ' + task1.description.toLowerCase();
+    const t2 = task2.title.toLowerCase() + ' ' + task2.description.toLowerCase();
+
+    // Framework setup dependencies
+    const frameworkPatterns = [
+      { setup: ['react setup', 'vue setup', 'angular setup'], use: ['component', 'page', 'view'] },
+      { setup: ['express setup', 'fastify setup', 'server setup'], use: ['route', 'endpoint', 'middleware'] },
+      { setup: ['database setup', 'mongodb setup', 'postgres setup'], use: ['model', 'query', 'migration'] }
+    ];
+
+    for (const pattern of frameworkPatterns) {
+      const isSetup = this.containsKeywords(t1, pattern.setup);
+      const usesFramework = this.containsKeywords(t2, pattern.use);
+      
+      if (isSetup && usesFramework) {
+        return {
+          type: 'framework',
+          confidence: 0.85,
+          reason: 'Framework must be set up before use',
+          impact: 'high'
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Detect testing dependencies
+   */
+  private detectTestingDependency(task1: AtomicTask, task2: AtomicTask): {
+    type: ExtendedDependencyType;
+    confidence: number;
+    reason: string;
+    impact: 'low' | 'medium' | 'high';
+  } | null {
+    if (task1.type === 'development' && task2.type === 'testing') {
+      // Check if test task is testing the development task
+      const devContent = task1.title.toLowerCase() + ' ' + task1.description.toLowerCase();
+      const testContent = task2.title.toLowerCase() + ' ' + task2.description.toLowerCase();
+      
+      // Extract key terms from development task
+      const devTerms = this.extractKeyTerms(devContent);
+      const testReferences = devTerms.filter(term => testContent.includes(term));
+      
+      if (testReferences.length > 0) {
+        return {
+          type: 'task',
+          confidence: 0.9,
+          reason: `Test task references development components: ${testReferences.join(', ')}`,
+          impact: 'high'
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Detect environment and infrastructure dependencies
+   */
+  private detectEnvironmentDependency(task1: AtomicTask, task2: AtomicTask): {
+    type: ExtendedDependencyType;
+    confidence: number;
+    reason: string;
+    impact: 'low' | 'medium' | 'high';
+  } | null {
+    const t1 = task1.title.toLowerCase() + ' ' + task1.description.toLowerCase();
+    const t2 = task2.title.toLowerCase() + ' ' + task2.description.toLowerCase();
+
+    // Environment setup -> Application deployment
+    if (this.containsKeywords(t1, ['docker', 'container', 'deployment', 'environment']) &&
+        this.containsKeywords(t2, ['deploy', 'run', 'start', 'launch'])) {
+      return {
+        type: 'environment',
+        confidence: 0.8,
+        reason: 'Environment must be prepared before deployment',
+        impact: 'high'
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Helper: Check if text contains any of the keywords
+   */
+  private containsKeywords(text: string, keywords: string[]): boolean {
+    return keywords.some(keyword => text.includes(keyword));
+  }
+
+  /**
+   * Helper: Detect import relationships between tasks
+   */
+  private detectImportRelationship(task1: AtomicTask, task2: AtomicTask): boolean {
+    // This would analyze file paths and descriptions to detect import relationships
+    // For now, simplified implementation based on naming patterns
+    const files1 = task1.filePaths || [];
+    const files2 = task2.filePaths || [];
+    
+    return files1.some(file1 => 
+      files2.some(file2 => 
+        file2.includes(file1.split('/').pop()?.split('.')[0] || '')
+      )
+    );
+  }
+
+  /**
+   * Helper: Extract key terms from task content
+   */
+  private extractKeyTerms(content: string): string[] {
+    const words = content.split(/\s+/);
+    const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']);
+    
+    return words
+      .filter(word => word.length > 2 && !stopWords.has(word.toLowerCase()))
+      .map(word => word.toLowerCase())
+      .filter(word => /^[a-zA-Z]+$/.test(word));
+  }
+
+  // ===== INTEGRATION METHODS =====
+
+  /**
+   * Apply intelligent dependency detection to a list of tasks during decomposition
+   * This method integrates with the task decomposition workflow
+   */
+  applyIntelligentDependencyDetection(tasks: AtomicTask[]): {
+    appliedDependencies: number;
+    suggestions: DependencySuggestion[];
+    warnings: string[];
+  } {
+    logger.info({ taskCount: tasks.length }, 'Starting intelligent dependency detection integration');
+
+    // First, add all tasks to the graph
+    for (const task of tasks) {
+      this.addTask(task);
+    }
+
+    // Run dependency detection and get suggestions
+    const suggestions = this.autoDetectDependencies(tasks);
+
+    // Validate the resulting graph for cycles and conflicts
+    const cycles = this.detectCycles();
+    const warnings: string[] = [];
+
+    if (cycles.length > 0) {
+      warnings.push(`Detected ${cycles.length} dependency cycles that were prevented`);
+      logger.warn({ cycleCount: cycles.length, cycles }, 'Dependency cycles detected and prevented');
+    }
+
+    // Check for potential resource conflicts
+    const conflicts = this.detectResourceConflicts(tasks);
+    if (conflicts.length > 0) {
+      warnings.push(`Detected ${conflicts.length} potential resource conflicts`);
+      logger.warn({ conflictCount: conflicts.length }, 'Resource conflicts detected');
+    }
+
+    // Update task objects with detected dependencies
+    this.updateTaskDependencies(tasks);
+
+    const appliedCount = suggestions.filter(s => s.confidence >= 0.8).length;
+
+    logger.info({
+      appliedDependencies: appliedCount,
+      totalSuggestions: suggestions.length,
+      warningCount: warnings.length
+    }, 'Intelligent dependency detection completed');
+
+    return {
+      appliedDependencies: appliedCount,
+      suggestions,
+      warnings
+    };
+  }
+
+  /**
+   * Update task objects with detected dependencies
+   */
+  private updateTaskDependencies(tasks: AtomicTask[]): void {
+    for (const task of tasks) {
+      const node = this.nodes.get(task.id);
+      if (node) {
+        task.dependencies = [...node.dependencies];
+        task.dependents = [...node.dependents];
+      }
+    }
+  }
+
+  /**
+   * Detect resource conflicts between tasks
+   */
+  private detectResourceConflicts(tasks: AtomicTask[]): Array<{
+    conflictType: 'file' | 'concurrent_modification';
+    tasks: string[];
+    severity: 'low' | 'medium' | 'high';
+  }> {
+    const conflicts: Array<{
+      conflictType: 'file' | 'concurrent_modification';
+      tasks: string[];
+      severity: 'low' | 'medium' | 'high';
+    }> = [];
+
+    // Check for concurrent file modifications
+    const fileMap = new Map<string, string[]>();
+    
+    for (const task of tasks) {
+      if (task.filePaths) {
+        for (const filePath of task.filePaths) {
+          if (!fileMap.has(filePath)) {
+            fileMap.set(filePath, []);
+          }
+          fileMap.get(filePath)!.push(task.id);
+        }
+      }
+    }
+
+    // Report conflicts where multiple tasks modify the same file
+    for (const [filePath, taskIds] of fileMap) {
+      if (taskIds.length > 1) {
+        // Check if these tasks have dependency relationships
+        const hasRelationship = taskIds.some(taskId1 => 
+          taskIds.some(taskId2 => 
+            taskId1 !== taskId2 && 
+            (this.nodes.get(taskId1)?.dependencies.includes(taskId2) ||
+             this.nodes.get(taskId1)?.dependents.includes(taskId2))
+          )
+        );
+
+        if (!hasRelationship) {
+          conflicts.push({
+            conflictType: 'file',
+            tasks: taskIds,
+            severity: 'medium'
+          });
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
+  /**
+   * Get recommended execution order based on dependencies and priority
+   */
+  getRecommendedExecutionOrder(): {
+    topologicalOrder: string[];
+    parallelBatches: ParallelBatch[];
+    criticalPath: string[];
+    estimatedDuration: number;
+  } {
+    const topologicalOrder = this.getTopologicalOrder();
+    const parallelBatches = this.getParallelBatches();
+    const criticalPath = this.getCriticalPath();
+
+    // Calculate estimated total duration considering parallel execution
+    let estimatedDuration = 0;
+    for (const batch of parallelBatches) {
+      estimatedDuration += batch.estimatedDuration;
+    }
+
+    // If no parallel batches, fall back to sequential estimation
+    if (parallelBatches.length === 0) {
+      estimatedDuration = Array.from(this.nodes.values())
+        .reduce((sum, node) => sum + node.estimatedHours, 0);
+    }
+
+    return {
+      topologicalOrder,
+      parallelBatches,
+      criticalPath,
+      estimatedDuration
+    };
+  }
+
+  /**
+   * Export dependency analysis for external integration
+   */
+  exportDependencyAnalysis(): {
+    nodes: DependencyNode[];
+    edges: DependencyEdge[];
+    metrics: GraphMetrics;
+    executionPlan: {
+      topologicalOrder: string[];
+      parallelBatches: ParallelBatch[];
+      criticalPath: string[];
+      estimatedDuration: number;
+    };
+  } {
+    this.updateMetrics();
+
+    return {
+      nodes: Array.from(this.nodes.values()),
+      edges: Array.from(this.edges.values()),
+      metrics: { ...this.metrics },
+      executionPlan: this.getRecommendedExecutionOrder()
+    };
+  }
+}
+
+/**
+ * Factory function to create a new dependency graph instance
+ */
+export function createDependencyGraph(projectId: string): OptimizedDependencyGraph {
+  return new OptimizedDependencyGraph(projectId);
+}
+
+/**
+ * Get a singleton dependency graph instance for a project
+ */
+const projectGraphs = new Map<string, OptimizedDependencyGraph>();
+
+export function getDependencyGraph(projectId: string): OptimizedDependencyGraph {
+  if (!projectGraphs.has(projectId)) {
+    projectGraphs.set(projectId, new OptimizedDependencyGraph(projectId));
+  }
+  return projectGraphs.get(projectId)!;
+}
+
+/**
+ * Clear dependency graph cache for a project
+ */
+export function clearProjectDependencyGraph(projectId: string): void {
+  projectGraphs.delete(projectId);
 }

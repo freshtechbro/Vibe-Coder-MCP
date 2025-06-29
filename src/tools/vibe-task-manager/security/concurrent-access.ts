@@ -28,7 +28,7 @@ export interface LockInfo {
   operation: 'read' | 'write' | 'execute';
   acquiredAt: Date;
   expiresAt: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -89,7 +89,7 @@ export class ConcurrentAccessManager {
   private static instance: ConcurrentAccessManager | null = null;
   private config: ConcurrentAccessConfig;
   private activeLocks: Map<string, LockInfo> = new Map();
-  private lockWaiters: Map<string, Array<{ resolve: Function; reject: Function; timeout: NodeJS.Timeout }>> = new Map();
+  private lockWaiters: Map<string, Array<{ resolve: (value: LockAcquisitionResult) => void; reject: (reason?: unknown) => void; timeout: NodeJS.Timeout }>> = new Map();
   private auditEvents: LockAuditEvent[] = [];
   private deadlockDetectionTimer: NodeJS.Timeout | null = null;
   private cleanupTimer: NodeJS.Timeout | null = null;
@@ -409,7 +409,7 @@ export class ConcurrentAccessManager {
     if (waiters && waiters.length > 0) {
       // Notify first waiter (FIFO)
       const waiter = waiters.shift()!;
-      waiter.resolve();
+      waiter.resolve({ success: true });
 
       if (waiters.length === 0) {
         this.lockWaiters.delete(resource);
@@ -420,7 +420,7 @@ export class ConcurrentAccessManager {
   /**
    * Remove waiter from queue
    */
-  private removeWaiter(resource: string, resolveFunc: Function): void {
+  private removeWaiter(resource: string, resolveFunc: (value: LockAcquisitionResult) => void): void {
     const waiters = this.lockWaiters.get(resource);
     if (waiters) {
       const index = waiters.findIndex(w => w.resolve === resolveFunc);

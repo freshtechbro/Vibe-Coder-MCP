@@ -27,6 +27,10 @@ export interface TaskScores {
   dependencyScore: number;
   resourceScore: number;
   durationScore: number;
+  systemLoadScore: number;
+  complexityScore: number;
+  businessImpactScore: number;
+  agentAvailabilityScore: number;
   totalScore: number;
 }
 
@@ -82,6 +86,10 @@ export interface SchedulingConfig {
     dependencies: number;
     resources: number;
     duration: number;
+    systemLoad: number;
+    complexity: number;
+    businessImpact: number;
+    agentAvailability: number;
   };
 
   /** Deadline buffer time (hours) */
@@ -132,6 +140,13 @@ export interface ScheduledTask {
     priorityScore: number;
     resourceScore: number;
     deadlineScore: number;
+    dependencyScore: number;
+    durationScore: number;
+    systemLoadScore: number;
+    complexityScore: number;
+    businessImpactScore: number;
+    agentAvailabilityScore: number;
+    totalScore: number;
     scheduledAt: Date;
     lastOptimized: Date;
   };
@@ -228,11 +243,16 @@ export const DEFAULT_SCHEDULING_CONFIG: SchedulingConfig = {
     ])
   },
   weights: {
-    priority: 0.3,
-    deadline: 0.25,
-    dependencies: 0.2,
-    resources: 0.15,
-    duration: 0.1
+    // Updated weights based on importance: Dependencies > Deadline > System Load > Task Complexity > Business Impact > Agent Availability
+    dependencies: 0.35,      // Most critical for execution order
+    deadline: 0.25,          // Time-sensitive priority escalation  
+    systemLoad: 0.20,        // Resource availability impact
+    complexity: 0.10,        // Task effort estimation factor
+    businessImpact: 0.05,    // Strategic importance
+    agentAvailability: 0.05, // Execution readiness
+    priority: 0.0,           // Deprecated - integrated into other factors
+    resources: 0.0,          // Replaced by systemLoad
+    duration: 0.0            // Replaced by complexity
   },
   deadlineBuffer: 2,
   rescheduleSensitivity: 'medium',
@@ -888,18 +908,29 @@ export class TaskScheduler {
     const criticalPathSet = new Set(criticalPath);
 
     for (const task of tasks) {
+      // Enhanced multi-factor scoring
       const priorityScore = this.calculatePriorityScore(task.priority);
       const deadlineScore = this.calculateDeadlineScore(task);
       const dependencyScore = this.calculateDependencyScore(task, dependencyGraph, criticalPathSet);
       const resourceScore = this.calculateResourceScore(task);
       const durationScore = this.calculateDurationScore(task);
+      
+      // New dynamic scoring factors
+      const systemLoadScore = this.calculateSystemLoadScore(task);
+      const complexityScore = this.calculateComplexityScore(task);
+      const businessImpactScore = this.calculateBusinessImpactScore(task);
+      const agentAvailabilityScore = this.calculateAgentAvailabilityScore(task);
 
       const totalScore =
         priorityScore * this.config.weights.priority +
         deadlineScore * this.config.weights.deadline +
         dependencyScore * this.config.weights.dependencies +
         resourceScore * this.config.weights.resources +
-        durationScore * this.config.weights.duration;
+        durationScore * this.config.weights.duration +
+        systemLoadScore * this.config.weights.systemLoad +
+        complexityScore * this.config.weights.complexity +
+        businessImpactScore * this.config.weights.businessImpact +
+        agentAvailabilityScore * this.config.weights.agentAvailability;
 
       scores.set(task.id, {
         priorityScore,
@@ -907,6 +938,10 @@ export class TaskScheduler {
         dependencyScore,
         resourceScore,
         durationScore,
+        systemLoadScore,
+        complexityScore,
+        businessImpactScore,
+        agentAvailabilityScore,
         totalScore
       });
     }
@@ -988,6 +1023,13 @@ export class TaskScheduler {
             priorityScore: scores?.priorityScore || 0,
             resourceScore: scores?.resourceScore || 0,
             deadlineScore: scores?.deadlineScore || 0,
+            dependencyScore: scores?.dependencyScore || 0,
+            durationScore: scores?.durationScore || 0,
+            systemLoadScore: scores?.systemLoadScore || 0,
+            complexityScore: scores?.complexityScore || 0,
+            businessImpactScore: scores?.businessImpactScore || 0,
+            agentAvailabilityScore: scores?.agentAvailabilityScore || 0,
+            totalScore: scores?.totalScore || 0,
             scheduledAt: new Date(),
             lastOptimized: new Date()
           }
@@ -1076,6 +1118,13 @@ export class TaskScheduler {
             priorityScore: scores?.priorityScore || 0,
             resourceScore: scores?.resourceScore || 0,
             deadlineScore: scores?.deadlineScore || 0,
+            dependencyScore: scores?.dependencyScore || 0,
+            durationScore: scores?.durationScore || 0,
+            systemLoadScore: scores?.systemLoadScore || 0,
+            complexityScore: scores?.complexityScore || 0,
+            businessImpactScore: scores?.businessImpactScore || 0,
+            agentAvailabilityScore: scores?.agentAvailabilityScore || 0,
+            totalScore: scores?.totalScore || 0,
             scheduledAt: new Date(),
             lastOptimized: new Date()
           }
@@ -1367,6 +1416,199 @@ export class TaskScheduler {
     // Prefer shorter tasks for better parallelism
     const maxHours = 8; // Assume 8 hours as maximum reasonable task duration
     return 1.0 - Math.min(task.estimatedHours / maxHours, 0.8);
+  }
+
+  /**
+   * Calculate system load score based on current resource utilization
+   * Higher score for tasks that can run when system load is lower
+   */
+  private calculateSystemLoadScore(task: AtomicTask): number {
+    // Get current system metrics
+    const currentMemoryUtilization = this.getCurrentMemoryUtilization();
+    const currentCpuUtilization = this.getCurrentCpuUtilization();
+    const currentTaskLoad = this.getCurrentTaskLoad();
+
+    // Calculate task resource requirements
+    const taskTypeResources = this.config.resources.taskTypeResources.get(task.type);
+    const taskMemoryRatio = taskTypeResources ? 
+      taskTypeResources.memoryMB / this.config.resources.maxMemoryMB : 0.1;
+    const taskCpuRatio = taskTypeResources ? 
+      taskTypeResources.cpuWeight / this.config.resources.maxCpuUtilization : 0.1;
+
+    // Higher score when system has capacity for this task
+    const memoryAvailability = Math.max(0, 1.0 - currentMemoryUtilization - taskMemoryRatio);
+    const cpuAvailability = Math.max(0, 1.0 - currentCpuUtilization - taskCpuRatio);
+    const taskSlotAvailability = Math.max(0, 
+      (this.config.resources.maxConcurrentTasks - currentTaskLoad) / this.config.resources.maxConcurrentTasks
+    );
+
+    // Weighted average of availability factors
+    return (memoryAvailability * 0.4 + cpuAvailability * 0.4 + taskSlotAvailability * 0.2);
+  }
+
+  /**
+   * Calculate complexity score based on multiple task factors
+   * Higher score for less complex tasks (easier to execute)
+   */
+  private calculateComplexityScore(task: AtomicTask): number {
+    let complexityFactor = 0;
+
+    // File path complexity (more files = higher complexity)
+    complexityFactor += Math.min(task.filePaths.length * 0.1, 0.3);
+
+    // Testing complexity
+    const testingComplexity = 
+      task.testingRequirements.unitTests.length * 0.05 +
+      task.testingRequirements.integrationTests.length * 0.1 +
+      task.testingRequirements.performanceTests.length * 0.15;
+    complexityFactor += Math.min(testingComplexity, 0.2);
+
+    // Acceptance criteria complexity
+    complexityFactor += Math.min(task.acceptanceCriteria.length * 0.05, 0.2);
+
+    // Dependency complexity
+    complexityFactor += Math.min(task.dependencies.length * 0.1, 0.2);
+
+    // Type-based complexity
+    const typeComplexity = {
+      'development': 0.6,
+      'research': 0.8,
+      'deployment': 0.7,
+      'testing': 0.4,
+      'documentation': 0.3,
+      'review': 0.2
+    };
+    complexityFactor += typeComplexity[task.type] || 0.5;
+
+    // Return inverse (higher score for lower complexity)
+    return Math.max(0, 1.0 - Math.min(complexityFactor, 1.0));
+  }
+
+  /**
+   * Calculate business impact score based on task priority and context
+   * Higher score for tasks with greater business value
+   */
+  private calculateBusinessImpactScore(task: AtomicTask): number {
+    let impactScore = 0.5; // Base score
+
+    // Priority-based impact
+    const priorityImpact = {
+      'critical': 1.0,
+      'high': 0.8,
+      'medium': 0.6,
+      'low': 0.4
+    };
+    impactScore = priorityImpact[task.priority] || 0.5;
+
+    // Task type impact (some types have higher business value)
+    const typeImpact = {
+      'deployment': 0.3,    // High impact - delivers value
+      'development': 0.2,   // Medium-high impact
+      'testing': 0.1,       // Medium impact - ensures quality
+      'research': 0.1,      // Medium impact - enables future work
+      'documentation': 0.05, // Lower immediate impact
+      'review': 0.05        // Lower immediate impact
+    };
+    impactScore += typeImpact[task.type] || 0.1;
+
+    // Tags-based impact (if task has business-critical tags)
+    const businessCriticalTags = ['critical-path', 'customer-facing', 'revenue-impact', 'security'];
+    const hasBusinessCriticalTag = task.tags?.some(tag => 
+      businessCriticalTags.some(criticalTag => tag.toLowerCase().includes(criticalTag))
+    );
+    if (hasBusinessCriticalTag) {
+      impactScore += 0.2;
+    }
+
+    return Math.min(impactScore, 1.0);
+  }
+
+  /**
+   * Calculate agent availability score based on current agent status
+   * Higher score when appropriate agents are available
+   */
+  private calculateAgentAvailabilityScore(task: AtomicTask): number {
+    // Get current agent availability
+    const totalAgents = this.config.resources.availableAgents;
+    const busyAgents = this.getCurrentBusyAgents();
+    const availableAgents = Math.max(0, totalAgents - busyAgents);
+
+    // Calculate base availability
+    const availabilityRatio = totalAgents > 0 ? availableAgents / totalAgents : 0;
+
+    // Check if task type has specific agent requirements
+    const taskTypeResources = this.config.resources.taskTypeResources.get(task.type);
+    const requiredAgents = taskTypeResources?.agentCount || 1;
+
+    // Score based on whether we have enough agents of the right type
+    if (availableAgents >= requiredAgents) {
+      return Math.min(availabilityRatio + 0.2, 1.0); // Bonus for having sufficient agents
+    } else {
+      return availabilityRatio * 0.5; // Penalty for insufficient agents
+    }
+  }
+
+  /**
+   * Get current memory utilization (0-1)
+   */
+  private getCurrentMemoryUtilization(): number {
+    // In a real implementation, this would get actual system metrics
+    // For now, return a simulated value based on current schedule
+    if (this.currentSchedule) {
+      return Math.min(this.currentSchedule.resourceUtilization.peakMemoryMB / this.config.resources.maxMemoryMB, 1.0);
+    }
+    return 0.3; // Default moderate utilization
+  }
+
+  /**
+   * Get current CPU utilization (0-1)
+   */
+  private getCurrentCpuUtilization(): number {
+    // In a real implementation, this would get actual system metrics
+    if (this.currentSchedule) {
+      return Math.min(this.currentSchedule.resourceUtilization.averageCpuUtilization, 1.0);
+    }
+    return 0.4; // Default moderate utilization
+  }
+
+  /**
+   * Get current task load (number of running tasks)
+   */
+  private getCurrentTaskLoad(): number {
+    if (this.currentSchedule) {
+      // Count tasks that are currently running
+      const now = new Date();
+      let runningTasks = 0;
+      
+      for (const [, scheduledTask] of this.currentSchedule.scheduledTasks) {
+        if (scheduledTask.scheduledStart <= now && scheduledTask.scheduledEnd > now) {
+          runningTasks++;
+        }
+      }
+      return runningTasks;
+    }
+    return 0;
+  }
+
+  /**
+   * Get number of currently busy agents
+   */
+  private getCurrentBusyAgents(): number {
+    if (this.currentSchedule) {
+      // Count agents that have assigned tasks
+      const busyAgents = new Set();
+      const now = new Date();
+      
+      for (const [, scheduledTask] of this.currentSchedule.scheduledTasks) {
+        if (scheduledTask.assignedResources.agentId && 
+            scheduledTask.scheduledStart <= now && 
+            scheduledTask.scheduledEnd > now) {
+          busyAgents.add(scheduledTask.assignedResources.agentId);
+        }
+      }
+      return busyAgents.size;
+    }
+    return 0;
   }
 
   /**
@@ -1692,6 +1934,13 @@ export class TaskScheduler {
             priorityScore: scores?.priorityScore || 0,
             resourceScore: scores?.resourceScore || 0,
             deadlineScore: scores?.deadlineScore || 0,
+            dependencyScore: scores?.dependencyScore || 0,
+            durationScore: scores?.durationScore || 0,
+            systemLoadScore: scores?.systemLoadScore || 0,
+            complexityScore: scores?.complexityScore || 0,
+            businessImpactScore: scores?.businessImpactScore || 0,
+            agentAvailabilityScore: scores?.agentAvailabilityScore || 0,
+            totalScore: scores?.totalScore || 0,
             scheduledAt: new Date(),
             lastOptimized: new Date()
           }
@@ -1760,6 +2009,13 @@ export class TaskScheduler {
             priorityScore: scores?.priorityScore || 0,
             resourceScore: scores?.resourceScore || 0,
             deadlineScore: scores?.deadlineScore || 0,
+            dependencyScore: scores?.dependencyScore || 0,
+            durationScore: scores?.durationScore || 0,
+            systemLoadScore: scores?.systemLoadScore || 0,
+            complexityScore: scores?.complexityScore || 0,
+            businessImpactScore: scores?.businessImpactScore || 0,
+            agentAvailabilityScore: scores?.agentAvailabilityScore || 0,
+            totalScore: scores?.totalScore || 0,
             scheduledAt: new Date(),
             lastOptimized: new Date()
           }
@@ -1816,6 +2072,13 @@ export class TaskScheduler {
             priorityScore: scores?.priorityScore || 0,
             resourceScore: scores?.resourceScore || 0,
             deadlineScore: scores?.deadlineScore || 0,
+            dependencyScore: scores?.dependencyScore || 0,
+            durationScore: scores?.durationScore || 0,
+            systemLoadScore: scores?.systemLoadScore || 0,
+            complexityScore: scores?.complexityScore || 0,
+            businessImpactScore: scores?.businessImpactScore || 0,
+            agentAvailabilityScore: scores?.agentAvailabilityScore || 0,
+            totalScore: scores?.totalScore || 0,
             scheduledAt: new Date(),
             lastOptimized: new Date()
           }
@@ -1870,6 +2133,13 @@ export class TaskScheduler {
             priorityScore: scores?.priorityScore || 0,
             resourceScore: scores?.resourceScore || 0,
             deadlineScore: scores?.deadlineScore || 0,
+            dependencyScore: scores?.dependencyScore || 0,
+            durationScore: scores?.durationScore || 0,
+            systemLoadScore: scores?.systemLoadScore || 0,
+            complexityScore: scores?.complexityScore || 0,
+            businessImpactScore: scores?.businessImpactScore || 0,
+            agentAvailabilityScore: scores?.agentAvailabilityScore || 0,
+            totalScore: scores?.totalScore || 0,
             scheduledAt: new Date(),
             lastOptimized: new Date()
           }

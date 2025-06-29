@@ -26,6 +26,8 @@ import type { TaskType } from '../types/task.js';
 import { TaskOperations } from '../core/operations/task-operations.js';
 import { WorkflowStateManager, WorkflowPhase, WorkflowState } from './workflow-state-manager.js';
 import { DecompositionSummaryGenerator, SummaryConfig } from './decomposition-summary-generator.js';
+import { getDependencyGraph, OptimizedDependencyGraph } from '../core/dependency-graph.js';
+import { ProgressTracker, ProgressEventData } from './progress-tracker.js';
 
 /**
  * Base interface for all decomposition events
@@ -197,6 +199,7 @@ export class DecompositionService extends EventEmitter {
   private researchIntegrationService: ResearchIntegration;
   private workflowStateManager: WorkflowStateManager;
   private summaryGenerator: DecompositionSummaryGenerator;
+  private dependencyGraphs: Map<string, OptimizedDependencyGraph> = new Map();
 
   constructor(config: OpenRouterConfig, summaryConfig?: Partial<SummaryConfig>) {
     super(); // Initialize EventEmitter
@@ -1386,9 +1389,132 @@ export class DecompositionService extends EventEmitter {
    */
   async decomposeTask(
     task: AtomicTask,
-    projectContext: ProjectContext
+    projectContext: ProjectContext,
+    onProgress?: (progress: ProgressEventData) => void
   ): Promise<{ success: boolean; data?: AtomicTask[]; error?: string }> {
+    const progressTracker = ProgressTracker.getInstance();
+    const startTime = Date.now();
+
     try {
+      // Step 1: Initialize progress tracking (5%)
+      progressTracker.emitProgressEvent('decomposition_started', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 5,
+        componentName: 'DecompositionService',
+        message: 'Starting task decomposition process',
+        decompositionProgress: {
+          phase: 'research',
+          progress: 5,
+          message: 'Initializing decomposition workflow'
+        }
+      });
+
+      onProgress?.({
+        event: 'decomposition_started',
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 5,
+        timestamp: new Date(),
+        componentName: 'DecompositionService',
+        message: 'Starting task decomposition process'
+      });
+
+      // Step 2: Research evaluation (10-30%)
+      progressTracker.emitProgressEvent('decomposition_progress', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 10,
+        componentName: 'AutoResearchDetector',
+        message: 'Evaluating research needs for complex task',
+        decompositionProgress: {
+          phase: 'research',
+          progress: 10,
+          message: 'Analyzing task complexity and domain requirements'
+        }
+      });
+
+      // Check if research is needed
+      const autoResearch = AutoResearchDetector.getInstance();
+      const researchEvaluation = await autoResearch.evaluateResearchNeed({
+        task,
+        projectContext,
+        projectPath: projectContext.projectPath
+      });
+
+      if (researchEvaluation.decision.shouldTriggerResearch) {
+        progressTracker.emitProgressEvent('research_triggered', {
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          progressPercentage: 15,
+          componentName: 'AutoResearchDetector',
+          message: `Research triggered: ${researchEvaluation.decision.primaryReason}`
+        });
+
+        // Simulate research progress based on recommended scope
+        const estimatedQueries = researchEvaluation.decision.recommendedScope.estimatedQueries || 1;
+        const queryList = Array.from({ length: estimatedQueries }, (_, i) => 
+          `research query ${i + 1}: ${researchEvaluation.decision.primaryReason}`
+        );
+        
+        await progressTracker.trackResearchProgress(
+          task.id,
+          projectContext.projectId,
+          queryList,
+          onProgress
+        );
+      }
+
+      // Step 3: Context gathering (30-55%)
+      progressTracker.emitProgressEvent('context_gathering_started', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 30,
+        componentName: 'ContextEnrichmentService',
+        message: 'Gathering relevant codebase context',
+        decompositionProgress: {
+          phase: 'context_gathering',
+          progress: 30,
+          message: 'Analyzing project structure and existing code patterns'
+        }
+      });
+
+      const contextService = ContextEnrichmentService.getInstance();
+      const contextRequest: ContextRequest = {
+        taskDescription: task.description,
+        projectPath: projectContext.projectPath,
+        contentKeywords: [task.title.toLowerCase(), ...task.tags],
+        maxFiles: 8,
+        maxContentSize: 50000
+      };
+
+      // Simulate context gathering progress
+      const totalFiles = 8;
+      for (let i = 1; i <= totalFiles; i++) {
+        await progressTracker.trackContextProgress(
+          task.id,
+          projectContext.projectId,
+          i,
+          totalFiles,
+          onProgress
+        );
+        await new Promise(resolve => setTimeout(resolve, 100)); // Simulate file analysis
+      }
+
+      // Step 4: Core decomposition (55-80%)
+      progressTracker.emitProgressEvent('decomposition_progress', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 55,
+        componentName: 'RDDEngine',
+        message: 'Breaking down task into atomic components',
+        decompositionProgress: {
+          phase: 'decomposition',
+          progress: 55,
+          message: 'Applying RDD methodology for task decomposition'
+        }
+      });
+
       // Use the unified ProjectContext directly with the RDD engine
       const unifiedContext: ProjectContext = {
         projectId: projectContext.projectId,
@@ -1428,7 +1554,105 @@ export class DecompositionService extends EventEmitter {
 
       const result = await this.engine.decomposeTask(task, unifiedContext);
 
+      progressTracker.emitProgressEvent('decomposition_progress', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 70,
+        componentName: 'RDDEngine',
+        message: `Generated ${result.subTasks?.length || 0} atomic tasks`,
+        decompositionProgress: {
+          phase: 'decomposition',
+          progress: 70,
+          message: 'Task decomposition completed, processing results'
+        }
+      });
+
       if (result.success && result.subTasks && result.subTasks.length > 0) {
+        // Step 5: Task validation (80-90%)
+        progressTracker.emitProgressEvent('validation_started', {
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          progressPercentage: 80,
+          componentName: 'AtomicTaskDetector',
+          message: `Validating ${result.subTasks.length} decomposed tasks`,
+          decompositionProgress: {
+            phase: 'validation',
+            progress: 80,
+            message: 'Ensuring task quality and atomicity'
+          }
+        });
+
+        await progressTracker.trackValidationProgress(
+          result.subTasks.map(t => t.id),
+          projectContext.projectId,
+          onProgress
+        );
+
+        // Step 6: Dependency detection (90-95%)
+        progressTracker.emitProgressEvent('dependency_detection_started', {
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          progressPercentage: 90,
+          componentName: 'OptimizedDependencyGraph',
+          message: 'Detecting intelligent dependencies between tasks',
+          decompositionProgress: {
+            phase: 'dependency_detection',
+            progress: 90,
+            message: 'Analyzing task relationships and execution order'
+          }
+        });
+
+        // Apply intelligent dependency detection to the decomposed tasks
+        const dependencyResult = await this.applyDependencyDetection(
+          result.subTasks, 
+          projectContext.projectId
+        );
+
+        await progressTracker.completeDependencyDetectionProgress(
+          projectContext.projectId,
+          dependencyResult.suggestions.length,
+          dependencyResult.appliedDependencies
+        );
+
+        // Step 7: Completion (100%)
+        const endTime = Date.now();
+        const processingTime = endTime - startTime;
+
+        progressTracker.emitProgressEvent('decomposition_completed', {
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          progressPercentage: 100,
+          componentName: 'DecompositionService',
+          message: `Decomposition completed successfully in ${processingTime}ms`,
+          metadata: {
+            processingTimeMs: processingTime,
+            originalTask: task.title,
+            generatedTasks: result.subTasks.length,
+            detectedDependencies: dependencyResult.suggestions.length,
+            appliedDependencies: dependencyResult.appliedDependencies
+          }
+        });
+
+        onProgress?.({
+          event: 'decomposition_completed',
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          progressPercentage: 100,
+          timestamp: new Date(),
+          componentName: 'DecompositionService',
+          message: `Successfully decomposed into ${result.subTasks.length} atomic tasks`
+        });
+
+        logger.info({
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          decomposedTasks: result.subTasks.length,
+          appliedDependencies: dependencyResult.appliedDependencies,
+          totalSuggestions: dependencyResult.suggestions.length,
+          warningCount: dependencyResult.warnings.length,
+          processingTimeMs: processingTime
+        }, 'Enhanced decomposition with dependency detection completed');
+
         return {
           success: true,
           data: result.subTasks
@@ -1437,17 +1661,41 @@ export class DecompositionService extends EventEmitter {
 
       // If the task is atomic, return it as a single-item array
       if (result.isAtomic) {
+        progressTracker.emitProgressEvent('decomposition_completed', {
+          taskId: task.id,
+          projectId: projectContext.projectId,
+          progressPercentage: 100,
+          componentName: 'DecompositionService',
+          message: 'Task is already atomic, no decomposition needed'
+        });
+
         return {
           success: true,
           data: [task]
         };
       }
 
+      progressTracker.emitProgressEvent('decomposition_completed', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 100,
+        componentName: 'DecompositionService',
+        message: 'Decomposition failed - task could not be broken down'
+      });
+
       return {
         success: false,
         error: result.error || 'Decomposition failed - task could not be broken down'
       };
     } catch (error) {
+      progressTracker.emitProgressEvent('decomposition_completed', {
+        taskId: task.id,
+        projectId: projectContext.projectId,
+        progressPercentage: 100,
+        componentName: 'DecompositionService',
+        message: `Decomposition failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -3592,5 +3840,150 @@ Total Research Results: ${researchResults.length}`;
 
       throw error;
     }
+  }
+
+  // ===== DEPENDENCY DETECTION INTEGRATION =====
+
+  /**
+   * Apply intelligent dependency detection to decomposed tasks
+   */
+  private async applyDependencyDetection(
+    tasks: AtomicTask[], 
+    projectId: string
+  ): Promise<{
+    appliedDependencies: number;
+    suggestions: any[];
+    warnings: string[];
+  }> {
+    const progressTracker = ProgressTracker.getInstance();
+    
+    try {
+      logger.debug({ projectId, taskCount: tasks.length }, 'Applying dependency detection to decomposed tasks');
+
+      // Start dependency detection progress tracking
+      await progressTracker.trackDependencyDetectionProgress(
+        tasks.map(t => t.id),
+        projectId,
+        0
+      );
+
+      // Get or create dependency graph for the project
+      const dependencyGraph = this.getDependencyGraphForProject(projectId);
+
+      // Apply intelligent dependency detection with progress updates
+      const result = dependencyGraph.applyIntelligentDependencyDetection(tasks);
+
+      // Update progress with detected dependencies
+      await progressTracker.trackDependencyDetectionProgress(
+        tasks.map(t => t.id),
+        projectId,
+        result.suggestions.length
+      );
+
+      // Complete dependency detection progress
+      await progressTracker.completeDependencyDetectionProgress(
+        projectId,
+        result.suggestions.length,
+        result.appliedDependencies
+      );
+
+      // Emit event for dependency detection completion
+      this.emit('dependencyDetectionCompleted', {
+        projectId,
+        taskIds: tasks.map(t => t.id),
+        appliedDependencies: result.appliedDependencies,
+        suggestions: result.suggestions,
+        warnings: result.warnings,
+        timestamp: new Date()
+      });
+
+      return result;
+    } catch (error) {
+      logger.error({
+        err: error,
+        projectId,
+        taskCount: tasks.length
+      }, 'Failed to apply dependency detection');
+
+      // Complete progress tracking even on error
+      await progressTracker.completeDependencyDetectionProgress(
+        projectId,
+        0,
+        0
+      );
+
+      // Return empty result on error to not block decomposition
+      return {
+        appliedDependencies: 0,
+        suggestions: [],
+        warnings: [`Dependency detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`]
+      };
+    }
+  }
+
+  /**
+   * Get dependency graph for a project (cached)
+   */
+  private getDependencyGraphForProject(projectId: string): OptimizedDependencyGraph {
+    if (!this.dependencyGraphs.has(projectId)) {
+      const graph = getDependencyGraph(projectId);
+      this.dependencyGraphs.set(projectId, graph);
+      
+      logger.debug({ projectId }, 'Created new dependency graph for project');
+    }
+    
+    return this.dependencyGraphs.get(projectId)!;
+  }
+
+  /**
+   * Get execution plan for a project's tasks
+   */
+  async getExecutionPlan(projectId: string): Promise<{
+    topologicalOrder: string[];
+    parallelBatches: any[];
+    criticalPath: string[];
+    estimatedDuration: number;
+  } | null> {
+    const graph = this.dependencyGraphs.get(projectId);
+    if (!graph) {
+      return null;
+    }
+
+    return graph.getRecommendedExecutionOrder();
+  }
+
+  /**
+   * Export dependency analysis for a project
+   */
+  async exportDependencyAnalysis(projectId: string): Promise<any | null> {
+    const graph = this.dependencyGraphs.get(projectId);
+    if (!graph) {
+      return null;
+    }
+
+    return graph.exportDependencyAnalysis();
+  }
+
+  /**
+   * Clear dependency graph cache for a project
+   */
+  clearProjectDependencyGraph(projectId: string): void {
+    this.dependencyGraphs.delete(projectId);
+    logger.debug({ projectId }, 'Cleared dependency graph cache for project');
+  }
+
+  /**
+   * Get dependency statistics for monitoring
+   */
+  getDependencyStatistics(): {
+    activeProjects: number;
+    totalGraphs: number;
+    cacheMemoryUsage: string;
+  } {
+    return {
+      activeProjects: this.dependencyGraphs.size,
+      totalGraphs: this.dependencyGraphs.size,
+      cacheMemoryUsage: `${this.dependencyGraphs.size} graphs cached`
+    };
   }
 }

@@ -112,12 +112,19 @@ export class AdaptiveTimeoutManager extends EventEmitter {
     const timeoutManager = getTimeoutManager();
     const retryConfig = timeoutManager.getRetryConfig();
 
+    // Determine operation type and set appropriate timeouts
+    const operationType = this.inferOperationType(operationId);
+    const baseTimeout = operationType === 'taskDecomposition' 
+      ? timeoutManager.getTimeout('taskDecomposition')
+      : timeoutManager.getTimeout('taskExecution');
+
     const fullConfig: TimeoutConfig = {
-      baseTimeoutMs: timeoutManager.getTimeout('taskExecution'), // Configurable base timeout
-      maxTimeoutMs: timeoutManager.getTimeout('taskExecution') * 2, // Configurable max timeout
-      progressCheckIntervalMs: 5000, // Check progress every 5 seconds
-      exponentialBackoffFactor: retryConfig.backoffMultiplier, // Configurable backoff
-      maxRetries: retryConfig.maxRetries, // Configurable max retries
+      baseTimeoutMs: baseTimeout,
+      maxTimeoutMs: baseTimeout * 2, 
+      // Longer intervals for LLM-heavy operations to reduce noise
+      progressCheckIntervalMs: operationType === 'taskDecomposition' ? 30000 : 10000, // 30s for decomposition, 10s for others
+      exponentialBackoffFactor: retryConfig.backoffMultiplier,
+      maxRetries: retryConfig.maxRetries,
       partialResultThreshold: 0.3, // 30% progress for partial success
       ...config
     };
@@ -379,7 +386,9 @@ export class AdaptiveTimeoutManager extends EventEmitter {
     if (!operation?.progress) return;
 
     const timeSinceLastUpdate = Date.now() - operation.progress.lastUpdate.getTime();
-    const stagnationThreshold = operation.config.progressCheckIntervalMs * 3; // 3 intervals
+    // More conservative stagnation threshold for LLM-heavy operations
+    const multiplier = operation.config.progressCheckIntervalMs >= 30000 ? 2 : 3; // 2x for long intervals, 3x for short
+    const stagnationThreshold = operation.config.progressCheckIntervalMs * multiplier;
 
     if (timeSinceLastUpdate > stagnationThreshold) {
       logger.warn({
@@ -400,6 +409,28 @@ export class AdaptiveTimeoutManager extends EventEmitter {
       1000 * Math.pow(config.exponentialBackoffFactor, retryCount),
       30000 // Max 30 seconds
     );
+  }
+
+  /**
+   * Infer operation type from operation ID to optimize timeout settings
+   */
+  private inferOperationType(operationId: string): 'taskDecomposition' | 'taskExecution' | 'other' {
+    const lowerOperationId = operationId.toLowerCase();
+    
+    if (lowerOperationId.includes('decomposition') || 
+        lowerOperationId.includes('decompose') ||
+        lowerOperationId.includes('split') ||
+        lowerOperationId.includes('rdd')) {
+      return 'taskDecomposition';
+    }
+    
+    if (lowerOperationId.includes('execution') || 
+        lowerOperationId.includes('execute') ||
+        lowerOperationId.includes('run')) {
+      return 'taskExecution';
+    }
+    
+    return 'other';
   }
 
   /**

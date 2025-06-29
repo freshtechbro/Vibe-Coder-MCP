@@ -8,6 +8,56 @@ import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
 
 /**
+ * Circuit breaker for research operations
+ */
+class ResearchCircuitBreaker {
+  private failures = new Map<string, number>();
+  private lastFailure = new Map<string, number>();
+  private readonly maxFailures: number;
+  private readonly cooldownPeriod: number; // milliseconds
+
+  constructor(maxFailures = 3, cooldownPeriod = 300000) { // 5 minutes cooldown
+    this.maxFailures = maxFailures;
+    this.cooldownPeriod = cooldownPeriod;
+  }
+
+  canAttempt(operation: string): boolean {
+    const failures = this.failures.get(operation) || 0;
+    const lastFailure = this.lastFailure.get(operation) || 0;
+    const now = Date.now();
+
+    // If we haven't exceeded max failures, allow attempt
+    if (failures < this.maxFailures) {
+      return true;
+    }
+
+    // If we've exceeded max failures, check if cooldown period has passed
+    return now - lastFailure > this.cooldownPeriod;
+  }
+
+  recordFailure(operation: string): void {
+    const failures = (this.failures.get(operation) || 0) + 1;
+    this.failures.set(operation, failures);
+    this.lastFailure.set(operation, Date.now());
+  }
+
+  recordSuccess(operation: string): void {
+    this.failures.delete(operation);
+    this.lastFailure.delete(operation);
+  }
+
+  getFailureCount(operation: string): number {
+    return this.failures.get(operation) || 0;
+  }
+
+  getTimeUntilRetry(operation: string): number {
+    const lastFailure = this.lastFailure.get(operation) || 0;
+    const timeSinceFailure = Date.now() - lastFailure;
+    return Math.max(0, this.cooldownPeriod - timeSinceFailure);
+  }
+}
+
+/**
  * Task decomposition request interface for research integration
  */
 export interface TaskDecompositionRequest {
@@ -161,6 +211,7 @@ export class ResearchIntegration extends EventEmitter {
   private completeSubscriptions = new Map<string, ResearchCompleteCallback[]>();
   private performanceMetrics = new Map<string, any>();
   private cleanupInterval?: NodeJS.Timeout;
+  private circuitBreaker = new ResearchCircuitBreaker();
 
   private constructor(config?: Partial<ResearchIntegrationConfig>) {
     super();
@@ -290,9 +341,23 @@ export class ResearchIntegration extends EventEmitter {
       const researchResults: EnhancedResearchResult[] = [];
 
       if (this.config.performance.enableParallelQueries && researchQueries.length > 1) {
-        // Execute queries in parallel
-        const researchPromises = researchQueries.map(query =>
-          this.performEnhancedResearch({
+        // Execute queries in parallel with circuit breaker protection
+        const researchPromises = researchQueries.map((query, index) => {
+          const operationKey = `research_query_${index}`;
+          
+          // Check circuit breaker before attempting
+          if (!this.circuitBreaker.canAttempt(operationKey)) {
+            const timeUntilRetry = this.circuitBreaker.getTimeUntilRetry(operationKey);
+            logger.warn({ 
+              query, 
+              operationKey,
+              timeUntilRetry,
+              failureCount: this.circuitBreaker.getFailureCount(operationKey)
+            }, 'Research query blocked by circuit breaker');
+            return Promise.reject(new Error(`Circuit breaker open for ${operationKey}. Retry in ${Math.ceil(timeUntilRetry / 1000)}s`));
+          }
+
+          return this.performEnhancedResearch({
             query,
             taskContext: {
               taskDescription: decompositionRequest.taskDescription,
@@ -318,21 +383,49 @@ export class ResearchIntegration extends EventEmitter {
               extractActionItems: true,
               createKnowledgeBase: true
             }
-          })
-        );
+          });
+        });
 
         const results = await Promise.allSettled(researchPromises);
         results.forEach((result, index) => {
+          const operationKey = `research_query_${index}`;
+          
           if (result.status === 'fulfilled') {
             researchResults.push(result.value);
+            this.circuitBreaker.recordSuccess(operationKey);
           } else {
-            logger.warn({ query: researchQueries[index], error: result.reason }, 'Research query failed');
+            // Record failure in circuit breaker
+            this.circuitBreaker.recordFailure(operationKey);
+            
+            // Enhanced error capture with proper error serialization
+            const errorDetails = this.extractErrorDetails(result.reason);
+            logger.warn({ 
+              query: researchQueries[index], 
+              error: errorDetails,
+              queryIndex: index,
+              operation: 'parallel_research_query',
+              circuitBreakerFailures: this.circuitBreaker.getFailureCount(operationKey)
+            }, 'Research query failed');
           }
         });
       } else {
-        // Execute queries sequentially
-        for (const query of researchQueries) {
+        // Execute queries sequentially with circuit breaker protection
+        for (let i = 0; i < researchQueries.length; i++) {
+          const query = researchQueries[i];
+          const operationKey = `research_query_sequential_${i}`;
+          
           try {
+            // Check circuit breaker before attempting
+            if (!this.circuitBreaker.canAttempt(operationKey)) {
+              const timeUntilRetry = this.circuitBreaker.getTimeUntilRetry(operationKey);
+              logger.warn({ 
+                query, 
+                operationKey,
+                timeUntilRetry,
+                failureCount: this.circuitBreaker.getFailureCount(operationKey)
+              }, 'Research query blocked by circuit breaker');
+              continue; // Skip this query
+            }
             const result = await this.performEnhancedResearch({
               query,
               taskContext: {
@@ -361,17 +454,27 @@ export class ResearchIntegration extends EventEmitter {
               }
             });
             researchResults.push(result);
+            this.circuitBreaker.recordSuccess(operationKey);
           } catch (error) {
-            logger.warn({ query, error }, 'Research query failed');
+            // Record failure in circuit breaker
+            this.circuitBreaker.recordFailure(operationKey);
+            
+            // Enhanced error capture with proper error serialization
+            const errorDetails = this.extractErrorDetails(error);
+            logger.warn({ 
+              query, 
+              error: errorDetails,
+              operation: 'sequential_research_query',
+              circuitBreakerFailures: this.circuitBreaker.getFailureCount(operationKey)
+            }, 'Research query failed');
           }
         }
       }
 
-      // Integrate research insights into decomposition request
-      const enhancedRequest = this.integrateResearchIntoDecomposition(
-        decompositionRequest,
-        researchResults
-      );
+      // Integrate research insights into decomposition request with graceful degradation
+      const enhancedRequest = researchResults.length > 0 
+        ? this.integrateResearchIntoDecomposition(decompositionRequest, researchResults)
+        : this.createDegradedDecompositionRequest(decompositionRequest, 'All research queries failed');
 
       const integrationMetrics = {
         researchTime: Date.now() - startTime,
@@ -1356,6 +1459,143 @@ Always provide clear recommendations and highlight potential risks or challenges
     });
 
     return Array.from(areas).slice(0, 5);
+  }
+
+  /**
+   * Create a degraded decomposition request when research fails
+   */
+  private createDegradedDecompositionRequest(
+    originalRequest: TaskDecompositionRequest,
+    reason: string
+  ): TaskDecompositionRequest {
+    logger.info({ 
+      originalTask: originalRequest.taskDescription,
+      reason 
+    }, 'Creating degraded decomposition request due to research failure');
+
+    // Add fallback context to help with decomposition
+    const fallbackContext = {
+      ...originalRequest.context,
+      researchStatus: 'unavailable',
+      fallbackReason: reason,
+      degradationApplied: true,
+      suggestedApproach: 'Use standard best practices and conventional patterns',
+      recommendedTechnologies: this.inferTechnologiesFromDescription(originalRequest.taskDescription),
+      estimatedComplexity: this.inferComplexityFromDescription(originalRequest.taskDescription)
+    };
+
+    return {
+      ...originalRequest,
+      context: fallbackContext
+    };
+  }
+
+  /**
+   * Infer likely technologies from task description for degraded mode
+   */
+  private inferTechnologiesFromDescription(description: string): string[] {
+    const tech: string[] = [];
+    const lowerDesc = description.toLowerCase();
+
+    // Common technology patterns
+    const techPatterns = [
+      { pattern: /react|jsx/i, tech: 'React' },
+      { pattern: /vue/i, tech: 'Vue.js' },
+      { pattern: /angular/i, tech: 'Angular' },
+      { pattern: /node|express/i, tech: 'Node.js' },
+      { pattern: /python|django|flask/i, tech: 'Python' },
+      { pattern: /java|spring/i, tech: 'Java' },
+      { pattern: /typescript|ts/i, tech: 'TypeScript' },
+      { pattern: /javascript|js/i, tech: 'JavaScript' },
+      { pattern: /database|sql|mongodb/i, tech: 'Database' },
+      { pattern: /api|rest|graphql/i, tech: 'API' },
+      { pattern: /docker|kubernetes/i, tech: 'Container' },
+      { pattern: /aws|azure|gcp/i, tech: 'Cloud' }
+    ];
+
+    techPatterns.forEach(({ pattern, tech: techName }) => {
+      if (pattern.test(lowerDesc)) {
+        tech.push(techName);
+      }
+    });
+
+    return tech.length > 0 ? tech : ['Web Development'];
+  }
+
+  /**
+   * Infer complexity level from task description for degraded mode
+   */
+  private inferComplexityFromDescription(description: string): 'low' | 'medium' | 'high' {
+    const lowerDesc = description.toLowerCase();
+    
+    // High complexity indicators
+    if (lowerDesc.includes('architecture') || lowerDesc.includes('system') || 
+        lowerDesc.includes('framework') || lowerDesc.includes('integration') ||
+        lowerDesc.includes('migration') || lowerDesc.includes('performance')) {
+      return 'high';
+    }
+    
+    // Medium complexity indicators
+    if (lowerDesc.includes('api') || lowerDesc.includes('database') || 
+        lowerDesc.includes('component') || lowerDesc.includes('service') ||
+        lowerDesc.includes('optimization') || lowerDesc.includes('security')) {
+      return 'medium';
+    }
+    
+    return 'low';
+  }
+
+  /**
+   * Extract detailed error information for logging
+   */
+  private extractErrorDetails(error: any): any {
+    if (error instanceof Error) {
+      const baseError = {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      };
+
+      // Include any additional error properties safely
+      const additionalProps: any = {};
+      
+      if ('cause' in error && error.cause) {
+        additionalProps.cause = this.extractErrorDetails(error.cause);
+      }
+      
+      // For API errors, include response data if available
+      if ('response' in error && error.response) {
+        const response = error.response as any;
+        additionalProps.response = {
+          status: response.status,
+          statusText: response.statusText,
+          data: response.data
+        };
+      }
+      
+      // For AxiosError, include request details
+      if ('config' in error && error.config) {
+        const config = error.config as any;
+        additionalProps.request = {
+          method: config.method,
+          url: config.url,
+          timeout: config.timeout
+        };
+      }
+
+      return { ...baseError, ...additionalProps };
+    } else if (typeof error === 'object' && error !== null) {
+      return {
+        type: 'object',
+        value: JSON.stringify(error),
+        properties: Object.keys(error)
+      };
+    } else {
+      return {
+        type: typeof error,
+        value: String(error)
+      };
+    }
   }
 }
 

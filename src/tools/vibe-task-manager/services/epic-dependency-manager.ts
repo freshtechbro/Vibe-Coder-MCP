@@ -106,6 +106,47 @@ export interface EpicDependencyConfig {
   enableParallelization: boolean;
   /** Minimum tasks per epic for dependency analysis */
   minTasksPerEpic: number;
+  /** Enable intelligent relationship discovery */
+  enableIntelligentDiscovery: boolean;
+  /** Enable file path analysis for implicit dependencies */
+  enableFilePathAnalysis: boolean;
+  /** Enable semantic relationship detection via LLM */
+  enableSemanticAnalysis: boolean;
+}
+
+/**
+ * Intelligent relationship discovery result
+ */
+export interface RelationshipDiscoveryResult {
+  discoveredDependencies: EpicDependency[];
+  semanticRelationships: SemanticRelationship[];
+  filePathRelationships: FilePathRelationship[];
+  confidence: number;
+  reasoning: string[];
+}
+
+/**
+ * Semantic relationship between epics
+ */
+export interface SemanticRelationship {
+  fromEpicId: string;
+  toEpicId: string;
+  relationshipType: 'conceptual' | 'functional' | 'temporal' | 'hierarchical';
+  strength: number;
+  description: string;
+  confidence: number;
+}
+
+/**
+ * File path based relationship
+ */
+export interface FilePathRelationship {
+  fromEpicId: string;
+  toEpicId: string;
+  sharedFilePaths: string[];
+  conflictType: 'modification' | 'creation' | 'deletion' | 'read_dependency';
+  severity: 'low' | 'medium' | 'high';
+  resolutionSuggestion: string;
 }
 
 /**
@@ -116,7 +157,10 @@ const DEFAULT_EPIC_CONFIG: EpicDependencyConfig = {
   maxEpicDepth: 5,
   autoGeneratePhases: true,
   enableParallelization: true,
-  minTasksPerEpic: 2
+  minTasksPerEpic: 2,
+  enableIntelligentDiscovery: true,
+  enableFilePathAnalysis: true,
+  enableSemanticAnalysis: true
 };
 
 /**
@@ -867,5 +911,373 @@ export class EpicDependencyManager {
     }
 
     return recommendations;
+  }
+
+  /**
+   * Discover intelligent epic relationships using multiple analysis methods
+   */
+  async discoverIntelligentRelationships(projectId: string, epics: Epic[], tasks: AtomicTask[]): Promise<RelationshipDiscoveryResult> {
+    try {
+      logger.info({ projectId, epicsCount: epics.length }, 'Starting intelligent relationship discovery');
+
+      const discoveredDependencies: EpicDependency[] = [];
+      const semanticRelationships: SemanticRelationship[] = [];
+      const filePathRelationships: FilePathRelationship[] = [];
+      const reasoning: string[] = [];
+
+      // File path analysis
+      if (this.config.enableFilePathAnalysis) {
+        const filePathResults = await this.analyzeFilePathRelationships(epics, tasks);
+        filePathRelationships.push(...filePathResults.relationships);
+        reasoning.push(...filePathResults.reasoning);
+        
+        // Convert high-severity file path relationships to dependencies
+        for (const fpRel of filePathResults.relationships) {
+          if (fpRel.severity === 'high') {
+            discoveredDependencies.push({
+              id: `fp-${fpRel.fromEpicId}-${fpRel.toEpicId}`,
+              fromEpicId: fpRel.fromEpicId,
+              toEpicId: fpRel.toEpicId,
+              type: 'requires',
+              description: `File path dependency: ${fpRel.sharedFilePaths.join(', ')}`,
+              critical: true,
+              strength: 0.8,
+              metadata: {
+                createdAt: new Date(),
+                createdBy: 'intelligent-discovery',
+                reason: `File path conflict analysis: ${fpRel.resolutionSuggestion}`,
+                taskDependencies: []
+              }
+            });
+            reasoning.push(`Created dependency from file path analysis: ${fpRel.resolutionSuggestion}`);
+          }
+        }
+      }
+
+      // Semantic analysis using LLM
+      if (this.config.enableSemanticAnalysis) {
+        const semanticResults = await this.analyzeSemanticRelationships(epics, tasks);
+        semanticRelationships.push(...semanticResults.relationships);
+        reasoning.push(...semanticResults.reasoning);
+
+        // Convert high-confidence semantic relationships to dependencies
+        for (const semRel of semanticResults.relationships) {
+          if (semRel.confidence > 0.7 && semRel.strength > 0.6) {
+            discoveredDependencies.push({
+              id: `sem-${semRel.fromEpicId}-${semRel.toEpicId}`,
+              fromEpicId: semRel.fromEpicId,
+              toEpicId: semRel.toEpicId,
+              type: semRel.relationshipType === 'temporal' ? 'blocks' : 'enables',
+              description: semRel.description,
+              critical: semRel.confidence > 0.8,
+              strength: semRel.strength,
+              metadata: {
+                createdAt: new Date(),
+                createdBy: 'semantic-analysis',
+                reason: `Semantic relationship analysis: ${semRel.description}`,
+                taskDependencies: []
+              }
+            });
+            reasoning.push(`Created dependency from semantic analysis: ${semRel.description}`);
+          }
+        }
+      }
+
+      // Calculate overall confidence
+      const confidence = this.calculateDiscoveryConfidence(
+        discoveredDependencies.length,
+        semanticRelationships.length,
+        filePathRelationships.length
+      );
+
+      const result: RelationshipDiscoveryResult = {
+        discoveredDependencies,
+        semanticRelationships,
+        filePathRelationships,
+        confidence,
+        reasoning
+      };
+
+      logger.info({ 
+        projectId, 
+        discoveredCount: discoveredDependencies.length,
+        semanticCount: semanticRelationships.length,
+        filePathCount: filePathRelationships.length,
+        confidence
+      }, 'Completed intelligent relationship discovery');
+
+      return result;
+
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'Failed to discover intelligent relationships');
+      return {
+        discoveredDependencies: [],
+        semanticRelationships: [],
+        filePathRelationships: [],
+        confidence: 0,
+        reasoning: [`Error during discovery: ${error}`]
+      };
+    }
+  }
+
+  /**
+   * Analyze file path relationships between epics
+   */
+  private async analyzeFilePathRelationships(epics: Epic[], tasks: AtomicTask[]): Promise<{
+    relationships: FilePathRelationship[];
+    reasoning: string[];
+  }> {
+    const relationships: FilePathRelationship[] = [];
+    const reasoning: string[] = [];
+
+    // Group tasks by epic
+    const epicTaskMap = new Map<string, AtomicTask[]>();
+    epics.forEach(epic => {
+      epicTaskMap.set(epic.id, tasks.filter(task => task.epicId === epic.id));
+    });
+
+    // Analyze file path conflicts between epics
+    for (const [fromEpicId, fromTasks] of epicTaskMap.entries()) {
+      for (const [toEpicId, toTasks] of epicTaskMap.entries()) {
+        if (fromEpicId === toEpicId) continue;
+
+        const sharedPaths: string[] = [];
+        const conflictTypes: string[] = [];
+
+        // Find shared file paths
+        fromTasks.forEach(fromTask => {
+          fromTask.filePaths.forEach(fromPath => {
+            toTasks.forEach(toTask => {
+              if (toTask.filePaths.includes(fromPath)) {
+                if (!sharedPaths.includes(fromPath)) {
+                  sharedPaths.push(fromPath);
+                  
+                  // Determine conflict type based on task types
+                  if (fromTask.type === 'development' && toTask.type === 'development') {
+                    conflictTypes.push('modification');
+                  } else if (fromTask.type === 'testing') {
+                    conflictTypes.push('read_dependency');
+                  } else {
+                    conflictTypes.push('creation');
+                  }
+                }
+              }
+            });
+          });
+        });
+
+        if (sharedPaths.length > 0) {
+          const severity = sharedPaths.length > 3 ? 'high' : sharedPaths.length > 1 ? 'medium' : 'low';
+          const primaryConflictType = conflictTypes[0] || 'modification';
+          
+          const fromEpic = epics.find(e => e.id === fromEpicId);
+          const toEpic = epics.find(e => e.id === toEpicId);
+          
+          const resolutionSuggestion = severity === 'high'
+            ? `Consider sequencing "${fromEpic?.title}" before "${toEpic?.title}" due to significant file overlap`
+            : `Monitor coordination between "${fromEpic?.title}" and "${toEpic?.title}" for file conflicts`;
+
+          relationships.push({
+            fromEpicId,
+            toEpicId,
+            sharedFilePaths: sharedPaths,
+            conflictType: primaryConflictType as any,
+            severity: severity as any,
+            resolutionSuggestion
+          });
+
+          reasoning.push(`File path analysis: ${sharedPaths.length} shared paths between ${fromEpic?.title} and ${toEpic?.title}`);
+        }
+      }
+    }
+
+    return { relationships, reasoning };
+  }
+
+  /**
+   * Analyze semantic relationships between epics using LLM
+   */
+  private async analyzeSemanticRelationships(epics: Epic[], tasks: AtomicTask[]): Promise<{
+    relationships: SemanticRelationship[];
+    reasoning: string[];
+  }> {
+    const relationships: SemanticRelationship[] = [];
+    const reasoning: string[] = [];
+
+    try {
+      // Import LLM helper
+      const { performFormatAwareLlmCall } = await import('../../../utils/llmHelper.js');
+      const { OpenRouterConfigManager } = await import('../../../utils/openrouter-config-manager.js');
+      
+      const configManager = OpenRouterConfigManager.getInstance();
+      const config = await configManager.getOpenRouterConfig();
+
+      // Analyze epic pairs for semantic relationships
+      for (let i = 0; i < epics.length; i++) {
+        for (let j = i + 1; j < epics.length; j++) {
+          const epicA = epics[i];
+          const epicB = epics[j];
+          
+          const epicATitle = epicA.title;
+          const epicBTitle = epicB.title;
+          const epicADesc = epicA.description;
+          const epicBDesc = epicB.description;
+
+          // Get task context for both epics
+          const epicATasks = tasks.filter(t => t.epicId === epicA.id);
+          const epicBTasks = tasks.filter(t => t.epicId === epicB.id);
+          const epicATaskTitles = epicATasks.map(t => t.title).join(', ');
+          const epicBTaskTitles = epicBTasks.map(t => t.title).join(', ');
+
+          const prompt = `Analyze the relationship between these two project epics:
+
+Epic A: "${epicATitle}"
+Description: ${epicADesc}
+Tasks: ${epicATaskTitles}
+
+Epic B: "${epicBTitle}"
+Description: ${epicBDesc}
+Tasks: ${epicBTaskTitles}
+
+Determine if there's a meaningful relationship between these epics. Consider:
+1. Conceptual relationships (similar domain/functionality)
+2. Functional relationships (one provides services to the other)
+3. Temporal relationships (one should happen before the other)
+4. Hierarchical relationships (one is a component of the other)
+
+Respond with JSON:
+{
+  "hasRelationship": boolean,
+  "relationshipType": "conceptual|functional|temporal|hierarchical",
+  "direction": "A_to_B|B_to_A|bidirectional",
+  "strength": number (0-1),
+  "confidence": number (0-1),
+  "description": "brief explanation"
+}`;
+
+          try {
+            const response = await performFormatAwareLlmCall(
+              prompt,
+              'You are an expert software architect analyzing project dependencies.',
+              config,
+              'epic_relationship_analysis',
+              'json'
+            );
+
+            const analysis = JSON.parse(response);
+            
+            if (analysis.hasRelationship && analysis.confidence > 0.5) {
+              const fromEpicId = analysis.direction === 'B_to_A' ? epicB.id : epicA.id;
+              const toEpicId = analysis.direction === 'B_to_A' ? epicA.id : epicB.id;
+
+              relationships.push({
+                fromEpicId,
+                toEpicId,
+                relationshipType: analysis.relationshipType,
+                strength: analysis.strength,
+                description: analysis.description,
+                confidence: analysis.confidence
+              });
+
+              reasoning.push(`Semantic analysis found ${analysis.relationshipType} relationship between ${epicATitle} and ${epicBTitle}: ${analysis.description}`);
+
+              // Add bidirectional if applicable
+              if (analysis.direction === 'bidirectional') {
+                relationships.push({
+                  fromEpicId: toEpicId,
+                  toEpicId: fromEpicId,
+                  relationshipType: analysis.relationshipType,
+                  strength: analysis.strength,
+                  description: analysis.description,
+                  confidence: analysis.confidence
+                });
+              }
+            }
+
+          } catch (llmError) {
+            logger.debug({ err: llmError, epicA: epicATitle, epicB: epicBTitle }, 'LLM analysis failed for epic pair');
+            reasoning.push(`LLM analysis failed for ${epicATitle} - ${epicBTitle}: ${llmError}`);
+          }
+        }
+      }
+
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to perform semantic relationship analysis');
+      reasoning.push(`Semantic analysis error: ${error}`);
+    }
+
+    return { relationships, reasoning };
+  }
+
+  /**
+   * Calculate discovery confidence based on results
+   */
+  private calculateDiscoveryConfidence(
+    dependencyCount: number,
+    semanticCount: number,
+    filePathCount: number
+  ): number {
+    // Base confidence from having any discoveries
+    let confidence = 0.3;
+
+    // Add confidence for each type of discovery
+    if (dependencyCount > 0) confidence += 0.3;
+    if (semanticCount > 0) confidence += 0.2;
+    if (filePathCount > 0) confidence += 0.2;
+
+    // Normalize to 0-1 range
+    return Math.min(confidence, 1.0);
+  }
+
+  /**
+   * Validate and optimize discovered relationships
+   */
+  async validateDiscoveredRelationships(
+    discoveredDependencies: EpicDependency[],
+    existingDependencies: EpicDependency[]
+  ): Promise<{
+    validatedDependencies: EpicDependency[];
+    conflicts: EpicConflict[];
+    optimizations: EpicRecommendation[];
+  }> {
+    const validatedDependencies: EpicDependency[] = [];
+    const conflicts: EpicConflict[] = [];
+    const optimizations: EpicRecommendation[] = [];
+
+    // Remove duplicates with existing dependencies
+    for (const discovered of discoveredDependencies) {
+      const isDuplicate = existingDependencies.some(existing =>
+        existing.fromEpicId === discovered.fromEpicId &&
+        existing.toEpicId === discovered.toEpicId &&
+        existing.type === discovered.type
+      );
+
+      if (!isDuplicate) {
+        validatedDependencies.push(discovered);
+      }
+    }
+
+    // Check for circular dependencies
+    const allDependencies = [...existingDependencies, ...validatedDependencies];
+    const circularConflicts = await this.detectCircularEpicDependencies([], allDependencies);
+    conflicts.push(...circularConflicts);
+
+    // Generate optimization recommendations
+    if (validatedDependencies.length > 0) {
+      optimizations.push({
+        type: 'reordering',
+        description: `Consider reordering epics based on ${validatedDependencies.length} newly discovered dependencies`,
+        affectedEpics: [...new Set(validatedDependencies.flatMap(d => [d.fromEpicId, d.toEpicId]))],
+        estimatedBenefit: 'Improved project flow and reduced blocking',
+        implementationComplexity: 'medium',
+        priority: 'high'
+      });
+    }
+
+    return {
+      validatedDependencies,
+      conflicts,
+      optimizations
+    };
   }
 }

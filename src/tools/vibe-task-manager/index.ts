@@ -282,13 +282,67 @@ export const vibeTaskManagerExecutor: ToolExecutor = async (
 };
 
 /**
+ * Infer project complexity based on project context
+ */
+function inferProjectComplexity(projectContext: any): 'low' | 'medium' | 'high' {
+  if (!projectContext) return 'medium';
+  
+  let complexityScore = 0;
+  
+  // Technology stack complexity
+  const languages = projectContext.languages || [];
+  const frameworks = projectContext.frameworks || [];
+  const tools = projectContext.tools || [];
+  
+  complexityScore += languages.length * 0.5;
+  complexityScore += frameworks.length * 1;
+  complexityScore += tools.length * 0.3;
+  
+  // Architecture complexity indicators
+  const description = (projectContext.description || '').toLowerCase();
+  const complexityKeywords = [
+    'microservice', 'distributed', 'scalable', 'enterprise',
+    'architecture', 'system', 'api', 'integration',
+    'performance', 'security', 'database', 'migration'
+  ];
+  
+  const keywordMatches = complexityKeywords.filter(keyword => 
+    description.includes(keyword)
+  ).length;
+  
+  complexityScore += keywordMatches * 0.5;
+  
+  // Explicit complexity if available
+  if (projectContext.complexity) {
+    const explicitComplexity = projectContext.complexity.toLowerCase();
+    if (explicitComplexity === 'high' || explicitComplexity === 'complex') return 'high';
+    if (explicitComplexity === 'low' || explicitComplexity === 'simple') return 'low';
+  }
+  
+  // Determine complexity based on score
+  if (complexityScore >= 4) return 'high';
+  if (complexityScore >= 2) return 'medium';
+  return 'low';
+}
+
+/**
  * Wait for decomposition completion with adaptive timeout
  */
 async function waitForDecompositionCompletion(
   decompositionService: DecompositionService,
   sessionId: string,
-  maxWaitTime: number = 30000
+  maxWaitTime?: number, // Will be calculated based on complexity if not provided
+  projectComplexity: 'low' | 'medium' | 'high' = 'medium'
 ): Promise<AtomicTask[]> {
+  // Calculate adaptive timeout based on project complexity if not provided
+  if (!maxWaitTime) {
+    const complexityTimeouts = {
+      low: 300000,    // 5 minutes
+      medium: 600000, // 10 minutes  
+      high: 900000    // 15 minutes
+    };
+    maxWaitTime = complexityTimeouts[projectComplexity];
+  }
   const { AdaptiveTimeoutManager } = await import('./services/adaptive-timeout-manager.js');
   const timeoutManager = AdaptiveTimeoutManager.getInstance();
 
@@ -297,7 +351,7 @@ async function waitForDecompositionCompletion(
     async (cancellationToken, progressCallback) => {
       const startTime = Date.now();
       let lastProgressUpdate = Date.now();
-      let tasksFound = 0;
+      const tasksFound = 0;
 
       while (!cancellationToken.isCancelled) {
         const session = decompositionService.getSession(sessionId);
@@ -1511,8 +1565,11 @@ async function handleDecomposeCommand(
           sessionId: jobId
         });
 
+        // Infer project complexity from context
+        const projectComplexity = inferProjectComplexity(projectContext);
+        
         // Wait for completion and get results
-        const results = await waitForDecompositionCompletion(decompositionService, decompositionSession.id);
+        const results = await waitForDecompositionCompletion(decompositionService, decompositionSession.id, undefined, projectComplexity);
 
         logger.info({
           jobId,
