@@ -32,7 +32,7 @@ interface WebSocketConnection {
 class WebSocketServerManager {
   private static instance: WebSocketServerManager;
   private server?: WebSocketServer;
-  private httpServer?: unknown;
+  private httpServer?: any;
   private connections = new Map<string, WebSocketConnection>(); // sessionId -> connection
   private agentConnections = new Map<string, string>(); // agentId -> sessionId
   private port: number = 8080;
@@ -149,7 +149,7 @@ class WebSocketServerManager {
     }
   }
 
-  private handleConnection(ws: WebSocket, request: unknown): void {
+  private handleConnection(ws: WebSocket, request: any): void {
     const sessionId = this.generateSessionId();
     const connection: WebSocketConnection = {
       ws,
@@ -179,7 +179,7 @@ class WebSocketServerManager {
     });
   }
 
-  private async handleMessage(sessionId: string, data: unknown): Promise<void> {
+  private async handleMessage(sessionId: string, data: any): Promise<void> {
     try {
       const connection = this.connections.get(sessionId);
       if (!connection) {
@@ -231,8 +231,8 @@ class WebSocketServerManager {
     try {
       const { agentId, capabilities, maxConcurrentTasks } = message.data || {};
 
-      if (!agentId || !capabilities) {
-        this.sendError(sessionId, 'Agent registration requires agentId and capabilities');
+      if (!agentId || !capabilities || typeof agentId !== 'string' || !Array.isArray(capabilities)) {
+        this.sendError(sessionId, 'Agent registration requires agentId (string) and capabilities (array)');
         return;
       }
 
@@ -253,7 +253,7 @@ class WebSocketServerManager {
         capabilities,
         transportType: 'websocket',
         sessionId,
-        maxConcurrentTasks: maxConcurrentTasks || 1,
+        maxConcurrentTasks: typeof maxConcurrentTasks === 'number' ? maxConcurrentTasks : 1,
         websocketConnection: connection.ws
       });
 
@@ -287,6 +287,20 @@ class WebSocketServerManager {
         return;
       }
 
+      // Validate message data
+      if (!message.data) {
+        this.sendError(sessionId, 'Task response data is required');
+        return;
+      }
+
+      // Extract and validate task response data
+      const { taskId, status, response, completionDetails } = message.data;
+      
+      if (typeof taskId !== 'string' || typeof status !== 'string' || typeof response !== 'string') {
+        this.sendError(sessionId, 'Task response requires taskId, status, and response as strings');
+        return;
+      }
+
       // Import and use the agent response processor
       const { AgentResponseProcessor } = await import('../../tools/agent-response/index.js');
       const responseProcessor = AgentResponseProcessor.getInstance();
@@ -294,10 +308,17 @@ class WebSocketServerManager {
       // Process the task response
       await responseProcessor.processResponse({
         agentId: connection.agentId,
-        taskId: message.data.taskId,
-        status: message.data.status,
-        response: message.data.response,
-        completionDetails: message.data.completionDetails,
+        taskId,
+        status: status as 'DONE' | 'ERROR' | 'PARTIAL',
+        response,
+        completionDetails: completionDetails && typeof completionDetails === 'object' ? completionDetails as {
+          filesModified?: string[];
+          testsPass?: boolean;
+          buildSuccessful?: boolean;
+          executionTime?: number;
+          errorDetails?: string;
+          partialProgress?: number;
+        } : undefined,
         receivedAt: Date.now()
       });
 
@@ -307,7 +328,7 @@ class WebSocketServerManager {
         agentId: connection.agentId,
         data: {
           success: true,
-          taskId: message.data.taskId,
+          taskId,
           acknowledged: true,
           timestamp: Date.now()
         }
@@ -316,7 +337,7 @@ class WebSocketServerManager {
       logger.info({
         sessionId,
         agentId: connection.agentId,
-        taskId: message.data.taskId
+        taskId
       }, 'Task response received via WebSocket');
 
     } catch (error) {
@@ -325,7 +346,7 @@ class WebSocketServerManager {
     }
   }
 
-  private async handleHeartbeat(sessionId: string, _message: WebSocketMessage): Promise<void> {
+  private async handleHeartbeat(sessionId: string, message: WebSocketMessage): Promise<void> {
     const connection = this.connections.get(sessionId);
     if (connection) {
       connection.lastSeen = Date.now();

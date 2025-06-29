@@ -94,7 +94,8 @@ function createResilientLogger(baseLogger: Logger) {
       if (typeof prop === 'string') {
         return (target as unknown as Record<string, unknown>)[prop];
       }
-      return undefined;
+      // Handle symbol properties
+      return (target as unknown as Record<string | symbol, unknown>)[prop];
     }
   });
 }

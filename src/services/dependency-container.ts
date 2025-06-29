@@ -83,7 +83,7 @@ export class DependencyContainer {
 
   private async initializeAgentRegistry(): Promise<unknown | null> {
     try {
-      const registryModule = await ImportCycleBreaker.safeImport<{ AgentRegistry: { new(): unknown; getInstance(): unknown } }>('../tools/agent-registry/index.js');
+      const registryModule = await ImportCycleBreaker.safeImport<{ AgentRegistry: { getInstance(): unknown } }>('../tools/agent-registry/index.js');
       if (registryModule?.AgentRegistry) {
         return registryModule.AgentRegistry.getInstance();
       }
@@ -121,7 +121,7 @@ export class DependencyContainer {
 
   private async initializeAgentTaskQueue(): Promise<unknown | null> {
     try {
-      const taskQueueModule = await ImportCycleBreaker.safeImport<{ AgentTaskQueue: { new(): unknown; getInstance(): unknown } }>('../tools/agent-tasks/index.js');
+      const taskQueueModule = await ImportCycleBreaker.safeImport<{ AgentTaskQueue: { getInstance(): unknown } }>('../tools/agent-tasks/index.js');
       if (taskQueueModule?.AgentTaskQueue) {
         return taskQueueModule.AgentTaskQueue.getInstance();
       }
@@ -159,7 +159,7 @@ export class DependencyContainer {
 
   private async initializeAgentResponseProcessor(): Promise<unknown | null> {
     try {
-      const responseModule = await ImportCycleBreaker.safeImport<{ AgentResponseProcessor: { new(): unknown; getInstance(): unknown } }>('../tools/agent-response/index.js');
+      const responseModule = await ImportCycleBreaker.safeImport<{ AgentResponseProcessor: { getInstance(): unknown } }>('../tools/agent-response/index.js');
       if (responseModule?.AgentResponseProcessor) {
         return responseModule.AgentResponseProcessor.getInstance();
       }
@@ -197,7 +197,7 @@ export class DependencyContainer {
 
   private async initializeAgentIntegrationBridge(): Promise<unknown | null> {
     try {
-      const bridgeModule = await ImportCycleBreaker.safeImport<{ AgentIntegrationBridge: { new(): unknown; getInstance(): unknown } }>('../tools/vibe-task-manager/services/agent-integration-bridge.js');
+      const bridgeModule = await ImportCycleBreaker.safeImport<{ AgentIntegrationBridge: { getInstance(): unknown } }>('../tools/vibe-task-manager/services/agent-integration-bridge.js');
       if (bridgeModule?.AgentIntegrationBridge) {
         return bridgeModule.AgentIntegrationBridge.getInstance();
       }
