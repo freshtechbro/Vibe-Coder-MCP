@@ -1,0 +1,7 @@
+{
+  "projectsDirectory": "C:\\Users\\Ascension\\Claude\\root\\vibe-projects",
+  "maxTaskDepth": 5,
+  "allowedFileExtensions": [".md", ".json", ".txt"],
+  "atomicTaskThreshold": 100,
+  "defaultAgentCapabilities": ["coding", "analysis", "documentation"]
+}

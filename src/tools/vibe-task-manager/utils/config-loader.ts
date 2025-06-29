@@ -10,6 +10,16 @@ import {
   VibeTaskManagerSecurityConfig,
   PerformanceConfig
 } from '../types/config.js';
+
+// Re-export types for external modules
+export {
+  LLMConfig,
+  MCPConfig,
+  MCPToolConfig,
+  VibeTaskManagerConfig,
+  VibeTaskManagerSecurityConfig,
+  PerformanceConfig
+} from '../types/config.js';
 import {
   ConfigurationError,
   ValidationError,
@@ -22,14 +32,12 @@ import {
   validateAllEnvironmentVariables
 } from './config-defaults.js';
 import logger from '../../../logger.js';
-
 /**
  * Safe project root detection without circular dependencies
  */
 function getSafeProjectRoot(): string {
-  // Simple and safe - just use current working directory
-  // This avoids any potential circular dependencies
-  return process.cwd();
+  const allowedRoot = process.cwd();
+  return path.join(allowedRoot, 'vibe-coder-mcp');
 }
 
 /**
@@ -85,10 +93,7 @@ export class ConfigLoader {
    * Get the Vibe Task Manager output directory following the established convention
    */
   private getVibeTaskManagerOutputDirectory(): string {
-    const baseOutputDir = process.env.VIBE_CODER_OUTPUT_DIR
-      ? path.resolve(process.env.VIBE_CODER_OUTPUT_DIR)
-      : path.join(getSafeProjectRoot(), 'VibeCoderOutput');
-
+    const baseOutputDir = getBaseOutputDir(); // Use the safe function
     return path.join(baseOutputDir, 'vibe-task-manager');
   }
 
@@ -703,9 +708,20 @@ export async function getLLMModelForOperation(operation: string): Promise<string
  * Get the base output directory following the established Vibe Coder MCP convention
  */
 export function getBaseOutputDir(): string {
-  return process.env.VIBE_CODER_OUTPUT_DIR
-    ? path.resolve(process.env.VIBE_CODER_OUTPUT_DIR)
-    : path.join(getSafeProjectRoot(), 'VibeCoderOutput');
+  const allowedRoot = 'C:\\Users\\Ascension\\Claude\\root';
+  
+  if (process.env.VIBE_CODER_OUTPUT_DIR) {
+    // DON'T use path.resolve() as it calls process.cwd() internally!
+    const envPath = process.env.VIBE_CODER_OUTPUT_DIR;
+    // Simple check - if it's an absolute path starting with allowed root, use it
+    if (envPath.startsWith(allowedRoot)) {
+      return envPath;
+    }
+    // If outside boundaries, use safe default within allowed root
+    logger.warn({ envPath, allowedRoot }, 'VIBE_CODER_OUTPUT_DIR outside allowed boundaries, using safe default');
+  }
+  
+  return path.join(getSafeProjectRoot(), 'VibeCoderOutput');
 }
 
 /**
@@ -747,13 +763,15 @@ export function extractVibeTaskManagerSecurityConfig(config?: OpenRouterConfig):
   logger.debug(`Extracted vibe-task-manager security config: ${JSON.stringify(securityConfig)}`);
 
   // Validate and apply defaults with environment variable fallbacks
+  const allowedRoot = 'C:\\Users\\Ascension\\Claude\\root';
+  
   const allowedReadDirectory = securityConfig.allowedReadDirectory ||
                                process.env.VIBE_TASK_MANAGER_READ_DIR ||
-                               process.cwd();
+                               getSafeProjectRoot();
 
   const allowedWriteDirectory = securityConfig.allowedWriteDirectory ||
                                 process.env.VIBE_CODER_OUTPUT_DIR ||
-                                path.join(process.cwd(), 'VibeCoderOutput');
+                                getBaseOutputDir();
 
   const securityMode = (securityConfig.securityMode ||
                        process.env.VIBE_TASK_MANAGER_SECURITY_MODE ||
@@ -768,19 +786,44 @@ export function extractVibeTaskManagerSecurityConfig(config?: OpenRouterConfig):
     throw new Error('allowedWriteDirectory is required in the configuration, VIBE_CODER_OUTPUT_DIR environment variable, or defaults to VibeCoderOutput');
   }
 
-  // Resolve paths to absolute paths
-  const resolvedReadDir = path.resolve(allowedReadDirectory);
-  const resolvedWriteDir = path.resolve(allowedWriteDirectory);
+  // DON'T use path.resolve() as it calls process.cwd() internally!
+  // Just validate paths without resolving them
+  const readDir = allowedReadDirectory;
+  const writeDir = allowedWriteDirectory;
+  
+  // Validate that resolved paths are within allowed boundaries
+  if (!readDir.startsWith(allowedRoot)) {
+    logger.warn({ readDir, allowedRoot }, 'Read directory outside allowed boundaries, using safe default');
+    // Use safe default if outside boundaries
+    const safeReadDir = getSafeProjectRoot();
+    logger.info({ safeReadDir }, 'Using safe read directory within allowed boundaries');
+    return {
+      allowedReadDirectory: safeReadDir,
+      allowedWriteDirectory: writeDir.startsWith(allowedRoot) ? writeDir : getBaseOutputDir(),
+      securityMode
+    };
+  }
+  
+  if (!writeDir.startsWith(allowedRoot)) {
+    logger.warn({ writeDir, allowedRoot }, 'Write directory outside allowed boundaries, using safe default');
+    const safeWriteDir = getBaseOutputDir();
+    logger.info({ safeWriteDir }, 'Using safe write directory within allowed boundaries');
+    return {
+      allowedReadDirectory: readDir,
+      allowedWriteDirectory: safeWriteDir,
+      securityMode
+    };
+  }
 
   logger.info({
-    allowedReadDirectory: resolvedReadDir,
-    allowedWriteDirectory: resolvedWriteDir,
+    allowedReadDirectory: readDir,
+    allowedWriteDirectory: writeDir,
     securityMode
   }, 'Vibe Task Manager security configuration extracted from MCP client config');
 
   return {
-    allowedReadDirectory: resolvedReadDir,
-    allowedWriteDirectory: resolvedWriteDir,
+    allowedReadDirectory: readDir,
+    allowedWriteDirectory: writeDir,
     securityMode
   };
 }
