@@ -1,4 +1,4 @@
-# Vibe Coder MCP Server v2.6.0
+# Vibe Coder MCP Server v2.6.5
 
 ![Test](https://github.com/freshtechbro/Vibe-Coder-MCP/actions/workflows/test.yml/badge.svg)
 
