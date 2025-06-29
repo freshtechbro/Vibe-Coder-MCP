@@ -485,7 +485,7 @@ class TransportManager {
         this.startedServices.push('stdio');
         serviceSuccesses.push({ service: 'stdio', note: 'MCP server managed' });
       } catch (error) {
-        const failure = { service: 'stdio', reason: 'Startup failed', error: error instanceof Error ? error : undefined };
+        const failure = { service: 'stdio', reason: 'Startup failed', error };
         serviceFailures.push(failure);
         logger.error({ err: error }, 'stdio transport: Failed to start');
       }
@@ -498,7 +498,7 @@ class TransportManager {
         this.startedServices.push('sse');
         serviceSuccesses.push({ service: 'sse', note: 'MCP server integrated' });
       } catch (error) {
-        const failure = { service: 'sse', reason: 'Startup failed', error: error instanceof Error ? error : undefined };
+        const failure = { service: 'sse', reason: 'Startup failed', error };
         serviceFailures.push(failure);
         logger.error({ err: error }, 'SSE transport: Failed to start');
       }
@@ -539,7 +539,7 @@ class TransportManager {
             this.startedServices.push('websocket');
             serviceSuccesses.push({ service: 'websocket', port: retryResult.port });
           } else {
-            const failure = { service: 'websocket', reason: 'Service startup failed after retries', error: error instanceof Error ? error : undefined };
+            const failure = { service: 'websocket', reason: 'Service startup failed after retries', error };
             serviceFailures.push(failure);
             logger.error({
               attempts: retryResult.attempts,
@@ -616,7 +616,7 @@ class TransportManager {
             this.startedServices.push('http');
             serviceSuccesses.push({ service: 'http', port: retryResult.port });
           } else {
-            const failure = { service: 'http', reason: 'Service startup failed after retries', error: error instanceof Error ? error : undefined };
+            const failure = { service: 'http', reason: 'Service startup failed after retries', error };
             serviceFailures.push(failure);
             logger.error({
               attempts: retryResult.attempts,
@@ -1095,13 +1095,13 @@ class TransportManager {
     startupInProgress: boolean;
     startedServices: string[];
     config: TransportConfig;
-    serviceDetails: Record<string, any>;
+    serviceDetails: Record<string, unknown>;
     websocket?: { running: boolean; port?: number; path?: string; connections?: number };
     http?: { running: boolean; port?: number; cors?: boolean };
     sse?: { running: boolean; connections?: number };
     stdio?: { running: boolean };
   } {
-    const serviceDetails: Record<string, any> = {};
+    const serviceDetails: Record<string, unknown> = {};
 
     // WebSocket service details
     const websocketRunning = this.startedServices.includes('websocket');
@@ -1184,7 +1184,7 @@ class TransportManager {
   /**
    * Get configuration for a specific transport
    */
-  getTransportConfig(transport: keyof TransportConfig): any {
+  getTransportConfig(transport: keyof TransportConfig): unknown {
     return this.config[transport];
   }
 
@@ -1266,8 +1266,8 @@ class TransportManager {
   /**
    * Get health status of all transports
    */
-  async getHealthStatus(): Promise<Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: any }>> {
-    const health: Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: any }> = {};
+  async getHealthStatus(): Promise<Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: unknown }>> {
+    const health: Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: unknown }> = {};
 
     // Check stdio transport
     health.stdio = {

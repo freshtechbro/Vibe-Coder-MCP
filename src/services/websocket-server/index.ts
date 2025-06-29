@@ -32,7 +32,7 @@ interface WebSocketConnection {
 class WebSocketServerManager {
   private static instance: WebSocketServerManager;
   private server?: WebSocketServer;
-  private httpServer?: any;
+  private httpServer?: unknown;
   private connections = new Map<string, WebSocketConnection>(); // sessionId -> connection
   private agentConnections = new Map<string, string>(); // agentId -> sessionId
   private port: number = 8080;
@@ -149,7 +149,7 @@ class WebSocketServerManager {
     }
   }
 
-  private handleConnection(ws: WebSocket, request: any): void {
+  private handleConnection(ws: WebSocket, request: unknown): void {
     const sessionId = this.generateSessionId();
     const connection: WebSocketConnection = {
       ws,
@@ -179,7 +179,7 @@ class WebSocketServerManager {
     });
   }
 
-  private async handleMessage(sessionId: string, data: any): Promise<void> {
+  private async handleMessage(sessionId: string, data: unknown): Promise<void> {
     try {
       const connection = this.connections.get(sessionId);
       if (!connection) {
@@ -236,11 +236,6 @@ class WebSocketServerManager {
         return;
       }
 
-      // Type assertions for the extracted values
-      const typedAgentId = agentId as string;
-      const typedCapabilities = capabilities as string[];
-      const typedMaxConcurrentTasks = maxConcurrentTasks as number | undefined;
-
       // Update connection with agent info
       const connection = this.connections.get(sessionId);
       if (!connection) {
@@ -248,27 +243,27 @@ class WebSocketServerManager {
         return;
       }
 
-      connection.agentId = typedAgentId;
+      connection.agentId = agentId;
       connection.authenticated = true;
 
       // Register with agent registry
       const agentRegistry = AgentRegistry.getInstance();
       await agentRegistry.registerAgent({
-        agentId: typedAgentId,
-        capabilities: typedCapabilities,
+        agentId,
+        capabilities,
         transportType: 'websocket',
         sessionId,
-        maxConcurrentTasks: typedMaxConcurrentTasks || 1,
+        maxConcurrentTasks: maxConcurrentTasks || 1,
         websocketConnection: connection.ws
       });
 
       // Store agent connection mapping
-      this.agentConnections.set(typedAgentId, sessionId);
+      this.agentConnections.set(agentId, sessionId);
 
       // Send confirmation
       this.sendMessage(sessionId, {
         type: 'register',
-        agentId: typedAgentId,
+        agentId,
         data: {
           success: true,
           message: 'Agent registered successfully via WebSocket',
@@ -292,11 +287,6 @@ class WebSocketServerManager {
         return;
       }
 
-      if (!message.data) {
-        this.sendError(sessionId, 'Task response received without data');
-        return;
-      }
-
       // Import and use the agent response processor
       const { AgentResponseProcessor } = await import('../../tools/agent-response/index.js');
       const responseProcessor = AgentResponseProcessor.getInstance();
@@ -304,17 +294,10 @@ class WebSocketServerManager {
       // Process the task response
       await responseProcessor.processResponse({
         agentId: connection.agentId,
-        taskId: message.data.taskId as string,
-        status: message.data.status as 'DONE' | 'ERROR' | 'PARTIAL',
-        response: message.data.response as string,
-        completionDetails: message.data.completionDetails as {
-          filesModified?: string[];
-          testsPass?: boolean;
-          buildSuccessful?: boolean;
-          executionTime?: number;
-          errorDetails?: string;
-          partialProgress?: number;
-        } | undefined,
+        taskId: message.data.taskId,
+        status: message.data.status,
+        response: message.data.response,
+        completionDetails: message.data.completionDetails,
         receivedAt: Date.now()
       });
 
@@ -342,7 +325,7 @@ class WebSocketServerManager {
     }
   }
 
-  private async handleHeartbeat(sessionId: string, message: WebSocketMessage): Promise<void> {
+  private async handleHeartbeat(sessionId: string, _message: WebSocketMessage): Promise<void> {
     const connection = this.connections.get(sessionId);
     if (connection) {
       connection.lastSeen = Date.now();
