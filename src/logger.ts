@@ -1,5 +1,5 @@
 // src/logger.ts
-import { pino } from 'pino';
+import { pino, Logger } from 'pino';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -69,12 +69,12 @@ let loggerDestroyed = false;
 /**
  * Create a resilient logger wrapper that handles post-shutdown logging gracefully
  */
-function createResilientLogger(baseLogger: any) {
+function createResilientLogger(baseLogger: Logger) {
   return new Proxy(baseLogger, {
     get(target, prop) {
       // If logger is destroyed and this is a logging method, use console instead
       if (loggerDestroyed && typeof prop === 'string' && ['debug', 'info', 'warn', 'error', 'fatal', 'trace'].includes(prop)) {
-        return function(obj: any, msg?: string) {
+        return function(obj: unknown, msg?: string) {
           try {
             // Format the log message for console output
             if (typeof obj === 'string') {
@@ -84,14 +84,14 @@ function createResilientLogger(baseLogger: any) {
             } else {
               console.log(`[${prop.toUpperCase()}]`, obj);
             }
-          } catch (error) {
+          } catch {
             // Silently ignore console errors
           }
         };
       }
 
       // For non-logging methods or when logger is not destroyed, use original
-      return target[prop];
+      return (target as any)[prop];
     }
   });
 }
@@ -114,7 +114,7 @@ export function shutdownLogger(): Promise<void> {
       // Handle SonicBoom destination gracefully
       if (fileDestination) {
         // Check if the destination is ready before attempting operations
-        const isReady = (fileDestination as any).ready !== false;
+        const isReady = (fileDestination as { ready?: boolean }).ready !== false;
 
         if (isReady) {
           // Try to flush synchronously only if ready

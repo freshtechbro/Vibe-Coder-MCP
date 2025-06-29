@@ -9,8 +9,8 @@ export interface OpenRouterConfig {
   llm_mapping?: Record<string, string>; // Optional: Mapping of logical task names to model strings
 
   // Tool-specific configurations
-  tools?: Record<string, any>;
-  config?: Record<string, any>;
+  tools?: Record<string, unknown>;
+  config?: Record<string, unknown>;
 }
 
 

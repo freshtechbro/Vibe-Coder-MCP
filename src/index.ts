@@ -8,8 +8,7 @@ import path from 'path'; // Ensure path is imported
 import { fileURLToPath } from 'url'; // Needed for ES Module path resolution
 import logger, { registerShutdownCallback } from "./logger.js";
 import { initializeToolEmbeddings } from './services/routing/embeddingStore.js';
-import { loadLlmConfigMapping } from './utils/configLoader.js'; // Import the new loader
-import { OpenRouterConfig } from './types/workflow.js'; // Import OpenRouterConfig type
+// Removed unused imports
 import { OpenRouterConfigManager } from './utils/openrouter-config-manager.js';
 import { ToolRegistry } from './services/routing/toolRegistry.js'; // Import ToolRegistry to initialize it properly
 import { sseNotifier } from './services/sse-notifier/index.js'; // Import the SSE notifier singleton
@@ -168,10 +167,10 @@ async function main(mcpServer: import("@modelcontextprotocol/sdk/server/mcp.js")
 
       // Override console methods to prevent stdout contamination in stdio mode
       // Redirect all console output to stderr when using stdio transport
-      console.log = (...args: any[]) => process.stderr.write(args.join(' ') + '\n');
-      console.info = (...args: any[]) => process.stderr.write('[INFO] ' + args.join(' ') + '\n');
-      console.warn = (...args: any[]) => process.stderr.write('[WARN] ' + args.join(' ') + '\n');
-      console.error = (...args: any[]) => process.stderr.write('[ERROR] ' + args.join(' ') + '\n');
+      console.log = (...args: unknown[]) => process.stderr.write(args.join(' ') + '\n');
+      console.info = (...args: unknown[]) => process.stderr.write('[INFO] ' + args.join(' ') + '\n');
+      console.warn = (...args: unknown[]) => process.stderr.write('[WARN] ' + args.join(' ') + '\n');
+      console.error = (...args: unknown[]) => process.stderr.write('[ERROR] ' + args.join(' ') + '\n');
 
       // Use stdio transport with session ID
       const stdioSessionId = 'stdio-session';

@@ -9,10 +9,10 @@ import { ImportCycleBreaker } from '../utils/import-cycle-breaker.js';
 import logger from '../logger.js';
 
 export interface AgentDependencies {
-  agentRegistry?: any;
-  agentTaskQueue?: any;
-  agentResponseProcessor?: any;
-  agentIntegrationBridge?: any;
+  agentRegistry?: unknown;
+  agentTaskQueue?: unknown;
+  agentResponseProcessor?: unknown;
+  agentIntegrationBridge?: unknown;
 }
 
 /**
@@ -22,7 +22,7 @@ export class DependencyContainer {
   private static instance: DependencyContainer;
   private static isInitializing = false;
   private dependencies: AgentDependencies = {};
-  private initializationPromises = new Map<string, Promise<any>>();
+  private initializationPromises = new Map<string, Promise<unknown>>();
 
   static getInstance(): DependencyContainer {
     if (DependencyContainer.isInitializing) {
@@ -58,7 +58,7 @@ export class DependencyContainer {
   /**
    * Get AgentRegistry instance with safe loading
    */
-  async getAgentRegistry(): Promise<any | null> {
+  async getAgentRegistry(): Promise<unknown | null> {
     if (this.dependencies.agentRegistry) {
       return this.dependencies.agentRegistry;
     }
@@ -81,7 +81,7 @@ export class DependencyContainer {
     }
   }
 
-  private async initializeAgentRegistry(): Promise<any | null> {
+  private async initializeAgentRegistry(): Promise<unknown | null> {
     try {
       const registryModule = await ImportCycleBreaker.safeImport<{ AgentRegistry: any }>('../tools/agent-registry/index.js');
       if (registryModule?.AgentRegistry) {
@@ -98,7 +98,7 @@ export class DependencyContainer {
   /**
    * Get AgentTaskQueue instance with safe loading
    */
-  async getAgentTaskQueue(): Promise<any | null> {
+  async getAgentTaskQueue(): Promise<unknown | null> {
     if (this.dependencies.agentTaskQueue) {
       return this.dependencies.agentTaskQueue;
     }
@@ -119,7 +119,7 @@ export class DependencyContainer {
     }
   }
 
-  private async initializeAgentTaskQueue(): Promise<any | null> {
+  private async initializeAgentTaskQueue(): Promise<unknown | null> {
     try {
       const taskQueueModule = await ImportCycleBreaker.safeImport<{ AgentTaskQueue: any }>('../tools/agent-tasks/index.js');
       if (taskQueueModule?.AgentTaskQueue) {
@@ -136,7 +136,7 @@ export class DependencyContainer {
   /**
    * Get AgentResponseProcessor instance with safe loading
    */
-  async getAgentResponseProcessor(): Promise<any | null> {
+  async getAgentResponseProcessor(): Promise<unknown | null> {
     if (this.dependencies.agentResponseProcessor) {
       return this.dependencies.agentResponseProcessor;
     }
@@ -157,7 +157,7 @@ export class DependencyContainer {
     }
   }
 
-  private async initializeAgentResponseProcessor(): Promise<any | null> {
+  private async initializeAgentResponseProcessor(): Promise<unknown | null> {
     try {
       const responseModule = await ImportCycleBreaker.safeImport<{ AgentResponseProcessor: any }>('../tools/agent-response/index.js');
       if (responseModule?.AgentResponseProcessor) {
@@ -174,7 +174,7 @@ export class DependencyContainer {
   /**
    * Get AgentIntegrationBridge instance with safe loading
    */
-  async getAgentIntegrationBridge(): Promise<any | null> {
+  async getAgentIntegrationBridge(): Promise<unknown | null> {
     if (this.dependencies.agentIntegrationBridge) {
       return this.dependencies.agentIntegrationBridge;
     }
@@ -195,7 +195,7 @@ export class DependencyContainer {
     }
   }
 
-  private async initializeAgentIntegrationBridge(): Promise<any | null> {
+  private async initializeAgentIntegrationBridge(): Promise<unknown | null> {
     try {
       const bridgeModule = await ImportCycleBreaker.safeImport<{ AgentIntegrationBridge: any }>('../tools/vibe-task-manager/services/agent-integration-bridge.js');
       if (bridgeModule?.AgentIntegrationBridge) {
