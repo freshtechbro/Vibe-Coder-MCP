@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs-extra';
+import { 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import { DecompositionService, DecompositionRequest } from '../../services/decomposition-service.js';
 import { ContextEnrichmentService } from '../../services/context-enrichment-service.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
@@ -52,6 +58,24 @@ describe('Decomposition Service Context Integration', () => {
   let mockContextService: any;
 
   beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `decomp-context-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(5, 'create_task')
+      .addAtomicDetections(15, true)
+      .addTaskDecompositions(5, 2);
+    builder.queueResponses();
+    
     // Setup fs-extra mocks
     mockFs.ensureDir = vi.fn().mockResolvedValue(undefined);
     mockFs.writeFile = vi.fn().mockResolvedValue(undefined);
@@ -63,9 +87,6 @@ describe('Decomposition Service Context Integration', () => {
     mockFs.writeFileSync = vi.fn().mockReturnValue(undefined);
     mockFs.existsSync = vi.fn().mockReturnValue(true);
     mockFs.mkdirSync = vi.fn().mockReturnValue(undefined);
-
-    // Clear all mocks before each test
-    vi.clearAllMocks();
 
     // Create a fresh mock context service for each test
     mockContextService = {
@@ -136,6 +157,16 @@ describe('Decomposition Service Context Integration', () => {
       teamSize: 3,
       complexity: 'medium'
     };
+  });
+  
+  afterEach(() => {
+    // Clean up mock queue after each test
+    clearMockQueue();
+  });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
   });
 
 

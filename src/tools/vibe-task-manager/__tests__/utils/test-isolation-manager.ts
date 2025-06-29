@@ -163,7 +163,7 @@ export function createResettableSingleton<T>(
 /**
  * Decorator to make a class resettable for testing
  */
-export function Resettable<T extends { new (...args: any[]): {} }>(constructor: T) {
+export function Resettable<T extends { new (...args: unknown[]): object }>(constructor: T) {
   const originalClass = constructor as any;
   let instance: any = null;
 

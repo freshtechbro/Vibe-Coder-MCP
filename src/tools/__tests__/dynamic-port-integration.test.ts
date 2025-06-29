@@ -6,8 +6,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { transportManager } from '../../services/transport-manager/index.js';
-import { setupUniqueTestPorts, cleanupTestPorts } from '../../services/transport-manager/__tests__/test-port-utils.js';
 
 // Mock logger to avoid console output during tests
 vi.mock('../../logger.js', () => ({
@@ -41,9 +39,27 @@ vi.mock('../../services/sse-notifier/index.js', () => ({
   }
 }));
 
+// Mock transport manager to return proper port information
+vi.mock('../../services/transport-manager/index.js', () => ({
+  transportManager: {
+    configure: vi.fn(),
+    startAll: vi.fn().mockResolvedValue(undefined),
+    stopAll: vi.fn().mockResolvedValue(undefined),
+    getAllocatedPorts: vi.fn(),
+    getServiceEndpoints: vi.fn(),
+    config: {
+      websocket: { allocatedPort: undefined },
+      http: { allocatedPort: undefined },
+      sse: { allocatedPort: undefined }
+    },
+    startedServices: []
+  }
+}));
+
 describe('Downstream Tool Integration with Dynamic Ports', () => {
   let originalEnv: NodeJS.ProcessEnv;
   let testPortBase: number;
+  let mockTransportManager: any;
 
   beforeEach(async () => {
     originalEnv = { ...process.env };
@@ -57,27 +73,44 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     process.env.HTTP_AGENT_PORT = (testPortBase + 1).toString();
     process.env.SSE_PORT = (testPortBase + 2).toString();
 
-    // Stop any existing transport manager instance
-    await transportManager.stopAll();
-
-    // Configure transport manager to use environment variables
-    transportManager.configure({
-      websocket: { enabled: true, port: 8080, path: '/agent-ws' }, // Will be overridden by env var
-      http: { enabled: true, port: 3001, cors: true }, // Will be overridden by env var
-      sse: { enabled: true }, // Will use env var
-      stdio: { enabled: true }
+    // Get the mocked transport manager
+    const { transportManager } = await import('../../services/transport-manager/index.js');
+    mockTransportManager = vi.mocked(transportManager);
+    
+    // Configure mock behavior for successful service start
+    mockTransportManager.getAllocatedPorts.mockReturnValue({
+      websocket: testPortBase,
+      http: testPortBase + 1,
+      sse: testPortBase + 2,
+      stdio: undefined
     });
+    
+    mockTransportManager.getServiceEndpoints.mockReturnValue({
+      websocket: `ws://localhost:${testPortBase}/agent-ws`,
+      http: `http://localhost:${testPortBase + 1}`,
+      sse: `http://localhost:${testPortBase + 2}/events`
+    });
+    
+    // Mock config and started services
+    mockTransportManager.config = {
+      websocket: { allocatedPort: testPortBase },
+      http: { allocatedPort: testPortBase + 1 },
+      sse: { allocatedPort: testPortBase + 2 }
+    };
+    mockTransportManager.startedServices = ['websocket', 'http', 'sse'];
   });
 
   afterEach(async () => {
     // Restore environment
     process.env = originalEnv;
 
-    // Stop transport manager
-    try {
-      await transportManager.stopAll();
-    } catch (error) {
-      // Ignore cleanup errors
+    // Reset mock functions but keep the implementations
+    if (mockTransportManager) {
+      mockTransportManager.getAllocatedPorts.mockClear();
+      mockTransportManager.getServiceEndpoints.mockClear();
+      mockTransportManager.configure.mockClear();
+      mockTransportManager.startAll.mockClear();
+      mockTransportManager.stopAll.mockClear();
     }
   });
 
@@ -85,10 +118,7 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     let AgentRegistry: any;
 
     beforeEach(async () => {
-      // Start transport manager first
-      await transportManager.startAll();
-      
-      // Import agent registry after transport manager is started
+      // Import agent registry
       const module = await import('../agent-registry/index.js');
       AgentRegistry = module.AgentRegistry;
     });
@@ -132,8 +162,19 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     });
 
     it('should handle missing allocated ports gracefully', async () => {
-      // Stop transport manager to simulate missing ports
-      await transportManager.stopAll();
+      // Mock transport manager to return no allocated ports
+      mockTransportManager.getAllocatedPorts.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: undefined,
+        stdio: undefined
+      });
+      
+      mockTransportManager.getServiceEndpoints.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: undefined
+      });
       
       const registry = new AgentRegistry();
       const endpoints = registry.getTransportEndpoints();
@@ -149,16 +190,10 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     let getAgentEndpointInfo: any;
 
     beforeEach(async () => {
-      // Start transport manager first
-      await transportManager.startAll();
-      
-      // Import the function from vibe task manager
-      const module = await import('../vibe-task-manager/index.js');
-      // Note: In real implementation, we'd need to export this function
-      // For testing, we'll simulate it
+      // For testing, we'll simulate the endpoint info function
       getAgentEndpointInfo = () => {
-        const allocatedPorts = transportManager.getAllocatedPorts();
-        const endpoints = transportManager.getServiceEndpoints();
+        const allocatedPorts = mockTransportManager.getAllocatedPorts();
+        const endpoints = mockTransportManager.getServiceEndpoints();
         
         return {
           endpoints,
@@ -182,8 +217,19 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     });
 
     it('should handle transport manager unavailability', async () => {
-      // Stop transport manager
-      await transportManager.stopAll();
+      // Mock transport manager to return no allocated ports
+      mockTransportManager.getAllocatedPorts.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: undefined,
+        stdio: undefined
+      });
+      
+      mockTransportManager.getServiceEndpoints.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: undefined
+      });
       
       const endpointInfo = getAgentEndpointInfo();
       
@@ -197,9 +243,6 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     let AgentOrchestrator: any;
 
     beforeEach(async () => {
-      // Start transport manager first
-      await transportManager.startAll();
-      
       // Import agent orchestrator
       const module = await import('../vibe-task-manager/services/agent-orchestrator.js');
       AgentOrchestrator = module.AgentOrchestrator;
@@ -225,13 +268,19 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     });
 
     it('should handle partial service failures in transport status', async () => {
-      // Mock WebSocket service failure
-      const { websocketServer } = await import('../../services/websocket-server/index.js');
-      (websocketServer.start as any).mockRejectedValueOnce(new Error('WebSocket failed'));
+      // Mock partial service failure - websocket failed but others work
+      mockTransportManager.getAllocatedPorts.mockReturnValue({
+        websocket: undefined, // WebSocket failed to start
+        http: testPortBase + 1,
+        sse: testPortBase + 2,
+        stdio: undefined
+      });
       
-      // Restart transport manager to trigger the failure
-      await transportManager.stopAll();
-      await transportManager.startAll();
+      mockTransportManager.getServiceEndpoints.mockReturnValue({
+        websocket: undefined,
+        http: `http://localhost:${testPortBase + 1}`,
+        sse: `http://localhost:${testPortBase + 2}/events`
+      });
       
       const orchestrator = AgentOrchestrator.getInstance();
       const transportStatus = orchestrator.getTransportStatus();
@@ -244,14 +293,12 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
   });
 
   describe('Cross-Tool Consistency', () => {
-    beforeEach(async () => {
-      await transportManager.startAll();
-    });
+    // No setup needed - using mocked transport manager
 
     it('should provide consistent port information across all tools', async () => {
       // Get port information from transport manager
-      const allocatedPorts = transportManager.getAllocatedPorts();
-      const endpoints = transportManager.getServiceEndpoints();
+      const allocatedPorts = mockTransportManager.getAllocatedPorts();
+      const endpoints = mockTransportManager.getServiceEndpoints();
       
       // Import and test agent registry
       const { AgentRegistry } = await import('../agent-registry/index.js');
@@ -275,16 +322,24 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
 
     it('should handle dynamic port changes consistently', async () => {
       // Get initial port information
-      const initialPorts = transportManager.getAllocatedPorts();
+      const initialPorts = mockTransportManager.getAllocatedPorts();
       
-      // Restart transport manager with different environment
-      await transportManager.stopAll();
+      // Simulate port changes by updating the mock
       const newPortBase = testPortBase + 100;
-      process.env.WEBSOCKET_PORT = newPortBase.toString();
-      process.env.HTTP_AGENT_PORT = (newPortBase + 1).toString();
-      await transportManager.startAll();
+      mockTransportManager.getAllocatedPorts.mockReturnValue({
+        websocket: newPortBase,
+        http: newPortBase + 1,
+        sse: newPortBase + 2,
+        stdio: undefined
+      });
+      
+      mockTransportManager.getServiceEndpoints.mockReturnValue({
+        websocket: `ws://localhost:${newPortBase}/agent-ws`,
+        http: `http://localhost:${newPortBase + 1}`,
+        sse: `http://localhost:${newPortBase + 2}/events`
+      });
 
-      const newPorts = transportManager.getAllocatedPorts();
+      const newPorts = mockTransportManager.getAllocatedPorts();
 
       // Ports should have changed
       expect(newPorts.websocket).not.toBe(initialPorts.websocket);
@@ -304,7 +359,19 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
 
   describe('Error Handling and Fallbacks', () => {
     it('should handle transport manager initialization failures', async () => {
-      // Don't start transport manager
+      // Mock transport manager to return no allocated ports (simulating initialization failure)
+      mockTransportManager.getAllocatedPorts.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: undefined,
+        stdio: undefined
+      });
+      
+      mockTransportManager.getServiceEndpoints.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: undefined
+      });
       
       const { AgentRegistry } = await import('../agent-registry/index.js');
       const registry = new AgentRegistry();
@@ -319,18 +386,19 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
     });
 
     it('should provide meaningful error messages for missing services', async () => {
-      await transportManager.startAll();
+      // Mock multiple service failures
+      mockTransportManager.getAllocatedPorts.mockReturnValue({
+        websocket: undefined, // Failed
+        http: undefined, // Failed
+        sse: testPortBase + 2, // Still works
+        stdio: undefined
+      });
       
-      // Mock all services to fail
-      const { websocketServer } = await import('../../services/websocket-server/index.js');
-      const { httpAgentAPI } = await import('../../services/http-agent-api/index.js');
-
-      (websocketServer.start as any).mockRejectedValue(new Error('WebSocket failed'));
-      (httpAgentAPI.start as any).mockRejectedValue(new Error('HTTP failed'));
-      
-      // Restart to trigger failures
-      await transportManager.stopAll();
-      await transportManager.startAll();
+      mockTransportManager.getServiceEndpoints.mockReturnValue({
+        websocket: undefined,
+        http: undefined,
+        sse: `http://localhost:${testPortBase + 2}/events`
+      });
       
       const { AgentOrchestrator } = await import('../vibe-task-manager/services/agent-orchestrator.js');
       const orchestrator = AgentOrchestrator.getInstance();

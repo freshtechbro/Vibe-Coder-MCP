@@ -341,4 +341,9 @@ describe('Advanced Integration Testing', () => {
       // Should handle gracefully without crashing
     });
   });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
+  });
 });

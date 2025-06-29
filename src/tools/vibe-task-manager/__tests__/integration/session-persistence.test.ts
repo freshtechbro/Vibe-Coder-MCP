@@ -1,4 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
+
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    tasks: [{
+      title: 'Test Subtask',
+      description: 'Test subtask description',
+      estimatedHours: 0.1,
+      acceptanceCriteria: ['Test criteria'],
+      priority: 'medium'
+    }]
+  }))
+}));
 
 // Mock config loader FIRST before any other imports
 vi.mock('../../utils/config-loader.js', () => ({
@@ -183,6 +211,24 @@ describe('Session Persistence Integration Tests', () => {
   let mockConfig: OpenRouterConfig;
 
   beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `session-persist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(3, 'create_task')
+      .addAtomicDetections(10, true)
+      .addTaskDecompositions(5, 2);
+    builder.queueResponses();
+    
     // Set up environment variables for test BEFORE creating the service
     process.env.VIBE_CODER_OUTPUT_DIR = '/test/output';
     process.env.VIBE_TASK_MANAGER_READ_DIR = '/test/project';
@@ -201,9 +247,16 @@ describe('Session Persistence Integration Tests', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    // Clean up mock queue after each test
+    clearMockQueue();
     // Clean up environment variables
     delete process.env.VIBE_CODER_OUTPUT_DIR;
     delete process.env.VIBE_TASK_MANAGER_READ_DIR;
+  });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
   });
 
   describe('executeDecomposition path', () => {

@@ -26,7 +26,7 @@ describe('🚀 E-Commerce REST API Project - Complete Scenario', () => {
   let rddEngine: RDDEngine;
   let taskScheduler: TaskScheduler;
   let projectContext: ProjectContext;
-  let projectTasks: AtomicTask[] = [];
+  const projectTasks: AtomicTask[] = [];
   let executionSchedule: any;
 
   beforeAll(async () => {

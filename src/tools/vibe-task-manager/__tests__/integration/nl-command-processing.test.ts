@@ -3,17 +3,61 @@
  * Tests the complete pipeline from natural language input to response
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import { CommandGateway } from '../../nl/command-gateway.js';
 import { CommandHandlers } from '../../nl/command-handlers.js';
 import { ResponseGenerator } from '../../nl/response-generator.js';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
 
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    intent: 'create_task',
+    confidence: 0.85,
+    parameters: {
+      task_title: 'test task',
+      type: 'development'
+    },
+    context: {
+      temporal: 'immediate',
+      urgency: 'normal'
+    },
+    alternatives: []
+  }))
+}));
+
 // Mock the intent recognition engine
 vi.mock('../../nl/intent-recognizer.js', () => ({
   IntentRecognitionEngine: {
     getInstance: vi.fn(() => ({
-      recognizeIntent: vi.fn()
+      recognizeIntent: vi.fn().mockResolvedValue({
+        intent: 'create_task',
+        confidence: 0.85,
+        parameters: {
+          task_title: 'test task',
+          type: 'development'
+        },
+        context: {
+          temporal: 'immediate',
+          urgency: 'normal'
+        },
+        alternatives: []
+      })
     }))
   }
 }));
@@ -25,10 +69,38 @@ describe('Natural Language Command Processing Integration', () => {
   let mockIntentRecognizer: any;
 
   beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `nl-command-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(10, 'create_task')
+      .addAtomicDetections(10, true)
+      .addTaskDecompositions(3, 2);
+    builder.queueResponses();
+    
     commandGateway = CommandGateway.getInstance();
     commandHandlers = CommandHandlers.getInstance();
     responseGenerator = ResponseGenerator.getInstance();
     mockIntentRecognizer = IntentRecognitionEngine.getInstance();
+  });
+  
+  afterEach(() => {
+    // Clean up mock queue after each test
+    clearMockQueue();
+  });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
   });
 
   describe('Complete Command Processing Pipeline', () => {
@@ -295,7 +367,7 @@ describe('Natural Language Command Processing Integration', () => {
       commandGateway.clearHistory(sessionId);
 
       // Verify history is empty after clearing
-      let history = commandGateway.getHistory(sessionId);
+      const history = commandGateway.getHistory(sessionId);
       expect(history.length).toBe(0);
 
       // First command: Create project

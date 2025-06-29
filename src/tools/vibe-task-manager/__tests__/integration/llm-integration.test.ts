@@ -12,8 +12,35 @@ import { transportManager } from '../../../../services/transport-manager/index.j
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import type { AtomicTask, ProjectContext } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
-import { mockOpenRouterResponse, queueMockResponses, clearMockQueue, setTestId, clearAllMockQueues } from '../../../../testUtils/mockLLM.js';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import axios from 'axios';
+
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    tasks: [{
+      title: 'Test Subtask',
+      description: 'Test subtask description',
+      estimatedHours: 0.1,
+      acceptanceCriteria: ['Test criteria'],
+      priority: 'medium'
+    }]
+  }))
+}));
 
 // Optimized timeout for mocked LLM calls - performance target <2 seconds
 const LLM_TIMEOUT = 2000; // 2 seconds - optimized for mock performance
@@ -85,9 +112,22 @@ describe.sequential('Vibe Task Manager - LLM Integration Tests', () => {
     // Clear all mocks before each test
     vi.clearAllMocks();
     // Set unique test ID for isolation
-    const testId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const testId = `llm-integration-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setTestId(testId);
     // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(10, 'create_task')
+      .addAtomicDetections(20, true)
+      .addTaskDecompositions(5, 2);
+    builder.queueResponses();
+  });
+
+  afterEach(() => {
+    // Clean up mock queue after each test
     clearMockQueue();
   });
 

@@ -27,6 +27,10 @@ describe('EpicContextResolver', () => {
       getEpic: vi.fn(),
       getProject: vi.fn().mockResolvedValue({ success: true, data: { id: 'test-project', epicIds: [], metadata: {} } }),
       updateProject: vi.fn().mockResolvedValue({ success: true }),
+      getTask: vi.fn(),
+      updateTask: vi.fn(),
+      updateEpic: vi.fn(),
+      getDependenciesForTask: vi.fn().mockResolvedValue([])
     };
 
     mockProjectOperations = {
@@ -402,6 +406,506 @@ describe('EpicContextResolver', () => {
 
         const result = resolver.extractFunctionalArea(taskContext);
         expect(result).toBe(expected);
+      });
+    });
+  });
+
+  describe('bidirectional relationship management', () => {
+    let mockTask: any;
+    let mockEpic: any;
+    let mockToEpic: any;
+
+    beforeEach(() => {
+      mockTask = {
+        id: 'task-001',
+        title: 'Test Task',
+        epicId: 'epic-001',
+        status: 'pending',
+        metadata: { updatedAt: new Date() }
+      };
+
+      mockEpic = {
+        id: 'epic-001',
+        title: 'Source Epic',
+        taskIds: ['task-001'],
+        metadata: { updatedAt: new Date() }
+      };
+
+      mockToEpic = {
+        id: 'epic-002',
+        title: 'Destination Epic',
+        taskIds: [],
+        metadata: { updatedAt: new Date() }
+      };
+    });
+
+    describe('addTaskToEpic', () => {
+      it('should successfully add task to epic with bidirectional relationships', async () => {
+        mockStorageManager.getTask.mockResolvedValue({
+          success: true,
+          data: mockTask
+        });
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: mockEpic
+        });
+
+        mockStorageManager.updateTask.mockResolvedValue({
+          success: true,
+          data: { ...mockTask, epicId: 'epic-001' }
+        });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true,
+          data: { ...mockEpic, taskIds: ['task-001'] }
+        });
+
+        const result = await resolver.addTaskToEpic('task-001', 'epic-001', 'test-project');
+
+        expect(result.success).toBe(true);
+        expect(result.epicId).toBe('epic-001');
+        expect(result.taskId).toBe('task-001');
+        expect(result.relationshipType).toBe('added');
+        expect(result.metadata.epicProgress).toBeDefined();
+        expect(result.metadata.taskCount).toBeDefined();
+        expect(result.metadata.completedTaskCount).toBeDefined();
+
+        // Verify task was updated
+        expect(mockStorageManager.updateTask).toHaveBeenCalledWith('task-001', expect.objectContaining({
+          epicId: 'epic-001'
+        }));
+
+        // Verify epic was updated
+        expect(mockStorageManager.updateEpic).toHaveBeenCalledWith('epic-001', expect.objectContaining({
+          taskIds: expect.arrayContaining(['task-001'])
+        }));
+      });
+
+      it('should handle task or epic not found', async () => {
+        mockStorageManager.getTask.mockResolvedValue({
+          success: false,
+          error: 'Task not found'
+        });
+
+        const result = await resolver.addTaskToEpic('invalid-task', 'epic-001', 'test-project');
+
+        expect(result.success).toBe(false);
+        expect(result.epicId).toBe('epic-001');
+        expect(result.taskId).toBe('invalid-task');
+        expect(result.relationshipType).toBe('added');
+      });
+
+      it('should prevent duplicate task additions', async () => {
+        const epicWithTask = {
+          ...mockEpic,
+          taskIds: ['task-001'] // Task already exists
+        };
+
+        mockStorageManager.getTask.mockResolvedValue({
+          success: true,
+          data: mockTask
+        });
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithTask
+        });
+
+        mockStorageManager.updateTask.mockResolvedValue({
+          success: true,
+          data: mockTask
+        });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true,
+          data: epicWithTask
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.addTaskToEpic('task-001', 'epic-001', 'test-project');
+
+        expect(result.success).toBe(true);
+        // Should not duplicate the task in taskIds
+        expect(mockStorageManager.updateEpic).toHaveBeenCalledWith('epic-001', expect.objectContaining({
+          taskIds: ['task-001'] // Should still be just one instance
+        }));
+      });
+    });
+
+    describe('moveTaskBetweenEpics', () => {
+      it('should successfully move task between epics', async () => {
+        const fromEpic = {
+          ...mockEpic,
+          taskIds: ['task-001']
+        };
+
+        const toEpic = {
+          ...mockToEpic,
+          taskIds: []
+        };
+
+        mockStorageManager.getTask.mockResolvedValue({
+          success: true,
+          data: mockTask
+        });
+
+        mockStorageManager.getEpic
+          .mockResolvedValueOnce({ success: true, data: fromEpic })
+          .mockResolvedValueOnce({ success: true, data: toEpic });
+
+        mockStorageManager.updateTask.mockResolvedValue({
+          success: true,
+          data: { ...mockTask, epicId: 'epic-002' }
+        });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.moveTaskBetweenEpics('task-001', 'epic-001', 'epic-002', 'test-project');
+
+        expect(result.success).toBe(true);
+        expect(result.epicId).toBe('epic-002');
+        expect(result.taskId).toBe('task-001');
+        expect(result.relationshipType).toBe('moved');
+        expect(result.previousEpicId).toBe('epic-001');
+
+        // Verify task epic was updated
+        expect(mockStorageManager.updateTask).toHaveBeenCalledWith('task-001', expect.objectContaining({
+          epicId: 'epic-002'
+        }));
+
+        // Verify both epics were updated
+        expect(mockStorageManager.updateEpic).toHaveBeenCalledTimes(2);
+      });
+
+      it('should handle missing task gracefully', async () => {
+        mockStorageManager.getTask.mockResolvedValue({
+          success: false,
+          error: 'Task not found'
+        });
+
+        const result = await resolver.moveTaskBetweenEpics('invalid-task', 'epic-001', 'epic-002', 'test-project');
+
+        expect(result.success).toBe(false);
+        expect(result.epicId).toBe('epic-002');
+        expect(result.taskId).toBe('invalid-task');
+        expect(result.relationshipType).toBe('moved');
+        expect(result.previousEpicId).toBe('epic-001');
+      });
+
+      it('should handle missing source epic gracefully', async () => {
+        mockStorageManager.getTask.mockResolvedValue({
+          success: true,
+          data: mockTask
+        });
+
+        mockStorageManager.getEpic
+          .mockResolvedValueOnce({ success: false, error: 'Epic not found' })
+          .mockResolvedValueOnce({ success: true, data: mockToEpic });
+
+        mockStorageManager.updateTask.mockResolvedValue({
+          success: true,
+          data: { ...mockTask, epicId: 'epic-002' }
+        });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.moveTaskBetweenEpics('task-001', 'epic-001', 'epic-002', 'test-project');
+
+        expect(result.success).toBe(true);
+        // Should still work even if source epic doesn't exist
+        expect(result.epicId).toBe('epic-002');
+      });
+    });
+
+    describe('calculateEpicProgress', () => {
+      it('should calculate comprehensive epic progress metrics', async () => {
+        const epicWithTasks = {
+          ...mockEpic,
+          taskIds: ['task-001', 'task-002', 'task-003']
+        };
+
+        const mockTasks = [
+          { id: 'task-001', status: 'completed', estimatedHours: 8, filePaths: ['file1.ts'] },
+          { id: 'task-002', status: 'in_progress', estimatedHours: 6, filePaths: ['file2.ts'] },
+          { id: 'task-003', status: 'blocked', estimatedHours: 4, filePaths: ['file1.ts'] }
+        ];
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithTasks
+        });
+
+        mockStorageManager.getTask
+          .mockResolvedValueOnce({ success: true, data: mockTasks[0] })
+          .mockResolvedValueOnce({ success: true, data: mockTasks[1] })
+          .mockResolvedValueOnce({ success: true, data: mockTasks[2] });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.calculateEpicProgress('epic-001');
+
+        expect(result.epicId).toBe('epic-001');
+        expect(result.totalTasks).toBe(3);
+        expect(result.completedTasks).toBe(1);
+        expect(result.inProgressTasks).toBe(1);
+        expect(result.blockedTasks).toBe(1);
+        expect(result.progressPercentage).toBe(33); // 1 of 3 completed
+
+        // Check resource utilization metrics
+        expect(result.resourceUtilization).toBeDefined();
+        expect(result.resourceUtilization.filePathConflicts).toBe(1); // file1.ts used by 2 tasks
+        expect(result.resourceUtilization.dependencyComplexity).toBeDefined();
+        expect(result.resourceUtilization.parallelizableTaskGroups).toBeDefined();
+      });
+
+      it('should handle epic with no tasks', async () => {
+        const emptyEpic = {
+          ...mockEpic,
+          taskIds: []
+        };
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: emptyEpic
+        });
+
+        const result = await resolver.calculateEpicProgress('epic-001');
+
+        expect(result.epicId).toBe('epic-001');
+        expect(result.totalTasks).toBe(0);
+        expect(result.completedTasks).toBe(0);
+        expect(result.progressPercentage).toBe(0);
+      });
+
+      it('should handle epic not found', async () => {
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: false,
+          error: 'Epic not found'
+        });
+
+        const result = await resolver.calculateEpicProgress('invalid-epic');
+
+        expect(result.epicId).toBe('invalid-epic');
+        expect(result.totalTasks).toBe(0);
+        expect(result.completedTasks).toBe(0);
+        expect(result.progressPercentage).toBe(0);
+      });
+    });
+
+    describe('updateEpicStatusFromTasks', () => {
+      it('should update epic status to completed when all tasks completed', async () => {
+        const epicWithCompletedTasks = {
+          ...mockEpic,
+          status: 'in_progress',
+          taskIds: ['task-001', 'task-002']
+        };
+
+        const completedTasks = [
+          { id: 'task-001', status: 'completed' },
+          { id: 'task-002', status: 'completed' }
+        ];
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithCompletedTasks
+        });
+
+        mockStorageManager.getTask
+          .mockResolvedValueOnce({ success: true, data: completedTasks[0] })
+          .mockResolvedValueOnce({ success: true, data: completedTasks[1] });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.updateEpicStatusFromTasks('epic-001');
+
+        expect(result).toBe(true);
+        expect(mockStorageManager.updateEpic).toHaveBeenCalledWith('epic-001', expect.objectContaining({
+          status: 'completed'
+        }));
+      });
+
+      it('should update epic status to in_progress when some tasks started', async () => {
+        const epicWithMixedTasks = {
+          ...mockEpic,
+          status: 'todo',
+          taskIds: ['task-001', 'task-002']
+        };
+
+        const mixedTasks = [
+          { id: 'task-001', status: 'completed' },
+          { id: 'task-002', status: 'pending' }
+        ];
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithMixedTasks
+        });
+
+        mockStorageManager.getTask
+          .mockResolvedValueOnce({ success: true, data: mixedTasks[0] })
+          .mockResolvedValueOnce({ success: true, data: mixedTasks[1] });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.updateEpicStatusFromTasks('epic-001');
+
+        expect(result).toBe(true);
+        expect(mockStorageManager.updateEpic).toHaveBeenCalledWith('epic-001', expect.objectContaining({
+          status: 'in_progress'
+        }));
+      });
+
+      it('should update epic status to blocked when all tasks blocked', async () => {
+        const epicWithBlockedTasks = {
+          ...mockEpic,
+          status: 'in_progress',
+          taskIds: ['task-001', 'task-002']
+        };
+
+        const blockedTasks = [
+          { id: 'task-001', status: 'blocked' },
+          { id: 'task-002', status: 'blocked' }
+        ];
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithBlockedTasks
+        });
+
+        mockStorageManager.getTask
+          .mockResolvedValueOnce({ success: true, data: blockedTasks[0] })
+          .mockResolvedValueOnce({ success: true, data: blockedTasks[1] });
+
+        mockStorageManager.updateEpic.mockResolvedValue({
+          success: true
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.updateEpicStatusFromTasks('epic-001');
+
+        expect(result).toBe(true);
+        expect(mockStorageManager.updateEpic).toHaveBeenCalledWith('epic-001', expect.objectContaining({
+          status: 'blocked'
+        }));
+      });
+
+      it('should return false when epic not found', async () => {
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: false,
+          error: 'Epic not found'
+        });
+
+        const result = await resolver.updateEpicStatusFromTasks('invalid-epic');
+
+        expect(result).toBe(false);
+        expect(mockStorageManager.updateEpic).not.toHaveBeenCalled();
+      });
+
+      it('should not update status if no change needed', async () => {
+        const epicWithCorrectStatus = {
+          ...mockEpic,
+          status: 'completed',
+          taskIds: ['task-001']
+        };
+
+        const completedTask = { id: 'task-001', status: 'completed' };
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithCorrectStatus
+        });
+
+        mockStorageManager.getTask.mockResolvedValue({
+          success: true,
+          data: completedTask
+        });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.updateEpicStatusFromTasks('epic-001');
+
+        expect(result).toBe(false); // No change needed
+        expect(mockStorageManager.updateEpic).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('resource conflict detection', () => {
+      it('should detect file path conflicts between tasks', async () => {
+        const epicWithConflicts = {
+          ...mockEpic,
+          taskIds: ['task-001', 'task-002', 'task-003']
+        };
+
+        const conflictingTasks = [
+          { id: 'task-001', status: 'pending', filePaths: ['shared.ts', 'file1.ts'] },
+          { id: 'task-002', status: 'pending', filePaths: ['shared.ts', 'file2.ts'] },
+          { id: 'task-003', status: 'pending', filePaths: ['file3.ts'] }
+        ];
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithConflicts
+        });
+
+        mockStorageManager.getTask
+          .mockResolvedValueOnce({ success: true, data: conflictingTasks[0] })
+          .mockResolvedValueOnce({ success: true, data: conflictingTasks[1] })
+          .mockResolvedValueOnce({ success: true, data: conflictingTasks[2] });
+
+        mockStorageManager.getDependenciesForTask.mockResolvedValue([]);
+
+        const result = await resolver.calculateEpicProgress('epic-001');
+
+        expect(result.resourceUtilization.filePathConflicts).toBe(1); // 'shared.ts' used by 2 tasks
+      });
+
+      it('should calculate dependency complexity', async () => {
+        const epicWithDependencies = {
+          ...mockEpic,
+          taskIds: ['task-001', 'task-002']
+        };
+
+        const tasksWithDeps = [
+          { id: 'task-001', status: 'pending' },
+          { id: 'task-002', status: 'pending' }
+        ];
+
+        mockStorageManager.getEpic.mockResolvedValue({
+          success: true,
+          data: epicWithDependencies
+        });
+
+        mockStorageManager.getTask
+          .mockResolvedValueOnce({ success: true, data: tasksWithDeps[0] })
+          .mockResolvedValueOnce({ success: true, data: tasksWithDeps[1] });
+
+        // Mock dependencies
+        mockStorageManager.getDependenciesForTask
+          .mockResolvedValueOnce([{ id: 'dep1' }, { id: 'dep2' }]) // task-001 has 2 deps
+          .mockResolvedValueOnce([{ id: 'dep3' }]); // task-002 has 1 dep
+
+        const result = await resolver.calculateEpicProgress('epic-001');
+
+        expect(result.resourceUtilization.dependencyComplexity).toBeGreaterThan(0);
       });
     });
   });

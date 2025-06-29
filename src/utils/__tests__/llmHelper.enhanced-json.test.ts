@@ -167,7 +167,7 @@ describe('Enhanced JSON Sanitization Pipeline', () => {
   describe('Advanced Edge Cases', () => {
     it('should handle deeply nested objects (limit depth)', () => {
       // Create a deeply nested object that exceeds the limit
-      let deepObject = '{"level1": {"level2": {"level3": {"level4": {"level5": "deep"}}}}}';
+      const deepObject = '{"level1": {"level2": {"level3": {"level4": {"level5": "deep"}}}}}';
       const result = normalizeJsonResponse(deepObject);
       const parsed = JSON.parse(result);
       expect(parsed.level1.level2.level3.level4.level5).toBe('deep');

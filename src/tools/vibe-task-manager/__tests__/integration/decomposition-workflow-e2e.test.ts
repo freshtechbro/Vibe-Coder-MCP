@@ -3,7 +3,16 @@
  * Tests the complete decomposition workflow with all our fixes
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
 import { getDecompositionService } from '../../services/decomposition-service.js';
 import { getTaskOperations } from '../../core/operations/task-operations.js';
@@ -12,16 +21,56 @@ import type { CreateProjectParams } from '../../core/operations/project-operatio
 import type { AtomicTask } from '../../types/task.js';
 import logger from '../../../../logger.js';
 
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    tasks: [{
+      title: 'Test Subtask',
+      description: 'Test subtask description',
+      estimatedHours: 0.1,
+      acceptanceCriteria: ['Test criteria'],
+      priority: 'medium'
+    }]
+  }))
+}));
+
 describe('End-to-End Decomposition Workflow', () => {
   let projectId: string;
   let testProjectName: string;
 
   beforeEach(async () => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `e2e-workflow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(5, 'create_task')
+      .addAtomicDetections(20, true)
+      .addTaskDecompositions(10, 3);
+    builder.queueResponses();
+    
     testProjectName = `E2E-Test-${Date.now()}`;
     logger.info({ testProjectName }, 'Starting E2E decomposition workflow test');
   });
 
   afterEach(async () => {
+    // Clean up mock queue after each test
+    clearMockQueue();
+    
     // Cleanup test project if created
     if (projectId) {
       try {
@@ -32,6 +81,11 @@ describe('End-to-End Decomposition Workflow', () => {
         logger.warn({ err: error, projectId }, 'Failed to cleanup test project');
       }
     }
+  });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
   });
 
   it('should execute complete decomposition workflow with all fixes', async () => {

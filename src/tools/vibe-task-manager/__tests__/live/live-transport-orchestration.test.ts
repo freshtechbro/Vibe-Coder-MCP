@@ -28,7 +28,7 @@ describe('🚀 Live Transport & Orchestration - HTTP/SSE/Agent Integration', () 
   let projectContext: ProjectContext;
   let httpServerUrl: string;
   let sseServerUrl: string;
-  let registeredAgents: string[] = [];
+  const registeredAgents: string[] = [];
   let orchestratedTasks: AtomicTask[] = [];
 
   beforeAll(async () => {

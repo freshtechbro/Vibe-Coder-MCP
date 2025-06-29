@@ -3,12 +3,40 @@
  * Tests core functionality with minimal dependencies
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
 import { transportManager } from '../../../../services/transport-manager/index.js';
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import type { AtomicTask } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
+
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    tasks: [{
+      title: 'Test Subtask',
+      description: 'Test subtask description',
+      estimatedHours: 0.1,
+      acceptanceCriteria: ['Test criteria'],
+      priority: 'medium'
+    }]
+  }))
+}));
 import { setupUniqueTestPorts, cleanupTestPorts } from '../../../../services/transport-manager/__tests__/test-port-utils.js';
 
 // Test timeout for real operations
@@ -18,6 +46,26 @@ describe('Vibe Task Manager - Basic Integration Tests', () => {
   let taskScheduler: TaskScheduler;
   let testPortRange: ReturnType<typeof setupUniqueTestPorts>;
 
+  beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `basic-integration-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(3, 'create_task')
+      .addAtomicDetections(10, true)
+      .addTaskDecompositions(2, 2);
+    builder.queueResponses();
+  });
+  
   beforeAll(async () => {
     // Set up unique ports to avoid conflicts
     testPortRange = setupUniqueTestPorts();
@@ -28,7 +76,15 @@ describe('Vibe Task Manager - Basic Integration Tests', () => {
     logger.info('Starting basic integration tests');
   }, TEST_TIMEOUT);
 
+  afterEach(() => {
+    // Clean up mock queue after each test
+    clearMockQueue();
+  });
+  
   afterAll(async () => {
+    // Clean up all mock queues
+    clearAllMockQueues();
+    
     // Cleanup
     try {
       await transportManager.stopAll();

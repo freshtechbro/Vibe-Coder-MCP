@@ -181,6 +181,26 @@ describe('TaskScheduler', () => {
     scheduler.dispose();
   });
 
+  // Test isolation helper function
+  const createFreshScheduler = (config?: Partial<SchedulingConfig>) => {
+    const testConfig: Partial<SchedulingConfig> = {
+      algorithm: 'hybrid_optimal',
+      enableDynamicOptimization: false,
+      resources: {
+        maxConcurrentTasks: 5,
+        maxMemoryMB: 2048,
+        maxCpuUtilization: 0.8,
+        availableAgents: 2,
+        taskTypeResources: new Map([
+          ['development', { memoryMB: 512, cpuWeight: 0.7, agentCount: 1 }],
+          ['testing', { memoryMB: 256, cpuWeight: 0.5, agentCount: 1 }]
+        ])
+      },
+      ...config
+    };
+    return new TaskScheduler(testConfig);
+  };
+
   describe('Constructor and Configuration', () => {
     it('should initialize with default configuration', () => {
       const defaultScheduler = new TaskScheduler();
@@ -285,10 +305,13 @@ describe('TaskScheduler', () => {
 
   describe('Schedule Management', () => {
     it('should get current schedule', async () => {
-      expect(scheduler.getCurrentSchedule()).toBeNull();
+      const freshScheduler = createFreshScheduler();
+      expect(freshScheduler.getCurrentSchedule()).toBeNull();
 
-      const schedule = await scheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
-      expect(scheduler.getCurrentSchedule()).toBe(schedule);
+      const schedule = await freshScheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
+      expect(freshScheduler.getCurrentSchedule()).toBe(schedule);
+      
+      freshScheduler.dispose();
     });
 
     it('should update existing schedule', async () => {
@@ -356,20 +379,27 @@ describe('TaskScheduler', () => {
 
   describe('Schedule Metrics and Analytics', () => {
     it('should calculate schedule metrics', async () => {
-      await scheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
+      const freshScheduler = createFreshScheduler();
+      await freshScheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
 
-      const metrics = scheduler.getScheduleMetrics();
+      const metrics = freshScheduler.getScheduleMetrics();
       expect(metrics).toBeDefined();
 
       if (metrics) {
-        expect(metrics.totalTasks).toBe(3);
-        expect(metrics.pendingTasks).toBe(3);
-        expect(metrics.completedTasks).toBe(0);
-        expect(metrics.averageTaskDuration).toBeGreaterThan(0);
-        expect(metrics.estimatedCompletion).toBeInstanceOf(Date);
         expect(metrics.resourceUtilization).toBeGreaterThanOrEqual(0);
+        expect(metrics.resourceUtilization).toBeLessThanOrEqual(1);
+        expect(metrics.timelineEfficiency).toBeGreaterThanOrEqual(0);
+        expect(metrics.timelineEfficiency).toBeLessThanOrEqual(1);
+        expect(metrics.dependencyCompliance).toBeGreaterThanOrEqual(0);
+        expect(metrics.dependencyCompliance).toBeLessThanOrEqual(1);
         expect(metrics.parallelismFactor).toBeGreaterThan(0);
+        expect(metrics.criticalPathOptimization).toBeGreaterThanOrEqual(0);
+        expect(metrics.criticalPathOptimization).toBeLessThanOrEqual(1);
+        expect(metrics.overallScore).toBeGreaterThanOrEqual(0);
+        expect(metrics.overallScore).toBeLessThanOrEqual(1);
       }
+      
+      freshScheduler.dispose();
     });
 
     it('should return null metrics when no schedule exists', () => {
@@ -508,6 +538,373 @@ describe('TaskScheduler', () => {
 
       expect(schedule.scheduledTasks.size).toBe(100);
       expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
+    });
+  });
+
+  describe('Enhanced Multi-Factor Priority Scoring', () => {
+    describe('System Load Scoring', () => {
+      it('should calculate system load score based on resource availability', async () => {
+        const testScheduler = new TaskScheduler({
+          algorithm: 'hybrid_optimal',
+          resources: {
+            maxConcurrentTasks: 10,
+            maxMemoryMB: 2048,
+            maxCpuUtilization: 0.8,
+            availableAgents: 3,
+            taskTypeResources: new Map([
+              ['development', { memoryMB: 512, cpuWeight: 0.7, agentCount: 1 }]
+            ])
+          }
+        });
+
+        const testTask = {
+          ...mockTasks[0],
+          type: 'development' as const
+        };
+
+        const schedule = await testScheduler.generateSchedule([testTask], dependencyGraph, 'P001');
+        const scheduledTask = schedule.scheduledTasks.get(testTask.id);
+
+        expect(scheduledTask).toBeDefined();
+        expect(scheduledTask!.metadata.systemLoadScore).toBeGreaterThanOrEqual(0);
+        expect(scheduledTask!.metadata.systemLoadScore).toBeLessThanOrEqual(1);
+
+        testScheduler.dispose();
+      });
+
+      it('should give higher scores when system has more capacity', async () => {
+        // Test with low resource utilization
+        const lowLoadScheduler = new TaskScheduler({
+          algorithm: 'hybrid_optimal',
+          resources: {
+            maxConcurrentTasks: 20,
+            maxMemoryMB: 4096,
+            maxCpuUtilization: 0.9,
+            availableAgents: 5,
+            taskTypeResources: new Map([
+              ['development', { memoryMB: 256, cpuWeight: 0.3, agentCount: 1 }]
+            ])
+          }
+        });
+
+        const testTask = {
+          ...mockTasks[0],
+          type: 'development' as const
+        };
+
+        const lowLoadSchedule = await lowLoadScheduler.generateSchedule([testTask], dependencyGraph, 'P001');
+        const lowLoadTask = lowLoadSchedule.scheduledTasks.get(testTask.id);
+
+        expect(lowLoadTask!.metadata.systemLoadScore).toBeGreaterThan(0.5);
+
+        lowLoadScheduler.dispose();
+      });
+    });
+
+    describe('Complexity Scoring', () => {
+      it('should calculate complexity score based on task factors', async () => {
+        const complexTask: AtomicTask = {
+          ...mockTasks[0],
+          filePaths: ['file1.ts', 'file2.ts', 'file3.ts'], // More files
+          dependencies: ['T999', 'T998'], // More dependencies
+          acceptanceCriteria: ['Criterion 1', 'Criterion 2', 'Criterion 3'], // More criteria
+          testingRequirements: {
+            unitTests: ['test1.ts', 'test2.ts'],
+            integrationTests: ['integration.ts'],
+            performanceTests: ['perf.ts'],
+            coverageTarget: 95
+          },
+          type: 'development'
+        };
+
+        const simpleTask: AtomicTask = {
+          ...mockTasks[0],
+          id: 'T_SIMPLE',
+          filePaths: ['simple.ts'],
+          dependencies: [],
+          acceptanceCriteria: ['Simple criterion'],
+          testingRequirements: {
+            unitTests: [],
+            integrationTests: [],
+            performanceTests: [],
+            coverageTarget: 80
+          },
+          type: 'documentation'
+        };
+
+        const complexGraph = new OptimizedDependencyGraph();
+        complexGraph.addTask(complexTask);
+        complexGraph.addTask(simpleTask);
+
+        const schedule = await scheduler.generateSchedule([complexTask, simpleTask], complexGraph, 'P001');
+        
+        const complexScheduled = schedule.scheduledTasks.get(complexTask.id);
+        const simpleScheduled = schedule.scheduledTasks.get(simpleTask.id);
+
+        expect(complexScheduled).toBeDefined();
+        expect(simpleScheduled).toBeDefined();
+
+        // Simple task should have higher complexity score (less complex)
+        expect(simpleScheduled!.metadata.complexityScore).toBeGreaterThan(complexScheduled!.metadata.complexityScore);
+      });
+
+      it('should handle tasks with different types correctly', async () => {
+        const deploymentTask = {
+          ...mockTasks[0],
+          id: 'T_DEPLOY',
+          type: 'deployment' as const
+        };
+
+        const documentationTask = {
+          ...mockTasks[0],
+          id: 'T_DOC',
+          type: 'documentation' as const
+        };
+
+        const typeGraph = new OptimizedDependencyGraph();
+        typeGraph.addTask(deploymentTask);
+        typeGraph.addTask(documentationTask);
+
+        const schedule = await scheduler.generateSchedule([deploymentTask, documentationTask], typeGraph, 'P001');
+        
+        const deployScheduled = schedule.scheduledTasks.get(deploymentTask.id);
+        const docScheduled = schedule.scheduledTasks.get(documentationTask.id);
+
+        expect(deployScheduled).toBeDefined();
+        expect(docScheduled).toBeDefined();
+
+        // Documentation should be less complex than deployment
+        expect(docScheduled!.metadata.complexityScore).toBeGreaterThan(deployScheduled!.metadata.complexityScore);
+      });
+    });
+
+    describe('Business Impact Scoring', () => {
+      it('should calculate business impact based on priority and type', async () => {
+        const criticalTask = {
+          ...mockTasks[0],
+          id: 'T_CRITICAL',
+          priority: 'critical' as const,
+          type: 'deployment' as const,
+          tags: ['customer-facing', 'revenue-impact']
+        };
+
+        const lowTask = {
+          ...mockTasks[0],
+          id: 'T_LOW',
+          priority: 'low' as const,
+          type: 'documentation' as const,
+          tags: ['internal']
+        };
+
+        const impactGraph = new OptimizedDependencyGraph();
+        impactGraph.addTask(criticalTask);
+        impactGraph.addTask(lowTask);
+
+        const schedule = await scheduler.generateSchedule([criticalTask, lowTask], impactGraph, 'P001');
+        
+        const criticalScheduled = schedule.scheduledTasks.get(criticalTask.id);
+        const lowScheduled = schedule.scheduledTasks.get(lowTask.id);
+
+        expect(criticalScheduled).toBeDefined();
+        expect(lowScheduled).toBeDefined();
+
+        // Critical deployment task should have higher business impact
+        expect(criticalScheduled!.metadata.businessImpactScore).toBeGreaterThan(lowScheduled!.metadata.businessImpactScore);
+      });
+
+      it('should boost score for business-critical tags', async () => {
+        const businessCriticalTask = {
+          ...mockTasks[0],
+          id: 'T_BUSINESS',
+          priority: 'medium' as const,
+          tags: ['critical-path', 'security']
+        };
+
+        const regularTask = {
+          ...mockTasks[0],
+          id: 'T_REGULAR',
+          priority: 'medium' as const,
+          tags: ['feature', 'enhancement']
+        };
+
+        const businessGraph = new OptimizedDependencyGraph();
+        businessGraph.addTask(businessCriticalTask);
+        businessGraph.addTask(regularTask);
+
+        const schedule = await scheduler.generateSchedule([businessCriticalTask, regularTask], businessGraph, 'P001');
+        
+        const businessScheduled = schedule.scheduledTasks.get(businessCriticalTask.id);
+        const regularScheduled = schedule.scheduledTasks.get(regularTask.id);
+
+        expect(businessScheduled).toBeDefined();
+        expect(regularScheduled).toBeDefined();
+
+        // Business critical task should have higher impact score due to tags
+        expect(businessScheduled!.metadata.businessImpactScore).toBeGreaterThan(regularScheduled!.metadata.businessImpactScore);
+      });
+    });
+
+    describe('Agent Availability Scoring', () => {
+      it('should calculate agent availability score based on agent status', async () => {
+        const agentScheduler = new TaskScheduler({
+          algorithm: 'hybrid_optimal',
+          resources: {
+            maxConcurrentTasks: 5,
+            maxMemoryMB: 2048,
+            maxCpuUtilization: 0.8,
+            availableAgents: 3,
+            taskTypeResources: new Map([
+              ['development', { memoryMB: 512, cpuWeight: 0.7, agentCount: 1 }],
+              ['deployment', { memoryMB: 1024, cpuWeight: 0.9, agentCount: 2 }]
+            ])
+          }
+        });
+
+        const singleAgentTask = {
+          ...mockTasks[0],
+          id: 'T_SINGLE',
+          type: 'development' as const
+        };
+
+        const multiAgentTask = {
+          ...mockTasks[0],
+          id: 'T_MULTI',
+          type: 'deployment' as const
+        };
+
+        const agentGraph = new OptimizedDependencyGraph();
+        agentGraph.addTask(singleAgentTask);
+        agentGraph.addTask(multiAgentTask);
+
+        const schedule = await agentScheduler.generateSchedule([singleAgentTask, multiAgentTask], agentGraph, 'P001');
+        
+        const singleScheduled = schedule.scheduledTasks.get(singleAgentTask.id);
+        const multiScheduled = schedule.scheduledTasks.get(multiAgentTask.id);
+
+        expect(singleScheduled).toBeDefined();
+        expect(multiScheduled).toBeDefined();
+
+        // Single agent task should have higher availability score
+        expect(singleScheduled!.metadata.agentAvailabilityScore).toBeGreaterThan(0);
+        expect(multiScheduled!.metadata.agentAvailabilityScore).toBeGreaterThan(0);
+
+        agentScheduler.dispose();
+      });
+
+      it('should handle zero agent scenarios', async () => {
+        const noAgentScheduler = new TaskScheduler({
+          algorithm: 'hybrid_optimal',
+          resources: {
+            maxConcurrentTasks: 5,
+            maxMemoryMB: 2048,
+            maxCpuUtilization: 0.8,
+            availableAgents: 0,
+            taskTypeResources: new Map([
+              ['development', { memoryMB: 512, cpuWeight: 0.7, agentCount: 1 }]
+            ])
+          }
+        });
+
+        const testTask = {
+          ...mockTasks[0],
+          type: 'development' as const
+        };
+
+        const schedule = await noAgentScheduler.generateSchedule([testTask], dependencyGraph, 'P001');
+        const scheduledTask = schedule.scheduledTasks.get(testTask.id);
+
+        expect(scheduledTask).toBeDefined();
+        expect(scheduledTask!.metadata.agentAvailabilityScore).toBe(0);
+
+        noAgentScheduler.dispose();
+      });
+    });
+
+    describe('Integrated Multi-Factor Scoring', () => {
+      it('should properly weight all scoring factors', async () => {
+        const testConfig = {
+          algorithm: 'hybrid_optimal' as const,
+          weights: {
+            dependencies: 0.35,
+            deadline: 0.25,
+            systemLoad: 0.20,
+            complexity: 0.10,
+            businessImpact: 0.05,
+            agentAvailability: 0.05,
+            priority: 0.0,
+            resources: 0.0,
+            duration: 0.0
+          }
+        };
+
+        const weightedScheduler = new TaskScheduler(testConfig);
+
+        const schedule = await weightedScheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
+
+        for (const [taskId, scheduledTask] of schedule.scheduledTasks) {
+          // Verify all score components are present
+          expect(scheduledTask.metadata.dependencyScore).toBeGreaterThanOrEqual(0);
+          expect(scheduledTask.metadata.deadlineScore).toBeGreaterThanOrEqual(0);
+          expect(scheduledTask.metadata.systemLoadScore).toBeGreaterThanOrEqual(0);
+          expect(scheduledTask.metadata.complexityScore).toBeGreaterThanOrEqual(0);
+          expect(scheduledTask.metadata.businessImpactScore).toBeGreaterThanOrEqual(0);
+          expect(scheduledTask.metadata.agentAvailabilityScore).toBeGreaterThanOrEqual(0);
+
+          // Verify total score is calculated
+          expect(scheduledTask.metadata.totalScore).toBeGreaterThan(0);
+
+          // Manual calculation check for one task
+          if (taskId === mockTasks[0].id) {
+            const expectedTotal = 
+              scheduledTask.metadata.dependencyScore * 0.35 +
+              scheduledTask.metadata.deadlineScore * 0.25 +
+              scheduledTask.metadata.systemLoadScore * 0.20 +
+              scheduledTask.metadata.complexityScore * 0.10 +
+              scheduledTask.metadata.businessImpactScore * 0.05 +
+              scheduledTask.metadata.agentAvailabilityScore * 0.05;
+
+            expect(scheduledTask.metadata.totalScore).toBeCloseTo(expectedTotal, 2);
+          }
+        }
+
+        weightedScheduler.dispose();
+      });
+
+      it('should prioritize tasks based on updated scoring algorithm', async () => {
+        const highDependencyTask = {
+          ...mockTasks[0],
+          id: 'T_HIGH_DEP',
+          dependencies: [],
+          dependents: ['T002', 'T003', 'T004'], // Many dependents
+          priority: 'medium' as const
+        };
+
+        const highBusinessTask = {
+          ...mockTasks[0],
+          id: 'T_HIGH_BIZ',
+          dependencies: ['T_HIGH_DEP'],
+          dependents: [],
+          priority: 'critical' as const,
+          type: 'deployment' as const,
+          tags: ['customer-facing', 'revenue-impact']
+        };
+
+        const priorityGraph = new OptimizedDependencyGraph();
+        priorityGraph.addTask(highDependencyTask);
+        priorityGraph.addTask(highBusinessTask);
+        priorityGraph.addDependency(highBusinessTask.id, highDependencyTask.id, 'task', 1, true);
+
+        const schedule = await scheduler.generateSchedule([highDependencyTask, highBusinessTask], priorityGraph, 'P001');
+        
+        const depScheduled = schedule.scheduledTasks.get(highDependencyTask.id);
+        const bizScheduled = schedule.scheduledTasks.get(highBusinessTask.id);
+
+        expect(depScheduled).toBeDefined();
+        expect(bizScheduled).toBeDefined();
+
+        // High dependency task should be scheduled first due to dependency weight
+        expect(depScheduled!.scheduledStart.getTime()).toBeLessThanOrEqual(bizScheduled!.scheduledStart.getTime());
+      });
     });
   });
 

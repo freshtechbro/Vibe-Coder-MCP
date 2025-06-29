@@ -29,7 +29,7 @@ const mockPortState = {
 vi.mock('net', () => {
   return {
     createServer: vi.fn(() => {
-      let errorHandler: Function | null = null;
+      let errorHandler: ((error: Error) => void) | null = null;
       
       const mockServer = {
         listen: vi.fn((port: number, callback?: () => void) => {
@@ -59,7 +59,7 @@ vi.mock('net', () => {
           return mockServer;
         }),
         
-        on: vi.fn((event: string, handler: Function) => {
+        on: vi.fn((event: string, handler: (error: Error) => void) => {
           if (event === 'error') {
             errorHandler = handler;
           }

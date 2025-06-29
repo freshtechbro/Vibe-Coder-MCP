@@ -5,17 +5,67 @@
  * to ensure the CommandGateway fixes work end-to-end.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import { CommandGateway } from '../../nl/command-gateway.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import logger from '../../../../logger.js';
+
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    intent: 'decompose_task',
+    confidence: 0.9,
+    parameters: {
+      task_id: 'T001',
+      decomposition_method: 'development_steps'
+    },
+    context: {
+      temporal: 'immediate',
+      urgency: 'normal'
+    },
+    alternatives: []
+  }))
+}));
 
 describe('Decomposition Natural Language Workflow Integration', () => {
   let commandGateway: CommandGateway;
   let mockConfig: OpenRouterConfig;
 
   beforeEach(async () => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `decomp-nl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(10, 'decompose_task')
+      .addAtomicDetections(15, true)
+      .addTaskDecompositions(5, 3);
+    builder.queueResponses();
+    
     // Initialize CommandGateway
     commandGateway = CommandGateway.getInstance();
     
@@ -36,6 +86,13 @@ describe('Decomposition Natural Language Workflow Integration', () => {
   afterEach(() => {
     // Clear command history between tests
     commandGateway.clearHistory('test-session');
+    // Clean up mock queue after each test
+    clearMockQueue();
+  });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
   });
 
   describe('Decompose Task Intent Processing', () => {

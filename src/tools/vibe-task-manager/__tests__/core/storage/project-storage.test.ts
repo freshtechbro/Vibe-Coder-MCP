@@ -2,20 +2,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ProjectStorage } from '../../../core/storage/project-storage.js';
 import { testData } from '../../utils/test-setup.js';
 
-// Mock FileUtils module
-vi.mock('../../../utils/file-utils.js', () => ({
-  FileUtils: {
-    ensureDirectory: vi.fn().mockResolvedValue({ success: true }),
-    fileExists: vi.fn().mockResolvedValue(false),
-    readFile: vi.fn().mockResolvedValue({ success: true, data: '{}' }),
-    writeFile: vi.fn().mockResolvedValue({ success: true }),
-    readJsonFile: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    writeJsonFile: vi.fn().mockResolvedValue({ success: true }),
-    readYamlFile: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    writeYamlFile: vi.fn().mockResolvedValue({ success: true }),
-    deleteFile: vi.fn().mockResolvedValue({ success: true }),
-    validateFilePath: vi.fn().mockResolvedValue({ valid: true })
-  }
+// Mock FileUtils module with factory function
+vi.mock('../../../utils/file-utils.js', () => {
+  return {
+    FileUtils: {
+      ensureDirectory: vi.fn(),
+      fileExists: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      readJsonFile: vi.fn(),
+      writeJsonFile: vi.fn(),
+      readYamlFile: vi.fn(),
+      writeYamlFile: vi.fn(),
+      deleteFile: vi.fn(),
+      validateFilePath: vi.fn()
+    }
+  };
+});
+
+// Mock the storage initialization utility
+vi.mock('../../../utils/storage-initialization.js', () => ({
+  initializeStorage: vi.fn()
 }));
 
 // Mock logger
@@ -32,14 +39,58 @@ vi.mock('../../../../../logger.js', () => ({
 describe('ProjectStorage', () => {
   let projectStorage: ProjectStorage;
   let mockFileUtils: any;
+  let mockInitializeStorage: any;
   const testDataDir = '/test/data';
 
   beforeEach(async () => {
     vi.clearAllMocks();
-
-    // Get the mocked FileUtils
+    
+    // Get the mocked FileUtils module and cast to mock type
     const fileUtilsModule = await import('../../../utils/file-utils.js');
     mockFileUtils = fileUtilsModule.FileUtils;
+    
+    // Get the mocked initializeStorage function
+    const storageModule = await import('../../../utils/storage-initialization.js');
+    mockInitializeStorage = storageModule.initializeStorage;
+    
+    // Use vi.mocked to ensure proper mock typing
+    try {
+      const mockedFileUtils = vi.mocked(mockFileUtils, true);
+      
+      // Set default resolved values for FileUtils mock functions
+      mockedFileUtils.ensureDirectory.mockResolvedValue({ success: true });
+      mockedFileUtils.fileExists.mockResolvedValue(false);
+      mockedFileUtils.readFile.mockResolvedValue({ success: true, data: '{}' });
+      mockedFileUtils.writeFile.mockResolvedValue({ success: true });
+      mockedFileUtils.readJsonFile.mockResolvedValue({ success: true, data: {} });
+      mockedFileUtils.writeJsonFile.mockResolvedValue({ success: true });
+      mockedFileUtils.readYamlFile.mockResolvedValue({ success: true, data: {} });
+      mockedFileUtils.writeYamlFile.mockResolvedValue({ success: true });
+      mockedFileUtils.deleteFile.mockResolvedValue({ success: true });
+      mockedFileUtils.validateFilePath.mockResolvedValue({ valid: true });
+      
+      // Update reference to use mocked version
+      mockFileUtils = mockedFileUtils;
+    } catch (error) {
+      console.error('Mock setup error:', error);
+      // Fallback to direct assignment
+      mockFileUtils = fileUtilsModule.FileUtils;
+    }
+
+    // Set default resolved value for initializeStorage
+    const mockedInitStorage = vi.mocked(mockInitializeStorage, true);
+    mockedInitStorage.mockResolvedValue({
+      success: true,
+      metadata: {
+        storageType: 'ProjectStorage',
+        dataDirectory: testDataDir,
+        directoriesCreated: [`${testDataDir}/projects`],
+        indexFilesCreated: [`${testDataDir}/projects-index.json`],
+        operation: 'initialize',
+        timestamp: new Date()
+      }
+    });
+    mockInitializeStorage = mockedInitStorage;
 
     projectStorage = new ProjectStorage(testDataDir);
   });
@@ -50,21 +101,38 @@ describe('ProjectStorage', () => {
 
   describe('initialize', () => {
     it('should initialize storage directories and index file', async () => {
-      mockFileUtils.ensureDirectory.mockResolvedValue({ success: true });
-      mockFileUtils.fileExists.mockResolvedValue(false);
-      mockFileUtils.writeJsonFile.mockResolvedValue({ success: true });
+      // Setup the mock to return success
+      mockInitializeStorage.mockResolvedValue({
+        success: true,
+        metadata: {
+          storageType: 'ProjectStorage',
+          dataDirectory: testDataDir,
+          directoriesCreated: [`${testDataDir}/projects`],
+          indexFilesCreated: [`${testDataDir}/projects-index.json`],
+          operation: 'initialize',
+          timestamp: new Date()
+        }
+      });
 
       const result = await projectStorage.initialize();
 
       expect(result.success).toBe(true);
-      expect(mockFileUtils.ensureDirectory).toHaveBeenCalledWith(`${testDataDir}/projects`);
-      expect(mockFileUtils.writeJsonFile).toHaveBeenCalled();
+      expect(mockInitializeStorage).toHaveBeenCalledWith('project', testDataDir, true);
     });
 
     it('should handle directory creation failure', async () => {
-      mockFileUtils.ensureDirectory.mockResolvedValue({
+      // Setup the mock to return failure
+      mockInitializeStorage.mockResolvedValue({
         success: false,
-        error: 'Permission denied'
+        error: 'Permission denied',
+        metadata: {
+          storageType: 'ProjectStorage',
+          dataDirectory: testDataDir,
+          directoriesCreated: [],
+          indexFilesCreated: [],
+          operation: 'initialize',
+          timestamp: new Date()
+        }
       });
 
       const result = await projectStorage.initialize();
@@ -74,13 +142,23 @@ describe('ProjectStorage', () => {
     });
 
     it('should skip index creation if file already exists', async () => {
-      mockFileUtils.ensureDirectory.mockResolvedValue({ success: true });
-      mockFileUtils.fileExists.mockResolvedValue(true);
+      // Setup the mock to return success (no index files created since they exist)
+      mockInitializeStorage.mockResolvedValue({
+        success: true,
+        metadata: {
+          storageType: 'ProjectStorage',
+          dataDirectory: testDataDir,
+          directoriesCreated: [`${testDataDir}/projects`],
+          indexFilesCreated: [], // Empty since files already exist
+          operation: 'initialize',
+          timestamp: new Date()
+        }
+      });
 
       const result = await projectStorage.initialize();
 
       expect(result.success).toBe(true);
-      expect(mockFileUtils.writeJsonFile).not.toHaveBeenCalled();
+      expect(mockInitializeStorage).toHaveBeenCalledWith('project', testDataDir, true);
     });
   });
 

@@ -4,17 +4,60 @@
  * Tests the auto-research triggering logic without complex dependencies
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { 
+  mockOpenRouterResponse, 
+  queueMockResponses, 
+  setTestId, 
+  clearMockQueue,
+  clearAllMockQueues,
+  MockTemplates,
+  MockQueueBuilder
+} from '../../../../testUtils/mockLLM.js';
 import { AutoResearchDetector } from '../../services/auto-research-detector.js';
 import { AtomicTask } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { ContextResult } from '../../services/context-enrichment-service.js';
 import { ResearchTriggerContext } from '../../types/research-types.js';
 
+// Mock all external dependencies to avoid live LLM calls
+vi.mock('../../../../utils/llmHelper.js', () => ({
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: true,
+    confidence: 0.95,
+    reasoning: 'Task is atomic and focused',
+    estimatedHours: 0.1
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    shouldTriggerResearch: false,
+    confidence: 0.9,
+    primaryReason: 'sufficient_context',
+    reasoning: ['Test context is sufficient'],
+    recommendedScope: { estimatedQueries: 0 }
+  }))
+}));
+
 describe('Auto-Research Triggering - Simplified Integration', () => {
   let detector: AutoResearchDetector;
 
   beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    
+    // Set unique test ID for isolation
+    const testId = `auto-research-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setTestId(testId);
+    
+    // Clear mock queue for this test
+    clearMockQueue();
+    
+    // Set up comprehensive mock queue for all potential LLM calls
+    const builder = new MockQueueBuilder();
+    builder
+      .addIntentRecognitions(3, 'research_need')
+      .addAtomicDetections(10, true);
+    builder.queueResponses();
+    
     detector = AutoResearchDetector.getInstance();
     detector.clearCache();
     detector.resetPerformanceMetrics();
@@ -22,6 +65,13 @@ describe('Auto-Research Triggering - Simplified Integration', () => {
 
   afterEach(() => {
     detector.clearCache();
+    // Clean up mock queue after each test
+    clearMockQueue();
+  });
+  
+  afterAll(() => {
+    // Clean up all mock queues
+    clearAllMockQueues();
   });
 
   describe('Trigger Condition Integration Tests', () => {
