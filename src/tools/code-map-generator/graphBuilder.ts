@@ -881,109 +881,69 @@ allKnownFunctions.set(methodId, { funcInfo: methodInfo, filePath: fileInfo.relat
 });
 });
 
-// CRITICAL FIX: Replace O(n²) nested loop with efficient search
-const maxFunctionsToProcess = 1000; // Limit total functions to process
-const maxEdgesToGenerate = 5000; // Limit total edges to prevent memory issues
-const processingStartTime = Date.now();
-const maxProcessingTime = 30000; // 30 seconds max processing time
-
-let functionsProcessed = 0;
-let edgesGenerated = 0;
-
-logger.info(`Starting function call graph generation with limits: ${maxFunctionsToProcess} functions, ${maxEdgesToGenerate} edges, ${maxProcessingTime}ms timeout`);
-
 // Create a pre-compiled list of function patterns for efficient matching
 const functionPatterns: Array<{ name: string, regex: RegExp, calleeId: string }> = [];
 
 // Only process qualified function IDs (contain ::) to avoid duplicates
 for (const [key, { funcInfo: calleeInfo, filePath: calleeFilePath, className: calleeClassName }] of allKnownFunctions) {
-if (!key.includes('::')) continue; // Skip non-qualified entries
+  if (!key.includes('::')) continue; // Skip non-qualified entries
 
-    const calleeName = calleeInfo.name;
-const calleeId = calleeClassName
-? `${calleeFilePath}::${calleeClassName}.${calleeName}`
-: `${calleeFilePath}::${calleeName}`;
+  const calleeName = calleeInfo.name;
+  const calleeId = calleeClassName
+    ? `${calleeFilePath}::${calleeClassName}.${calleeName}`
+    : `${calleeFilePath}::${calleeName}`;
 
-try {
-  const regex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);  
-  functionPatterns.push({ name: calleeName, regex, calleeId });
-    } catch (error) {
-  // Skip functions with names that can't be regex-escaped
-logger.debug(`Skipping function with problematic name: ${calleeName}`);
-}
+  try {
+    const regex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);  
+    functionPatterns.push({ name: calleeName, regex, calleeId });
+  } catch (error) {
+    // Skip functions with names that can't be regex-escaped
+    logger.debug(`Skipping function with problematic name: ${calleeName}`);
+  }
 }
 
 logger.info(`Created ${functionPatterns.length} function patterns for matching`);
 
 // Heuristic call detection with efficient single-pass matching
 for (const fileInfo of allFilesInfo) {
-// Check timeout
-if (Date.now() - processingStartTime > maxProcessingTime) {
-logger.warn(`Function call graph processing timed out after ${maxProcessingTime}ms`);
-break;
-}
+  const sourceCode = sourceCodeCache.get(fileInfo.filePath);
+  if (!sourceCode) continue;
 
-if (functionsProcessed >= maxFunctionsToProcess) {
-      logger.warn(`Reached maximum function processing limit: ${maxFunctionsToProcess}`);
-break;
-}
+  const processSymbolList = (symbols: FunctionInfo[], currentSymbolType: 'function' | 'method', currentClassName?: string) => {
+    for (const callerInfo of symbols) {
+      const callerId = currentClassName
+        ? `${fileInfo.relativePath}::${currentClassName}.${callerInfo.name}`
+        : `${fileInfo.relativePath}::${callerInfo.name}`;
 
-const sourceCode = sourceCodeCache.get(fileInfo.filePath);
-    if (!sourceCode) continue;
+      const functionBody = sourceCode.substring(
+        sourceCode.indexOf('{', callerInfo.startLine > 0 ? sourceCode.indexOf('\n', callerInfo.startLine - 1) : 0), // Approx start
+        sourceCode.lastIndexOf('}', callerInfo.endLine > 0 ? sourceCode.indexOf('\n', callerInfo.endLine) : sourceCode.length) //Approx end
+      );
 
-    const processSymbolList = (symbols: FunctionInfo[], currentSymbolType: 'function' | 'method', currentClassName?: string) => {
-for (const callerInfo of symbols) {
-// Check limits
-if (functionsProcessed >= maxFunctionsToProcess || edgesGenerated >= maxEdgesToGenerate) {
-  break;
-}
+      if (!functionBody) continue;
 
-if (Date.now() - processingStartTime > maxProcessingTime) {
-break;
-}
+      // CRITICAL FIX: Single-pass pattern matching instead of nested loops
+      for (const { name: calleeName, regex: callRegex, calleeId } of functionPatterns) {
+        if (callerId === calleeId) continue; // Don't link to self
 
-functionsProcessed++;
-  
-const callerId = currentClassName
-? `${fileInfo.relativePath}::${currentClassName}.${callerInfo.name}`
-: `${fileInfo.relativePath}::${callerInfo.name}`;
-
-const functionBody = sourceCode.substring(
-          sourceCode.indexOf('{', callerInfo.startLine > 0 ? sourceCode.indexOf('\n', callerInfo.startLine - 1) : 0), // Approx start
-sourceCode.lastIndexOf('}', callerInfo.endLine > 0 ? sourceCode.indexOf('\n', callerInfo.endLine) : sourceCode.length) //Approx end
-);
-
-if (!functionBody) continue;
-
-// CRITICAL FIX: Single-pass pattern matching instead of nested loops
-for (const { name: calleeName, regex: callRegex, calleeId } of functionPatterns) {
-if (edgesGenerated >= maxEdgesToGenerate) {
-break;
-}
-
-  if (callerId === calleeId) continue; // Don't link to self
-
-      if (callRegex.test(functionBody)) {
-            edges.push({
-          from: callerId,
-          to: calleeId,
-        label: 'calls?', // Indicate heuristic nature
-    });
-      edgesGenerated++;
+        if (callRegex.test(functionBody)) {
+          edges.push({
+            from: callerId,
+            to: calleeId,
+            label: 'calls?', // Indicate heuristic nature
+          });
+        }
       }
-      }
-      }
+    }
   };
 
   processSymbolList(fileInfo.functions, 'function');
   fileInfo.classes.forEach(classInfo => {
-    if (functionsProcessed < maxFunctionsToProcess && edgesGenerated < maxEdgesToGenerate) {
-        processSymbolList(classInfo.methods, 'method', classInfo.name);
-    }
-    });
-  }
+    processSymbolList(classInfo.methods, 'method', classInfo.name);
+  });
+}
 
-  logger.info(`Function call graph generation completed: ${functionsProcessed} functions processed, ${edgesGenerated} edges generated`);
+logger.info(`Function call graph generation completed: ${edges.length} edges generated`);
 
   // Remove duplicate nodes
   const uniqueNodeIds = new Set(nodes.map(n => n.id));

@@ -1,4 +1,4 @@
-# Vibe Coder MCP Server v2.6.2
+# Vibe Coder MCP Server v2.6.0
 
 ![Test](https://github.com/freshtechbro/Vibe-Coder-MCP/actions/workflows/test.yml/badge.svg)
 
@@ -337,7 +337,7 @@ The location varies depending on your AI assistant:
 
 ## Current System Status
 
-### ✅ CONFIRMED WORKING (v2.6.2)
+### ✅ CONFIRMED WORKING (v2.6.3)
 - **All LLM-dependent tools**: Successfully using free models without 402 Payment Required errors ✅
   - User Stories Generator ✅
   - PRD Generator ✅
@@ -437,7 +437,7 @@ Interact with the tools via your connected AI assistant:
 
 ## Known Issues
 
-### File-Based Task Management (v2.6.1) - PATH VALIDATION ISSUE
+### File-Based Task Management (v2.6.3) - PATH VALIDATION ISSUE
 **Status**: Vibe Task Manager has path validation restrictions
 
 **Issue**: Overly restrictive file path security validation prevents task manager initialization.
