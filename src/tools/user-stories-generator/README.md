@@ -96,8 +96,8 @@ The User Stories Generator uses models defined in `llm_config.json`:
 {
   "llm_mapping": {
     "user_stories_research": "perplexity/sonar-deep-research",
-    "user_stories_generation": "google/gemini-2.5-flash-preview",
-    "acceptance_criteria_generation": "google/gemini-2.5-flash-preview"
+    "user_stories_generation": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "acceptance_criteria_generation": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```

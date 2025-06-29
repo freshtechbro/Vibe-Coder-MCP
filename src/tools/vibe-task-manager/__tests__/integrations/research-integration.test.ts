@@ -51,7 +51,7 @@ describe('ResearchIntegration', () => {
     mockGetConfig.mockResolvedValue({
       llm: {
         model: 'anthropic/claude-3-sonnet',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'perplexity/sonar-deep-research'
       }
     });

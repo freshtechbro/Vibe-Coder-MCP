@@ -95,8 +95,8 @@ The Research Manager uses models defined in `llm_config.json`:
 {
   "llm_mapping": {
     "research_query": "perplexity/sonar-deep-research",
-    "research_enhancement": "google/gemini-2.5-flash-preview",
-    "research_structuring": "google/gemini-2.5-flash-preview"
+    "research_enhancement": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "research_structuring": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```
@@ -340,7 +340,7 @@ OPENROUTER_API_KEY=your-actual-api-key-here
 // Check llm_config.json
 {
   "llm_mapping": {
-    "research_enhancement": "google/gemini-2.5-flash-preview"
+    "research_enhancement": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```

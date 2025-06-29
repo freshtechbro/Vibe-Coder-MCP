@@ -146,7 +146,7 @@ describe('Vibe Task Manager - Basic Integration Tests', () => {
     it('should have required environment variables', () => {
       const requiredEnvVars = [
         'OPENROUTER_API_KEY',
-        'GEMINI_MODEL'
+        'DEFAULT_MODEL'
       ];
 
       requiredEnvVars.forEach(envVar => {

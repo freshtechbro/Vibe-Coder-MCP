@@ -300,7 +300,7 @@ describe('Context Curator Type Definitions', () => {
         llmIntegration: {
           maxRetries: 3,
           timeoutMs: 30000,
-          fallbackModel: 'google/gemini-2.5-flash-preview'
+          fallbackModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 

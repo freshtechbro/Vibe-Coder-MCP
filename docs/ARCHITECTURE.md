@@ -347,12 +347,12 @@ graph TD
 ```json
 {
   "llm_mapping": {
-    "context_curation": "google/gemini-2.5-flash-preview",
-    "project_detection": "google/gemini-2.5-flash-preview",
+    "context_curation": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "project_detection": "deepseek/deepseek-r1-0528-qwen3-8b:free",
     "research_query": "perplexity/sonar-deep-research",
-    "research_enhancement": "google/gemini-2.5-flash-preview",
-    "task_generation": "google/gemini-2.5-flash-preview",
-    "code_analysis": "google/gemini-2.5-flash-preview"
+    "research_enhancement": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "task_generation": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "code_analysis": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```

@@ -312,7 +312,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
   // LLM Model Fallback
   VIBE_DEFAULT_LLM_MODEL: {
     key: 'VIBE_DEFAULT_LLM_MODEL',
-    defaultValue: 'google/gemini-2.5-flash-preview-05-20',
+    defaultValue: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
     type: 'string',
     required: false,
     description: 'Default LLM model to use as fallback'

@@ -11,10 +11,10 @@ describe('YAMLComposer Preprocessing Fix', () => {
   const mockConfig = {
     baseUrl: 'https://openrouter.ai/api/v1',
     apiKey: 'test-key',
-    geminiModel: 'google/gemini-2.5-flash-preview',
+    defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
     perplexityModel: 'perplexity/sonar-deep-research',
     llm_mapping: {
-      fullstack_starter_kit_dynamic_yaml_module_generation: 'google/gemini-2.5-flash-preview'
+      fullstack_starter_kit_dynamic_yaml_module_generation: 'deepseek/deepseek-r1-0528-qwen3-8b:free'
     }
   };
 

@@ -14,7 +14,7 @@ const createMockConfig = () => ({
     baseUrl: 'https://test.openrouter.ai/api/v1',
     apiKey: 'test-key',
     model: 'test-model',
-    geminiModel: 'test-gemini',
+    defaultModel: 'test-default',
     perplexityModel: 'test-perplexity'
   }
 });
@@ -162,7 +162,7 @@ vi.mock('../../utils/config-loader.js', () => ({
       baseUrl: 'https://test.openrouter.ai/api/v1',
       apiKey: 'test-key',
       model: 'test-model',
-      geminiModel: 'test-gemini',
+      defaultModel: 'test-default',
       perplexityModel: 'test-perplexity'
     }
   }),
@@ -178,7 +178,7 @@ describe('Session Persistence Integration Tests', () => {
       baseUrl: 'https://test.openrouter.ai/api/v1',
       apiKey: 'test-key',
       model: 'test-model',
-      geminiModel: 'test-gemini',
+      defaultModel: 'test-default',
       perplexityModel: 'test-perplexity'
     };
 

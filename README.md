@@ -58,7 +58,7 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 
 ### v2.6.0 (2025-06-29) ✅ MAJOR FIX
 **BREAKING CHANGES**
-- 🔧 **API Change**: Replaced `GEMINI_MODEL` environment variable with `DEFAULT_MODEL`
+- 🔧 **API Change**: Replaced `DEFAULT_MODEL` environment variable with `DEFAULT_MODEL`
 - 📝 **Config Update**: Updated `OpenRouterConfig` interface to use `defaultModel` instead of `geminiModel`
 
 **FIXED**
@@ -76,7 +76,7 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 - ✅ **All LLM Tools**: Complete functionality restored
 
 **MIGRATION GUIDE**
-- Replace `GEMINI_MODEL` with `DEFAULT_MODEL` in your `.env` file
+- Replace `DEFAULT_MODEL` with `DEFAULT_MODEL` in your `.env` file
 - Update any custom configurations to use the new `defaultModel` property
 - Free models are now used by default - no action required for cost savings
 
@@ -440,7 +440,7 @@ Interact with the tools via your connected AI assistant:
 
 ## Known Issues
 
-### File-Based Task Management (v2.6.0) - PATH VALIDATION ISSUE
+### File-Based Task Management (v2.6.1) - PATH VALIDATION ISSUE
 **Status**: Vibe Task Manager has path validation restrictions
 
 **Issue**: Overly restrictive file path security validation prevents task manager initialization.

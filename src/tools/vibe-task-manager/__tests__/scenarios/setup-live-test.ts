@@ -57,7 +57,7 @@ export async function validateTestConfiguration(): Promise<boolean> {
   // Check required environment variables
   const requiredEnvVars = [
     'OPENROUTER_API_KEY',
-    'GEMINI_MODEL',
+    'DEFAULT_MODEL',
     'OPENROUTER_BASE_URL'
   ];
 

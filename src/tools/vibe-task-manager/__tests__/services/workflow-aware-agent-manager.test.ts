@@ -107,7 +107,7 @@ describe('WorkflowAwareAgentManager', () => {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: expect.any(String), // API key will be from environment
         model: 'anthropic/claude-3-sonnet',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'llama-3.1-sonar-small-128k-online'
       });
     });

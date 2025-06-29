@@ -249,7 +249,7 @@ export async function getNextThought( // Added export back
   // Removed outer declaration: let rawContent: string | undefined;
 
   // Select the model using the utility function
-  const defaultModel = config.geminiModel || "google/gemini-2.5-flash-preview-05-20"; // Ensure a default model exists
+  const defaultModel = config.defaultModel || "deepseek/deepseek-r1-0528-qwen3-8b:free"; // Ensure a default model exists
   const modelToUse = selectModelForTask(config, logicalTaskName, defaultModel);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

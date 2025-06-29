@@ -114,7 +114,7 @@ export class LLMFallbackSystem {
       this.openRouterConfig = {
         baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
         apiKey: process.env.OPENROUTER_API_KEY || '',
-        geminiModel: 'google/gemini-2.5-flash-preview-05-20',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
         llm_mapping: config.llm.llm_mapping
       };

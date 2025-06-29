@@ -14,9 +14,9 @@ if (!process.env.OPENROUTER_API_KEY) {
   console.warn('Warning: OPENROUTER_API_KEY not found in environment variables');
 }
 
-if (!process.env.GEMINI_MODEL) {
+if (!process.env.DEFAULT_MODEL) {
   // Set default if not provided
-  process.env.GEMINI_MODEL = 'google/gemini-2.5-flash-preview-05-20';
+  process.env.DEFAULT_MODEL = 'deepseek/deepseek-r1-0528-qwen3-8b:free';
 }
 
 if (!process.env.OPENROUTER_BASE_URL) {
@@ -166,7 +166,7 @@ export const epicTestUtils = {
 console.log('Test environment setup complete');
 console.log('Environment variables loaded:', {
   OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
-  GEMINI_MODEL: !!process.env.GEMINI_MODEL,
+  DEFAULT_MODEL: !!process.env.DEFAULT_MODEL,
   OPENROUTER_BASE_URL: !!process.env.OPENROUTER_BASE_URL,
   NODE_ENV: process.env.NODE_ENV,
   EPIC_CREATION_TEST_MODE: process.env.EPIC_CREATION_TEST_MODE,

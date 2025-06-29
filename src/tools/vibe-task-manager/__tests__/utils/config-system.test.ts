@@ -226,8 +226,8 @@ describe('Configuration System', () => {
       const validConfig = {
         llm: {
           llm_mapping: {
-            'default_generation': 'google/gemini-2.5-flash-preview-05-20',
-            'task_decomposition': 'google/gemini-2.5-flash-preview-05-20'
+            'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+            'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
           }
         },
         mcp: {

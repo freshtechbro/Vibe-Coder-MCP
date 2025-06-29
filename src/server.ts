@@ -32,7 +32,7 @@ dotenv.config();
 // const config: OpenRouterConfig = {
 //   baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
 //   apiKey: process.env.OPENROUTER_API_KEY || "",
-//   geminiModel: process.env.GEMINI_MODEL || "google/gemini-2.0-flash-001",
+//   defaultModel: process.env.DEFAULT_MODEL || "google/gemini-2.0-flash-001",
 //   perplexityModel: process.env.PERPLEXITY_MODEL || "perplexity/sonar-deep-research"
 // };
 

@@ -69,7 +69,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
 
     mockConfig = {
       apiKey: 'test-api-key',
-      model: 'google/gemini-2.0-flash-exp',
+      model: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
       perplexityModel: 'perplexity/sonar-small-online'
     };
   });

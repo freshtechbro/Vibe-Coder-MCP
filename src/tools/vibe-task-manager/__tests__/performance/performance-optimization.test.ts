@@ -20,8 +20,8 @@ describe('Performance Optimization', () => {
     mockConfig = {
       llm: {
         llm_mapping: {
-          'task_decomposition': 'gemini-2.0-flash-exp',
-          'default_generation': 'gemini-2.0-flash-exp'
+          'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       },
       mcp: {

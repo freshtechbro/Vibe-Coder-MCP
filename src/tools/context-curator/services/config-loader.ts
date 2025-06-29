@@ -184,7 +184,7 @@ export class ContextCuratorConfigLoader {
    */
   getLLMModel(operation: string): string {
     if (!this.llmConfig) {
-      return 'google/gemini-2.5-flash-preview-05-20'; // fallback
+      return 'deepseek/deepseek-r1-0528-qwen3-8b:free'; // fallback
     }
 
     // Context Curator specific operations
@@ -202,7 +202,7 @@ export class ContextCuratorConfigLoader {
     return this.llmConfig.llm_mapping[prefixedOperation] ||
            this.llmConfig.llm_mapping[operation] ||
            this.llmConfig.llm_mapping['default_generation'] ||
-           'google/gemini-2.5-flash-preview-05-20';
+           'deepseek/deepseek-r1-0528-qwen3-8b:free';
   }
 
   /**

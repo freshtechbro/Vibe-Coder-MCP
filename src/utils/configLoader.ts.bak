@@ -76,7 +76,7 @@ export function loadLlmConfigMapping(
 
   // Define all models from .env
   const models = {
-    gemini: getModelFromEnv('GEMINI_MODEL', 'google/gemini-2.5-flash-preview-05-20'),
+    default: getModelFromEnv('DEFAULT_MODEL', 'deepseek/deepseek-r1-0528-qwen3-8b:free'),
     deepseek: getModelFromEnv('DEEPSEEK_MODEL', 'deepseek/deepseek-r1-0528-qwen3-8b:free'),
     qwen: getModelFromEnv('QWEN_MODEL', 'qwen/qwen3-30b-a3b:free'),
     kimi: getModelFromEnv('KIMI_MODEL', 'moonshotai/kimi-dev-72b:free'),
@@ -84,6 +84,7 @@ export function loadLlmConfigMapping(
     deepseekV3: getModelFromEnv('DEEPSEEK_V3_MODEL', 'deepseek/deepseek-v3-base:free'),
     minimax: getModelFromEnv('MINIMAX_MODEL', 'minimax/minimax-m1:free'),
     nvidia: getModelFromEnv('NVIDIA_MODEL', 'nvidia/llama-3.3-nemotron-super-49b-v1:free'),
+    gemini: getModelFromEnv('GEMINI_MODEL', 'google/gemini-2.5-flash-preview-05-20'),
     perplexity: getModelFromEnv('PERPLEXITY_MODEL', 'perplexity/sonar-deep-research')
   };
 

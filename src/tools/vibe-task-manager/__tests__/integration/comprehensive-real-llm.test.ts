@@ -479,12 +479,12 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
 
       expect(config.llm).toBeDefined();
       expect(process.env.OPENROUTER_API_KEY).toBeDefined();
-      expect(process.env.GEMINI_MODEL).toBeDefined();
+      expect(process.env.DEFAULT_MODEL).toBeDefined();
 
       logger.info({
         configLoaded: true,
         apiKeyConfigured: !!process.env.OPENROUTER_API_KEY,
-        modelConfigured: !!process.env.GEMINI_MODEL
+        modelConfigured: !!process.env.DEFAULT_MODEL
       }, 'Code map integration configuration verified');
     });
   });

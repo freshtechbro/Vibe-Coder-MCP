@@ -69,7 +69,7 @@ describe('Advanced Integration Testing', () => {
     mockConfig = {
       apiKey: 'test-key',
       baseUrl: 'https://test.openrouter.ai',
-      model: 'gemini-2.0-flash-exp'
+      model: 'deepseek/deepseek-r1-0528-qwen3-8b:free'
     };
   });
 

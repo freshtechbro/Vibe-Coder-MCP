@@ -709,7 +709,7 @@ Return only the queries, one per line, without numbering or formatting.
         this.openRouterConfig = {
           baseUrl: 'https://openrouter.ai/api/v1',
           apiKey: process.env.OPENROUTER_API_KEY || '',
-          geminiModel: 'gemini-pro',
+          defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
           perplexityModel: 'perplexity/sonar-deep-research'
         };
       }
@@ -718,7 +718,7 @@ Return only the queries, one per line, without numbering or formatting.
       this.openRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: process.env.OPENROUTER_API_KEY || '',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'perplexity/sonar-deep-research'
       };
     }

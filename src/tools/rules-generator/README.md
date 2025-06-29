@@ -96,8 +96,8 @@ The Rules Generator uses models defined in `llm_config.json`:
 {
   "llm_mapping": {
     "rules_research": "perplexity/sonar-deep-research",
-    "rules_generation": "google/gemini-2.5-flash-preview",
-    "rules_examples": "google/gemini-2.5-flash-preview"
+    "rules_generation": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "rules_examples": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```
