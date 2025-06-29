@@ -9,7 +9,7 @@ import logger from '../../logger.js';
 import { sseNotifier } from '../sse-notifier/index.js';
 import { websocketServer } from '../websocket-server/index.js';
 import { httpAgentAPI } from '../http-agent-api/index.js';
-import { PortRange, PortAllocator } from '../../utils/port-allocator.js';
+import { PortRange, PortAllocator, AllocationSummary } from '../../utils/port-allocator.js';
 
 // Transport configuration interface
 export interface TransportConfig {
@@ -472,8 +472,8 @@ class TransportManager {
   /**
    * Start individual services with their allocated ports using graceful degradation
    */
-  private async startServicesWithAllocatedPorts(allocationSummary: any): Promise<void> {
-    const serviceFailures: Array<{ service: string; reason: string; error?: any }> = [];
+  private async startServicesWithAllocatedPorts(allocationSummary: AllocationSummary): Promise<void> {
+    const serviceFailures: Array<{ service: string; reason: string; error?: Error }> = [];
     const serviceSuccesses: Array<{ service: string; port?: number; note?: string }> = [];
 
     logger.info('Starting transport services with graceful degradation enabled');
@@ -667,7 +667,7 @@ class TransportManager {
    */
   private logGracefulDegradationSummary(
     successes: Array<{ service: string; port?: number; note?: string }>,
-    failures: Array<{ service: string; reason: string; error?: any }>
+    failures: Array<{ service: string; reason: string; error?: Error }>
   ): void {
     const totalServices = successes.length + failures.length;
     const successRate = totalServices > 0 ? (successes.length / totalServices * 100).toFixed(1) : '0';
@@ -714,11 +714,11 @@ class TransportManager {
   /**
    * Log comprehensive startup summary with enhanced port allocation details
    */
-  private logStartupSummary(allocationSummary: any): void {
+  private logStartupSummary(allocationSummary: AllocationSummary): void {
     const successful: number[] = [];
     const attempted: number[] = [];
     const conflicts: number[] = [];
-    const serviceDetails: Record<string, any> = {};
+    const serviceDetails: Record<string, Record<string, unknown>> = {};
 
     // Collect detailed allocation information per service
     for (const [serviceName, allocation] of allocationSummary.allocations) {

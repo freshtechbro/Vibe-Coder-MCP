@@ -15,7 +15,7 @@ export interface WebSocketMessage {
   type: 'register' | 'task_assignment' | 'task_response' | 'heartbeat' | 'error';
   agentId?: string;
   sessionId?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   timestamp?: number;
 }
 
@@ -388,7 +388,7 @@ class WebSocketServerManager {
   }
 
   // Public methods for sending messages to agents
-  async sendTaskToAgent(agentId: string, taskPayload: any): Promise<boolean> {
+  async sendTaskToAgent(agentId: string, taskPayload: Record<string, unknown>): Promise<boolean> {
     try {
       const sessionId = this.agentConnections.get(agentId);
       if (!sessionId) {

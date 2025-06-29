@@ -11,12 +11,13 @@ import logger from '../../logger.js';
 import { AgentRegistry } from '../../tools/agent-registry/index.js';
 import { AgentTaskQueue } from '../../tools/agent-tasks/index.js';
 import { AgentResponseProcessor } from '../../tools/agent-response/index.js';
+import { TaskPayload } from '../../tools/vibe-task-manager/cli/sentinel-protocol.js';
 
 // HTTP API interfaces
 interface HTTPTaskRequest {
   agentId: string;
   taskId: string;
-  taskPayload: any;
+  taskPayload: TaskPayload;
   priority?: 'low' | 'normal' | 'high';
   deadline?: number;
 }
