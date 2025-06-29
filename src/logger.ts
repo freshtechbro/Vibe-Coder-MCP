@@ -1,9 +1,10 @@
 // src/logger.ts
-import { pino } from 'pino';
+import { pino, Logger } from 'pino';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
+const isStdioTransport = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
 const effectiveLogLevel = process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
 
 // --- Calculate paths ---
@@ -12,12 +13,17 @@ const __dirname = path.dirname(__filename);
 // Log file in the project root directory (one level up from src)
 const logFilePath = path.resolve(__dirname, '../server.log');
 
-// --- Create streams ---
+// --- Create streams with graceful shutdown support ---
+// Store references to destinations for cleanup
+const fileDestination = pino.destination(logFilePath);
+const consoleStream = (isDevelopment && !isStdioTransport) ? process.stdout : process.stderr;
+
 // Log to file and also to the original console stream
 const streams = [
-  { level: effectiveLogLevel, stream: pino.destination(logFilePath) },
-  // Redirect console output to stderr when not in development to avoid interfering with MCP stdio
-  { level: effectiveLogLevel, stream: isDevelopment ? process.stdout : process.stderr }
+  { level: effectiveLogLevel, stream: fileDestination },
+  // Always use stderr when stdio transport is detected to avoid interfering with MCP JSON-RPC protocol
+  // In development, only use stdout if NOT using stdio transport
+  { level: effectiveLogLevel, stream: consoleStream }
 ];
 
 
@@ -41,7 +47,8 @@ const configuredLogger = pino(
     },
     // --- End Redaction ---
     // Transport is applied *after* multistream, only affects console output here
-    transport: isDevelopment
+    // Only use pretty printing in development AND when not using stdio transport
+    transport: (isDevelopment && !isStdioTransport)
       ? {
           target: 'pino-pretty',
           options: {
@@ -50,10 +57,213 @@ const configuredLogger = pino(
             ignore: 'pid,hostname', // Pretty print options
           },
         }
-      : undefined, // Use default JSON transport for console when not in development
+      : undefined, // Use default JSON transport for console when not in development or using stdio
   },
   pino.multistream(streams) // Use multistream for output destinations
 );
 
+// --- Graceful shutdown handling ---
+let shutdownInProgress = false;
+let loggerDestroyed = false;
 
-export default configuredLogger;
+/**
+ * Create a resilient logger wrapper that handles post-shutdown logging gracefully
+ */
+function createResilientLogger(baseLogger: Logger) {
+  return new Proxy(baseLogger, {
+    get(target, prop) {
+      // If logger is destroyed and this is a logging method, use console instead
+      if (loggerDestroyed && typeof prop === 'string' && ['debug', 'info', 'warn', 'error', 'fatal', 'trace'].includes(prop)) {
+        return function(obj: unknown, msg?: string) {
+          try {
+            // Format the log message for console output
+            if (typeof obj === 'string') {
+              console.log(`[${prop.toUpperCase()}] ${obj}`);
+            } else if (msg) {
+              console.log(`[${prop.toUpperCase()}] ${msg}`, obj);
+            } else {
+              console.log(`[${prop.toUpperCase()}]`, obj);
+            }
+          } catch {
+            // Silently ignore console errors
+          }
+        };
+      }
+
+      // For non-logging methods or when logger is not destroyed, use original
+      if (typeof prop === 'string') {
+        return (target as unknown as Record<string, unknown>)[prop];
+      }
+      return undefined;
+    }
+  });
+}
+
+/**
+ * Gracefully shutdown logger streams to prevent sonic-boom crashes
+ */
+export function shutdownLogger(): Promise<void> {
+  if (shutdownInProgress) {
+    return Promise.resolve();
+  }
+
+  shutdownInProgress = true;
+
+  return new Promise((resolve) => {
+    try {
+      // Log shutdown initiation
+      configuredLogger.info('Initiating logger shutdown');
+
+      // Handle SonicBoom destination gracefully
+      if (fileDestination) {
+        // Check if the destination is ready before attempting operations
+        const isReady = (fileDestination as { ready?: boolean }).ready !== false;
+
+        if (isReady) {
+          // Try to flush synchronously only if ready
+          try {
+            if (typeof fileDestination.flushSync === 'function') {
+              fileDestination.flushSync();
+            }
+          } catch (flushError) {
+            // Ignore flush errors during shutdown - the stream might not be ready
+            console.warn('Warning: Could not flush logger during shutdown:', (flushError as Error).message);
+          }
+        }
+
+        // Always try to end the stream gracefully
+        try {
+          if (typeof fileDestination.end === 'function') {
+            fileDestination.end();
+          }
+        } catch (endError) {
+          console.warn('Warning: Could not end logger stream during shutdown:', (endError as Error).message);
+        }
+      }
+
+      // Mark logger as destroyed to enable fallback behavior
+      loggerDestroyed = true;
+
+      // Give a small delay to ensure all writes are flushed
+      setTimeout(() => {
+        resolve();
+      }, 150); // Slightly longer delay to ensure cleanup
+
+    } catch (error) {
+      // Don't use logger here as it might be in a bad state
+      console.error('Error during logger shutdown:', error);
+      loggerDestroyed = true;
+      resolve();
+    }
+  });
+}
+
+// Track registered shutdown callbacks
+const shutdownCallbacks: Array<() => Promise<void> | void> = [];
+
+/**
+ * Register a callback to be called during graceful shutdown
+ */
+export function registerShutdownCallback(callback: () => Promise<void> | void): void {
+  shutdownCallbacks.push(callback);
+}
+
+/**
+ * Execute all registered shutdown callbacks
+ */
+async function executeShutdownCallbacks(): Promise<void> {
+  for (const callback of shutdownCallbacks) {
+    try {
+      await callback();
+    } catch (error) {
+      console.error('Error in shutdown callback:', error);
+    }
+  }
+}
+
+/**
+ * Reset logger state for testing purposes
+ * WARNING: This should only be used in test environments
+ */
+export function resetLoggerForTesting(): void {
+  if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    console.warn('resetLoggerForTesting() should only be used in test environments');
+    return;
+  }
+
+  shutdownInProgress = false;
+  loggerDestroyed = false;
+}
+
+/**
+ * Setup process exit handlers for graceful logger shutdown
+ */
+function setupShutdownHandlers(): void {
+  let shutdownInitiated = false;
+
+  const handleShutdown = async (signal: string) => {
+    if (shutdownInitiated) {
+      console.log(`\nForced shutdown on second ${signal}`);
+      process.exit(1);
+    }
+
+    shutdownInitiated = true;
+
+    try {
+      console.log(`\nReceived ${signal}, shutting down gracefully...`);
+
+      // Execute registered shutdown callbacks first (e.g., server cleanup)
+      await executeShutdownCallbacks();
+
+      // Then shutdown logger
+      await shutdownLogger();
+
+      console.log('Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      console.error('Error during graceful shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  // Handle various termination signals
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGQUIT', () => handleShutdown('SIGQUIT'));
+
+  // Handle uncaught exceptions and unhandled rejections
+  process.on('uncaughtException', async (error) => {
+    console.error('Uncaught Exception:', error);
+
+    try {
+      // Try to execute shutdown callbacks and logger shutdown
+      await executeShutdownCallbacks();
+      await shutdownLogger();
+    } catch (shutdownError) {
+      console.error('Error during emergency shutdown:', shutdownError);
+    }
+
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', async (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+
+    try {
+      // Try to execute shutdown callbacks and logger shutdown
+      await executeShutdownCallbacks();
+      await shutdownLogger();
+    } catch (shutdownError) {
+      console.error('Error during emergency shutdown:', shutdownError);
+    }
+
+    process.exit(1);
+  });
+}
+
+// Setup shutdown handlers when this module is imported
+setupShutdownHandlers();
+
+// Export the resilient logger wrapper
+const resilientLogger = createResilientLogger(configuredLogger);
+export default resilientLogger;
