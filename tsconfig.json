@@ -9,11 +9,16 @@
     // Removed baseUrl and paths to rely on standard NodeNext resolution
     "strict": true,
     "declaration": true,
+    "declarationMap": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false, // Explicitly disallow .ts extensions in imports
     "noEmit": false, // Explicitly ensure files are emitted (default is false anyway)
+    "incremental": true,
+    "tsBuildInfoFile": "./build/.tsbuildinfo",
+    "removeComments": true,
+    "sourceMap": false,
     "types": ["vitest/globals"]
   },
   "include": ["src/**/*"],
@@ -22,6 +27,14 @@
     "build",
     "**/__tests__/**",
     "**/__integration__/**",
+    "**/tests/**",
+    "**/integration/**",
+    "**/integrations/**",
+    "**/live/**",
+    "**/scenarios/**",
+    "**/live-validation/**",
+    "**/e2e/**",
+    "test/**",
     "**/languageHandlers/__tests__/**"
   ]
 }

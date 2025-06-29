@@ -3,6 +3,7 @@
 workflow-agent-files/
 .claude/
 CLAUDE.md
+.augment/
 
 # Dependency directories
 node_modules/

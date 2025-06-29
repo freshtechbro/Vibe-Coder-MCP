@@ -19,10 +19,10 @@ export default defineConfig(({ mode }) => {
 
         // Integration tests
         'src/**/__integration__/**/*.test.ts',
-        'src/__integration__/**/*.test.ts',
+        'src/**/integration/**/*.test.ts',
+        'src/**/integrations/**/*.test.ts',
 
         // End-to-end tests
-        'e2e/**/*.test.ts',
         'test/e2e/**/*.test.ts'
       ],
       exclude: ['node_modules', 'build'],
@@ -34,15 +34,19 @@ export default defineConfig(({ mode }) => {
           'build',
           '**/__tests__/**',
           '**/__integration__/**',
-          'src/__integration__/**',
-          'e2e/**',
+          '**/tests/**',
+          '**/integration/**',
+          '**/integrations/**',
+          'test/e2e/**',
+          'src/testUtils/**',
           '**/*.d.ts'
         ],
       },
-      // Optimized timeout settings for faster execution
-      testTimeout: 15000, // 15 seconds timeout for tests (reduced from 45s)
-      hookTimeout: 10000, // 10 seconds for setup/teardown hooks (reduced from 20s)
-      teardownTimeout: 5000, // 5 seconds for cleanup (reduced from 10s)
+      // Differentiated timeout settings based on test type
+      testTimeout: process.env.TEST_TYPE === 'unit' ? 5000 : 
+                   process.env.TEST_TYPE === 'integration' ? 60000 : 15000,
+      hookTimeout: 10000, // 10 seconds for setup/teardown hooks
+      teardownTimeout: 5000, // 5 seconds for cleanup
 
       // Performance optimizations for speed
       isolate: false, // Disable isolation for faster execution
