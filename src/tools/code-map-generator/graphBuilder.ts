@@ -1089,9 +1089,19 @@ async function processMethodCallSequenceGraphWithStorage(
 function processMethodCallSequenceGraphDirectly(
   allFilesInfo: FileInfo[],
   sourceCodeCache: Map<string, string>
-): Promise<{ nodes: GraphNode[], edges: GraphEdge[] }> {
-  // Reuse the function call graph building logic
-  return buildFunctionCallGraph(allFilesInfo, sourceCodeCache);
+): { nodes: GraphNode[], edges: GraphEdge[] } {
+  // CRITICAL FIX: Process directly instead of calling buildFunctionCallGraph to avoid circular dependency
+  const { nodes, edges } = processFunctionCallGraphDirectly(allFilesInfo, sourceCodeCache);
+  
+  // Enhance edges with sequence information
+  const sequenceEdges = edges.map((edge, index) => {
+    return {
+      ...edge,
+      sequenceOrder: index, // Add sequence order based on the edge index
+    };
+  });
+
+  return { nodes, edges: sequenceEdges };
 }
 
 // Helper function from astAnalyzer.ts, duplicated for now or move to a shared util

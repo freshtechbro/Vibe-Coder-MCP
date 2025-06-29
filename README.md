@@ -1,4 +1,4 @@
-# Vibe Coder MCP Server v2.6.0
+# Vibe Coder MCP Server v2.6.2
 
 ![Test](https://github.com/freshtechbro/Vibe-Coder-MCP/actions/workflows/test.yml/badge.svg)
 
@@ -337,7 +337,7 @@ The location varies depending on your AI assistant:
 
 ## Current System Status
 
-### ✅ CONFIRMED WORKING (v2.6.0)
+### ✅ CONFIRMED WORKING (v2.6.2)
 - **All LLM-dependent tools**: Successfully using free models without 402 Payment Required errors ✅
   - User Stories Generator ✅
   - PRD Generator ✅
@@ -353,9 +353,6 @@ The location varies depending on your AI assistant:
 - **Debug Tools**: All consolidated debug scripts function properly
 - **Code Map Generator**: ✅ **FIXED** - Successfully processes 1000+ files without hanging
 - **Context Curator**: Language-agnostic codebase analysis with intelligent caching
-
-### ❌ CONFIRMED NOT WORKING (v2.6.0)
-- **Vibe Task Manager**: Path validation issues prevent basic operations (unchanged from v2.5.x)
 
 ### ⚠️ PARTIALLY WORKING
 - **Semantic Routing**: Basic tool selection works and LLM fallback now functions
