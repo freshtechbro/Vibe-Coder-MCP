@@ -8,19 +8,40 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import logger from '../../../logger.js';
 
-// Get the directory name of the current module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Determine the project root directory (3 levels up from this file)
-const PROJECT_ROOT = path.resolve(__dirname, '../../../..');
-
 /**
- * Gets the project root directory.
- * @returns The absolute path to the project root directory
+ * Simplified getProjectRoot function that doesn't rely on import.meta.url
+ * This is more robust for different environments
  */
 export function getProjectRoot(): string {
-  return PROJECT_ROOT;
+  // Try multiple methods to find project root
+  try {
+    // Method 1: Use process.cwd() as fallback
+    const cwd = process.cwd();
+    
+    // Method 2: Look for package.json to identify project root
+    let currentDir = cwd;
+    const maxLevels = 10; // Safety limit
+    
+    for (let i = 0; i < maxLevels; i++) {
+      const packageJsonPath = path.join(currentDir, 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        return currentDir;
+      }
+      
+      const parentDir = path.dirname(currentDir);
+      if (parentDir === currentDir) {
+        // Reached filesystem root
+        break;
+      }
+      currentDir = parentDir;
+    }
+    
+    // Fallback to current working directory
+    return cwd;
+  } catch (error) {
+    // Ultimate fallback
+    return process.cwd();
+  }
 }
 
 /**
@@ -29,7 +50,7 @@ export function getProjectRoot(): string {
  * @returns The absolute path
  */
 export function resolveProjectPath(relativePath: string): string {
-  return path.join(PROJECT_ROOT, relativePath);
+  return path.join(getProjectRoot(), relativePath);
 }
 
 /**

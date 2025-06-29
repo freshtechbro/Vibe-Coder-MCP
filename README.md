@@ -1,4 +1,4 @@
-# Vibe Coder MCP Server v2.6.4
+# Vibe Coder MCP Server v2.6.0
 
 ![Test](https://github.com/freshtechbro/Vibe-Coder-MCP/actions/workflows/test.yml/badge.svg)
 
@@ -334,86 +334,10 @@ The location varies depending on your AI assistant:
 3. **Check for Proper Response:**
    * If working correctly, you should receive a research response.
    * If not, check the Troubleshooting section below.
-   
-
-
-## Configuration Changes
-
-A new environment variable has been added to control research recommendations in the Fullstack Starter Kit generator:
-
-### New Environment Variable: `VIBE_FULLSTACK_PAID_RESEARCH`
-
-**Location**: `.env` file  
-**Default**: `false` (FREE mode)  
-**Options**: 
-- `"false"` - FREE mode: Basic starter kit generation using free LLM models
-- `"true"` - PAID mode: Advanced recommendations with comprehensive research using paid research API
-
-**Usage**:
-```bash
-# Enable FREE mode (default) - uses only free LLM models
-VIBE_FULLSTACK_PAID_RESEARCH="false"
-
-# Enable PAID mode - uses research API for comprehensive recommendations  
-VIBE_FULLSTACK_PAID_RESEARCH="true"
-```
-
-### Tool Parameter Override
-Users can override the environment default by explicitly setting `request_recommendation` when calling the tool:
-
-```javascript
-// Force FREE mode regardless of environment setting
-vibeCoder.generateFullstackStarterKit({
-  use_case: "Simple blog platform",
-  request_recommendation: false  // FREE mode
-});
-
-// Force PAID mode regardless of environment setting
-vibeCoder.generateFullstackStarterKit({
-  use_case: "Enterprise e-commerce platform", 
-  request_recommendation: true   // PAID mode
-});
-```
-
-### Updated Tool Descriptions
-The following configurations have been updated to clearly distinguish free vs paid functionality:
-- `.env.example` - Added new environment variable with documentation
-- `mcp-config.json` - Updated tool description to clarify FREE vs PAID modes
-- Tool schema - Updated parameter descriptions to indicate cost implications
-
-## Testing Verification
-
-### Completed Tests:
-- ✅ Generate Rules: Working
-- ✅ Generate PRD: Working  
-- ✅ Generate User Stories: Working
-- ✅ Generate Task List: Working
-- ✅ Map Codebase: **Fixed** - No longer hanging
-- ✅ Generate Fullstack Starter Kit (free): Working with `request_recommendation: false`
-- ✅ Sequential Thinking: Working
-- ❌ Generate Fullstack Starter Kit (paid): Expected 402 error with `request_recommendation: true`
-
-### Pending Tests (After Rebuild):
-- Vibe Task Manager: Should work after path validation fix
-- Process Request: Should work with free models
-- Map Codebase: Verify no performance issues without fake restrictions
-
-## Technical Details
-
-### Files Modified:
-1. `src/tools/code-map-generator/graphBuilder.ts`
-   - Fixed circular dependency in `processMethodCallSequenceGraphDirectly()`
-   - Removed artificial processing limits
-
-2. `src/tools/vibe-task-manager/utils/file-utils.ts`
-   - Fixed Windows path validation with case-insensitive comparison
-
-3. Configuration files (updated separately)
-
 
 ## Current System Status
 
-### ✅ CONFIRMED WORKING (v2.6.4)
+### ✅ CONFIRMED WORKING (v2.6.0)
 - **All LLM-dependent tools**: Successfully using free models without 402 Payment Required errors ✅
   - User Stories Generator ✅
   - PRD Generator ✅
@@ -430,93 +354,14 @@ The following configurations have been updated to clearly distinguish free vs pa
 - **Code Map Generator**: ✅ **FIXED** - Successfully processes 1000+ files without hanging
 - **Context Curator**: Language-agnostic codebase analysis with intelligent caching
 
+### ❌ CONFIRMED NOT WORKING (v2.6.0)
+- **Vibe Task Manager**: Path validation issues prevent basic operations (unchanged from v2.5.x)
+
 ### ⚠️ PARTIALLY WORKING
 - **Semantic Routing**: Basic tool selection works and LLM fallback now functions
 - **Background Job System**: Job creation works and LLM-dependent jobs now complete successfully
-- **Vibe Task Manager**: Path validation issues resolved, infinite loop occurring on check
 
-**Status**: ✅ **MAJOR PROGRESS** - LLM integration fully restored in v2.6.4! All AI-powered tools now work with free models. System is 90% functional with comprehensive testing. See [DEBUG_README](debug/DEBUG_README.md) for full details.
-
-
-### 🔧 **Fixed: Cross-Platform Path Validation Issues** (v2.6.4)
-
-**Problem**: Multiple components had Windows path validation that would break on Unix/Mac systems due to incorrect case sensitivity handling.
-
-**Root Cause**: Path comparison logic was applying `.toLowerCase()` universally instead of handling platform-specific case sensitivity properly.
-
-**Files Found and Fixed**:
-1. `src/tools/vibe-task-manager/utils/file-utils.ts` ✅
-2. `build/tools/vibe-task-manager/utils/file-utils.js` ✅  
-3. `src/tools/code-map-generator/utils/pathUtils.enhanced.ts` ✅
-4. `build/tools/code-map-generator/utils/pathUtils.enhanced.js` ✅
-
-**Universal Solution Created**: `src/utils/pathValidation.ts`
-- Centralized cross-platform path validation utilities
-- Windows: case-insensitive comparison (`process.platform === 'win32'`)
-- Unix/Mac: case-sensitive comparison
-- Security validation against path traversal attacks
-- File extension validation
-- Complete API for all path validation needs
-
-**Fix Applied**:
-```typescript
-// AFTER (Cross-platform compatible):
-const normalizedPath = path.resolve(filePath).replace(/\\/g, '/');
-const normalizedProject = path.resolve(projectRoot).replace(/\\/g, '/');
-
-// Cross-platform path comparison (case-insensitive on Windows, case-sensitive on Unix/Mac)
-const isWindows = process.platform === 'win32';
-const pathToCheck = isWindows ? normalizedPath.toLowerCase() : normalizedPath;
-const projectToCheck = isWindows ? normalizedProject.toLowerCase() : normalizedProject;
-
-const isWithinProject = pathToCheck.startsWith(projectToCheck);
-if (!isWithinProject && !isTestDir) {
-  return { valid: false, error: `Path: ${normalizedPath}, Project: ${normalizedProject}` };
-}
-```
-
-**Result**: ✅ Vibe Task Manager now works correctly on Windows, Unix, and Mac
-
-### 📋 **Clarified: Free vs Paid Model Usage**
-
-**Discovery**: Tools were incorrectly categorized regarding their model requirements.
-
-**Findings**:
-- **Generate Fullstack Starter Kit**: Can work with FREE models when `request_recommendation: false`
-- **Process Request**: Uses Sequential Thinking (FREE), not research
-- **Research functionality**: Only required for recommendation features
-
-**Configuration Added**: User can now control recommendation usage (see Configuration section below)
-
-
-### 🔥 **CRITICAL: Code Map Generator Infinite Loop (RESOLVED)** (v2.6.3)
-
-**Problem**: Node.js was hanging at high CPU usage (30-33%) during the "Building dependency graphs..." phase, specifically when processing function call graphs.
-
-**Root Cause**: Circular dependency in `src/tools/code-map-generator/graphBuilder.ts`
-- `processMethodCallSequenceGraphDirectly()` was calling `buildFunctionCallGraph()`
-- This created an infinite recursion loop that never terminated
-
-**Fix Applied**:
-```typescript
-// BEFORE (causing infinite loop):
-function processMethodCallSequenceGraphDirectly() {
-  return buildFunctionCallGraph(allFilesInfo, sourceCodeCache);
-}
-
-// AFTER (fixed):
-function processMethodCallSequenceGraphDirectly() {
-  const { nodes, edges } = processFunctionCallGraphDirectly(allFilesInfo, sourceCodeCache);
-  // Add sequence information
-  const sequenceEdges = edges.map((edge, index) => ({
-    ...edge,
-    sequenceOrder: index,
-  }));
-  return { nodes, edges: sequenceEdges };
-}
-```
-
-**Result**: ✅ Map Codebase tool now completes successfully without hanging
+**Status**: ✅ **MAJOR PROGRESS** - LLM integration fully restored in v2.6.0! All AI-powered tools now work with free models. System is 85% functional with comprehensive testing. See [DEBUG_README](debug/DEBUG_README.md) for full details.
 
 ## Tool Categories
 

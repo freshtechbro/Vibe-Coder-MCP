@@ -1,5 +1,5 @@
 // Quick test to see what free models return
-const apiKey = "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";
+const apiKey = "";
 
 async function testFreeModel() {
   const requestPayload = {

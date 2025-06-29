@@ -3,7 +3,7 @@
  * Centralizes all default values and environment variable handling for Vibe Task Manager
  */
 
-import { VibeTaskManagerConfig, PerformanceConfig } from './config-loader.js';
+import { PerformanceConfig } from '../types/config.js';
 import { createErrorContext, ValidationError } from './enhanced-errors.js';
 import logger from '../../../logger.js';
 

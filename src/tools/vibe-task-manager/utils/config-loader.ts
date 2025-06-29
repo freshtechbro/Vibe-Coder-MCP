@@ -3,6 +3,14 @@ import { readFile } from 'fs/promises';
 import { FileUtils, FileOperationResult } from './file-utils.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import {
+  LLMConfig,
+  MCPConfig,
+  MCPToolConfig,
+  VibeTaskManagerConfig,
+  VibeTaskManagerSecurityConfig,
+  PerformanceConfig
+} from '../types/config.js';
+import {
   ConfigurationError,
   ValidationError,
   createErrorContext
@@ -14,52 +22,14 @@ import {
   validateAllEnvironmentVariables
 } from './config-defaults.js';
 import logger from '../../../logger.js';
-import { getProjectRoot } from '../../code-map-generator/utils/pathUtils.enhanced.js';
 
 /**
- * LLM configuration interface
+ * Safe project root detection without circular dependencies
  */
-export interface LLMConfig {
-  llm_mapping: Record<string, string>;
-}
-
-/**
- * MCP tool configuration interface
- */
-export interface MCPToolConfig {
-  description: string;
-  use_cases: string[];
-  input_patterns: string[];
-}
-
-/**
- * MCP configuration interface
- */
-export interface MCPConfig {
-  tools: Record<string, MCPToolConfig>;
-}
-
-/**
- * Vibe Task Manager security configuration interface
- */
-export interface VibeTaskManagerSecurityConfig {
-  allowedReadDirectory: string;
-  allowedWriteDirectory: string;
-  securityMode: 'strict' | 'permissive';
-}
-
-/**
- * Performance configuration for startup optimization
- */
-export interface PerformanceConfig {
-  enableConfigCache: boolean;
-  configCacheTTL: number;
-  lazyLoadServices: boolean;
-  preloadCriticalServices: string[];
-  connectionPoolSize: number;
-  maxStartupTime: number;
-  asyncInitialization: boolean;
-  batchConfigLoading: boolean;
+function getSafeProjectRoot(): string {
+  // Simple and safe - just use current working directory
+  // This avoids any potential circular dependencies
+  return process.cwd();
 }
 
 /**
@@ -69,91 +39,6 @@ interface ConfigCacheEntry {
   config: VibeTaskManagerConfig;
   timestamp: number;
   ttl: number;
-}
-
-/**
- * Combined configuration for Vibe Task Manager
- */
-export interface VibeTaskManagerConfig {
-  llm: LLMConfig;
-  mcp: MCPConfig;
-  taskManager: {
-    // Task manager specific settings
-    maxConcurrentTasks: number;
-    defaultTaskTemplate: string;
-    dataDirectory: string;
-    performanceTargets: {
-      maxResponseTime: number; // ms
-      maxMemoryUsage: number; // MB
-      minTestCoverage: number; // percentage
-    };
-    agentSettings: {
-      maxAgents: number;
-      defaultAgent: string;
-      coordinationStrategy: 'round_robin' | 'least_loaded' | 'capability_based' | 'priority_based';
-      healthCheckInterval: number; // seconds
-    };
-    nlpSettings: {
-      primaryMethod: 'pattern' | 'llm' | 'hybrid';
-      fallbackMethod: 'pattern' | 'llm' | 'none';
-      minConfidence: number;
-      maxProcessingTime: number; // ms
-    };
-    // Timeout and retry configuration
-    timeouts: {
-      taskExecution: number; // ms
-      taskDecomposition: number; // ms
-      recursiveTaskDecomposition: number; // ms
-      taskRefinement: number; // ms
-      agentCommunication: number; // ms
-      llmRequest: number; // ms
-      fileOperations: number; // ms
-      databaseOperations: number; // ms
-      networkOperations: number; // ms
-    };
-    retryPolicy: {
-      maxRetries: number;
-      backoffMultiplier: number;
-      initialDelayMs: number;
-      maxDelayMs: number;
-      enableExponentialBackoff: boolean;
-    };
-    // Performance optimization settings
-    performance: {
-      memoryManagement: {
-        enabled: boolean;
-        maxMemoryPercentage: number;
-        monitorInterval: number;
-        autoManage: boolean;
-        pruneThreshold: number;
-        prunePercentage: number;
-      };
-      fileSystem: {
-        enableLazyLoading: boolean;
-        batchSize: number;
-        enableCompression: boolean;
-        indexingEnabled: boolean;
-        concurrentOperations: number;
-      };
-      caching: {
-        enabled: boolean;
-        strategy: 'memory' | 'disk' | 'hybrid';
-        maxCacheSize: number;
-        defaultTTL: number;
-        enableWarmup: boolean;
-      };
-      monitoring: {
-        enabled: boolean;
-        metricsInterval: number;
-        enableAlerts: boolean;
-        performanceThresholds: {
-          maxResponseTime: number;
-          maxMemoryUsage: number;
-          maxCpuUsage: number;
-        };
-      };
-    };
-  };
 }
 
 /**
@@ -178,7 +63,7 @@ export class ConfigLoader {
   private cacheRequests: number = 0;
 
   private constructor() {
-    const projectRoot = getProjectRoot();
+    const projectRoot = getSafeProjectRoot();
     this.llmConfigPath = path.join(projectRoot, 'llm_config.json');
     this.mcpConfigPath = path.join(projectRoot, 'mcp-config.json');
 
@@ -202,7 +87,7 @@ export class ConfigLoader {
   private getVibeTaskManagerOutputDirectory(): string {
     const baseOutputDir = process.env.VIBE_CODER_OUTPUT_DIR
       ? path.resolve(process.env.VIBE_CODER_OUTPUT_DIR)
-      : path.join(getProjectRoot(), 'VibeCoderOutput');
+      : path.join(getSafeProjectRoot(), 'VibeCoderOutput');
 
     return path.join(baseOutputDir, 'vibe-task-manager');
   }
@@ -820,7 +705,7 @@ export async function getLLMModelForOperation(operation: string): Promise<string
 export function getBaseOutputDir(): string {
   return process.env.VIBE_CODER_OUTPUT_DIR
     ? path.resolve(process.env.VIBE_CODER_OUTPUT_DIR)
-    : path.join(getProjectRoot(), 'VibeCoderOutput');
+    : path.join(getSafeProjectRoot(), 'VibeCoderOutput');
 }
 
 /**
