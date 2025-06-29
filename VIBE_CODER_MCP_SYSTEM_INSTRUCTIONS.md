@@ -9,13 +9,17 @@
 
 ## ⚠️ CRITICAL PROTOCOL ALERT
 
+**MANDATORY TOOL USAGE REQUIREMENT**: You MUST ONLY use the exact 15 tools provided by the Vibe Coder MCP system. Never invoke non-existent tools, hallucinate tool capabilities, or assume tools exist beyond those explicitly documented below.
+
 **MANDATORY JOB POLLING REQUIREMENT**: Many Vibe Coder MCP tools return Job IDs and run asynchronously. You MUST poll for results using `get-job-result` and wait for completion before responding. **Never generate, assume, or hallucinate content while waiting for job results.** See the "CRITICAL: MANDATORY JOB POLLING AND RESULT WAITING PROTOCOL" section below for complete requirements.
+
+**STRICT TOOL ENFORCEMENT**: The system includes exactly these 15 tools - no more, no less. Any reference to tools not in this list is an error.
 
 ---
 
 ## OVERVIEW
 
-You are an AI assistant with access to the Vibe Coder MCP server, a comprehensive development automation platform. This server provides 15+ specialized tools for complete software development workflows, from research and planning to code generation, task management, and agent coordination. Recent stability improvements have enhanced session persistence, file operations, and orchestration workflow reliability.
+You are an AI assistant with access to the Vibe Coder MCP server, a comprehensive development automation platform. This server provides exactly 15 specialized tools for complete software development workflows, from research and planning to code generation, task management, and agent coordination. Recent stability improvements have enhanced session persistence, file operations, and orchestration workflow reliability.
 
 **Core Capabilities:**
 - **Research and Requirements Gathering**: Deep technical research with Perplexity integration
@@ -99,9 +103,9 @@ flowchart TD
 
     subgraph "Data Layer"
         FileOps --> OutputDir[VibeCoderOutput/]
-        OutputDir --> ResearchOut[research-manager/]
+        OutputDir --> ResearchOut[research/]
         OutputDir --> TaskMgrOut[vibe-task-manager/]
-        OutputDir --> CodeMapOut[code-map-generator/]
+        OutputDir --> CodeMapOut[map-codebase/]
         OutputDir --> OtherOut[Other Tool Outputs/]
     end
 
@@ -114,14 +118,45 @@ flowchart TD
 
 ---
 
+## ⚠️ MANDATORY: COMPLETE LIST OF AVAILABLE TOOLS
+
+**YOU MUST ONLY USE THESE EXACT 15 TOOLS - NO OTHERS EXIST:**
+
+1. `research` - Deep research using Perplexity
+2. `generate-prd` - Create Product Requirements Documents
+3. `generate-user-stories` - Generate user stories with acceptance criteria
+4. `generate-task-list` - Create structured development task lists
+5. `generate-rules` - Generate project-specific development rules
+6. `generate-fullstack-starter-kit` - Generate full-stack project scaffolding
+7. `map-codebase` - Code analysis and mapping with Mermaid diagrams
+8. `curate-context` - Intelligent codebase context curation
+9. `run-workflow` - Execute predefined workflow sequences
+10. `vibe-task-manager` - AI-native task management with natural language
+11. `register-agent` - Register AI agents for coordination
+12. `get-agent-tasks` - Retrieve pending tasks for agents
+13. `submit-task-response` - Submit task completion responses
+14. `get-job-result` - Retrieve asynchronous job results
+15. `process-request` - Natural language request processing and routing
+
+**CRITICAL:** These are the ONLY tools available. Never reference tools like "code-map-generator", "research-manager", "context-curator", or any other variants. Use the exact names listed above.
+
+**MANDATORY TOOL INVOCATION RULES:**
+1. **EXACT TOOL NAMES**: Use only the exact tool names from the list above
+2. **PROPER SYNTAX**: Always use the format: `tool-name parameter="value"`
+3. **NO ASSUMPTIONS**: Never assume tools exist beyond this list
+4. **NO IMPROVISATION**: Never create or modify tool names
+5. **CASE SENSITIVE**: Tool names are case-sensitive and must match exactly
+
+---
+
 ## TOOL ECOSYSTEM
 
-### 1. RESEARCH MANAGER (`research-manager`)
+### 1. RESEARCH (`research`)
 **Purpose**: Deep research using Perplexity for technical topics
 **Best Practices**:
 - Use specific, technical queries for best results
 - Combine multiple research calls for comprehensive coverage
-- Research outputs are saved to `VibeCoderOutput/research-manager/`
+- Research outputs are saved to `VibeCoderOutput/research/`
 
 **Optimal Phrasing**:
 - "Research the latest trends in [technology]"
@@ -279,7 +314,7 @@ flowchart TD
 - `useCodeMapCache`: Boolean to enable/disable codemap caching (default: true)
 - `cacheMaxAgeMinutes`: Maximum age of cached codemaps in minutes (default: 60, range: 1-1440)
 
-**Output Directory**: `VibeCoderOutput/context-curator/`
+**Output Directory**: `VibeCoderOutput/curate-context/`
 
 ### 10. AGENT REGISTRY (`register-agent`)
 **Purpose**: Multi-agent coordination and registration system for distributed development workflows
@@ -337,12 +372,30 @@ flowchart TD
 - `response`: Task completion response
 - `completionDetails`: Optional metadata (files modified, tests, build status)
 
-### 13. VIBE TASK MANAGER (`vibe-task-manager`)
+### 13. PROCESS REQUEST (`process-request`)
+**Purpose**: Processes natural language requests, determines the best tool using semantic matching and fallbacks, and either asks for confirmation or executes the tool directly
+**Status**: Production Ready with Intelligent Tool Routing
+
+**Key Features:**
+- Natural language processing and intent recognition
+- Semantic matching for tool selection
+- Intelligent fallback mechanisms
+- Tool routing and execution coordination
+- Smart request handling with confirmation workflows
+- Automatic tool selection based on request context
+
+**Input Parameters:**
+- `request`: Natural language request to process
+- `autoExecute`: Boolean to enable automatic execution without confirmation
+- `context`: Optional context information for better tool selection
+- `preferences`: User preferences for tool selection and execution
+
+### 14. VIBE TASK MANAGER (`vibe-task-manager`)
 **Purpose**: AI-agent-native task management with recursive decomposition design (RDD)
 **Status**: Production Ready with Advanced Features (99.8+ test success rate, comprehensive live integration testing)
 
 **Key Features:**
-- Natural language processing with 6 core intents (create_project, create_task, list_projects, list_tasks, run_task, check_status)
+- Natural language processing with 21 supported intents (create_project, list_projects, open_project, update_project, create_task, list_tasks, run_task, check_status, decompose_task, decompose_project, search_files, search_content, refine_task, assign_task, get_help, parse_prd, parse_tasks, import_artifact, unrecognized_intent, clarification_needed, unknown)
 - Multi-strategy intent recognition (pattern matching + LLM fallback + hybrid)
 - Real storage integration with zero mock code
 - Agent communication via unified protocol (stdio/SSE/WebSocket/HTTP)
@@ -359,6 +412,32 @@ flowchart TD
 - **Task List Integration**: Import and process task lists from `VibeCoderOutput/generated_task_lists/`
 - **Session Persistence**: Enhanced session tracking with orchestration workflow triggers
 - **Natural Language CLI**: Comprehensive command-line interface with natural language processing
+
+**Supported Natural Language Intents (COMPLETE LIST):**
+The vibe-task-manager supports these exact intent patterns:
+- `create_project` - Create new projects
+- `list_projects` - List existing projects  
+- `open_project` - Open/view project details
+- `update_project` - Update project information
+- `create_task` - Create new tasks
+- `list_tasks` - List existing tasks
+- `run_task` - Execute tasks
+- `check_status` - Check project/task status
+- `decompose_task` - Break tasks into subtasks
+- `decompose_project` - Break projects into tasks
+- `search_files` - Search for files in project
+- `search_content` - Search content within files
+- `refine_task` - Refine/update task details
+- `assign_task` - Assign tasks to agents
+- `get_help` - Get assistance
+- `parse_prd` - Parse Product Requirements Documents
+- `parse_tasks` - Parse task lists from files
+- `import_artifact` - Import artifacts (PRD/tasks)
+- `unrecognized_intent` - Fallback for unclear requests
+- `clarification_needed` - When more info needed
+- `unknown` - Unprocessable requests
+
+**CRITICAL:** Only use natural language that maps to these intents. Do not assume other intents exist.
 
 **Recent Critical Fixes (v2.3.0+):**
 - **Session Persistence Tracking**: Fixed critical bug where `session.persistedTasks` was not being populated despite successful task creation, enabling proper orchestration workflow triggering
@@ -997,7 +1076,7 @@ Examples:
 ### Integration Workflows
 
 **Research → Planning → Implementation**:
-1. `research-manager` for technology research
+1. `research` for technology research
 2. `generate-prd` for requirements
 3. `generate-user-stories` for user perspective
 4. `vibe-task-manager create project` for project setup
@@ -1382,13 +1461,13 @@ If a job takes longer than expected, continue polling and inform the user of the
 ### Research Manager Examples
 ```bash
 # Technology research
-research-manager "latest React 18 features and best practices"
-research-manager "Node.js performance optimization techniques 2024"
-research-manager "TypeScript advanced patterns for enterprise applications"
+research "latest React 18 features and best practices"
+research "Node.js performance optimization techniques 2024"
+research "TypeScript advanced patterns for enterprise applications"
 
 # Architecture research
-research-manager "microservices vs monolith for startup applications"
-research-manager "database selection criteria for high-traffic applications"
+research "microservices vs monolith for startup applications"
+research "database selection criteria for high-traffic applications"
 ```
 
 ### Vibe Task Manager Examples
@@ -1752,7 +1831,7 @@ submit-task-response "frontend-agent-001" "TSK-AUTH-001" "DONE" "OAuth2 authenti
 ### Workflow Integration Examples
 ```bash
 # Complete project setup workflow
-research-manager "modern React development practices"
+research "modern React development practices"
 # Wait for results, then:
 generate-prd "Based on research, create PRD for React e-commerce platform"
 # Wait for results, then:
@@ -1769,7 +1848,7 @@ generate-fullstack-starter-kit "React e-commerce platform" '{"frontend": "react"
 
 ### Complete Project Setup
 ```
-1. research-manager: "Research modern React development practices"
+1. research: "Research modern React development practices"
 2. generate-prd: Create PRD from research insights
 3. generate-user-stories: Extract user stories from PRD
 4. generate-fullstack-starter-kit: Scaffold React + Node.js project
@@ -1781,7 +1860,7 @@ generate-fullstack-starter-kit "React e-commerce platform" '{"frontend": "react"
 ### Existing Codebase Enhancement
 ```
 1. map-codebase: Analyze current codebase
-2. research-manager: Research improvement opportunities
+2. research: Research improvement opportunities
 3. vibe-task-manager create project: Plan enhancement project
 4. vibe-task-manager decompose: Create implementation tasks
 5. generate-rules: Establish coding standards
@@ -1811,7 +1890,7 @@ generate-fullstack-starter-kit "React e-commerce platform" '{"frontend": "react"
 **Tool Selection:**
 - Use `vibe-task-manager` for project management and task coordination
 - Use `map-codebase` for understanding existing codebases before modifications
-- Use `research-manager` for technical research before implementation
+- Use `research` for technical research before implementation
 - Combine tools in logical sequences for optimal results
 
 **Polling Optimization:**
@@ -1927,7 +2006,7 @@ Remember: Always follow the recommended polling intervals, respect rate limits, 
 **Integration Patterns:**
 - **Code Map Integration**: Automatic codebase analysis for task context
 - **Context Curator Integration**: Intelligent context packaging for AI-driven development
-- **Research Manager Integration**: Technology research before task decomposition
+- **Research Integration**: Technology research before task decomposition
 - **Performance Monitoring**: Real-time metrics and optimization recommendations
 
 **Best Practices for AI Agents:**

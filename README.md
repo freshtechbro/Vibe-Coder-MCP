@@ -18,7 +18,7 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 
 ### 🧠 **AI-Native Task Management**
 *   **Vibe Task Manager**: Production-ready task management with 99.9% test success rate and comprehensive integration *(Functional but actively being enhanced)*
-*   **Natural Language Processing**: 6 core intents with multi-strategy recognition (pattern matching + LLM fallback)
+*   **Natural Language Processing**: 21 supported intents with multi-strategy recognition (pattern matching + LLM fallback)
 *   **Recursive Decomposition Design (RDD)**: Intelligent project breakdown into atomic tasks
 *   **Agent Orchestration**: Multi-agent coordination with capability mapping, load balancing, and real-time status synchronization
 *   **Multi-Transport Agent Support**: Full integration across stdio, SSE, WebSocket, and HTTP transports
@@ -28,8 +28,8 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 *   **Comprehensive CLI**: Natural language command-line interface with extensive functionality
 
 ### 🔍 **Advanced Code Analysis & Context Curation**
-*   **Code Map Generator**: 35+ programming language support with 95-97% token reduction optimization
-*   **Context Curator**: Language-agnostic project detection with 95%+ accuracy across 35+ languages
+*   **Code Map Tool**: 35+ programming language support with 95-97% token reduction optimization
+*   **Context Curation Tool**: Language-agnostic project detection with 95%+ accuracy across 35+ languages
 *   **Intelligent Codemap Caching**: Configurable caching system that reuses recent codemaps to optimize workflow performance
 *   **Enhanced Import Resolution**: Third-party integration for accurate dependency mapping
 *   **Multi-Strategy File Discovery**: 4 parallel strategies for comprehensive analysis
@@ -37,8 +37,8 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 *   **Security Boundaries**: Separate read/write path validation for secure operations
 
 ### 📋 **Research & Planning Suite**
-*   **Research Manager**: Deep research using Perplexity Sonar via OpenRouter
-*   **Context Curator**: Intelligent codebase analysis with 8-phase workflow pipeline and intelligent codemap caching for AI-driven development
+*   **Research Tool**: Deep research using Perplexity Sonar via OpenRouter
+*   **Context Curation**: Intelligent codebase analysis with 8-phase workflow pipeline and intelligent codemap caching for AI-driven development
 *   **Document Generators**: PRDs (`generate-prd`), user stories (`generate-user-stories`), task lists (`generate-task-list`), development rules (`generate-rules`)
 *   **Project Scaffolding**: Full-stack starter kits (`generate-fullstack-starter-kit`) with dynamic template generation
 *   **Workflow Execution**: Predefined sequences of tool calls defined in `workflows.json`
@@ -164,7 +164,7 @@ The setup script (from Step 3) automatically creates a `.env` file in the projec
     *   Replace the path with your preferred **absolute path**. Use forward slashes (`/`) for paths. If this variable is not set, the default directory (`VibeCoderOutput/`) will be used.
 
 4.  **Configure Code-Map Generator Directory (Optional):**
-    *   To specify which directory the code-map-generator tool is allowed to scan, add this line to your `.env` file:
+    *   To specify which directory the map-codebase tool is allowed to scan, add this line to your `.env` file:
         ```dotenv
         CODE_MAP_ALLOWED_DIR=/path/to/your/source/code/directory
         ```
@@ -242,7 +242,7 @@ The location varies depending on your AI assistant:
         // Directory where Vibe Coder tools will save their output files
         // !! IMPORTANT: Replace with the actual absolute path on YOUR system !!
         "VIBE_CODER_OUTPUT_DIR": "/Users/username/Documents/Dev Projects/Vibe-Coder-MCP/VibeCoderOutput",
-        // Directory that the code-map-generator tool is allowed to scan
+        // Directory that the map-codebase tool is allowed to scan
         // This is a security boundary - the tool will not access files outside this directory
         "CODE_MAP_ALLOWED_DIR": "/Users/username/Documents/Dev Projects/Vibe-Coder-MCP/src",
         // Directory that the Vibe Task Manager is allowed to read from for security purposes
@@ -385,9 +385,9 @@ flowchart TD
     end
 
     subgraph "Tool Ecosystem"
-        Execute --> Research[Research Manager]
+        Execute --> Research[Research Tool]
         Execute --> TaskMgr[Vibe Task Manager]
-        Execute --> CodeMap[Code Map Generator]
+        Execute --> CodeMap[Code Map Tool]
         Execute --> FullStack[Fullstack Generator]
         Execute --> PRDGen[PRD Generator]
         Execute --> UserStories[User Stories Generator]
@@ -432,17 +432,17 @@ vibe-coder-mcp/
 ├── workflows.json                    # Workflow definitions
 ├── build/                            # Compiled JavaScript (after build)
 ├── docs/                             # Additional documentation
-│   ├── code-map-generator/           # Code Map Generator docs
+│   ├── map-codebase/                # Code Map Tool docs
 │   ├── handover/                     # Development handover docs
 │   └── *.md                          # Various documentation files
 ├── VibeCoderOutput/                  # Tool output directory
-│   ├── research-manager/             # Research reports
+│   ├── research/                    # Research reports
 │   ├── rules-generator/              # Development rules
 │   ├── prd-generator/                # Product requirements
 │   ├── user-stories-generator/       # User stories
 │   ├── task-list-generator/          # Task lists
 │   ├── fullstack-starter-kit-generator/  # Project templates
-│   ├── code-map-generator/           # Code maps and diagrams
+│   ├── map-codebase/                # Code maps and diagrams
 │   ├── vibe-task-manager/            # Task management data
 │   └── workflow-runner/              # Workflow outputs
 └── src/                              # Source code
@@ -460,14 +460,14 @@ vibe-coder-mcp/
     ├── tools/                        # MCP Tools
     │   ├── index.ts                  # Tool registration
     │   ├── sequential-thinking.ts    # Fallback routing
-    │   ├── code-map-generator/       # Code analysis tool
+    │   ├── map-codebase/            # Code analysis tool
     │   │   ├── cache/                # Memory management
     │   │   ├── grammars/             # Tree-sitter grammars
     │   │   ├── importResolvers/      # Import resolution adapters
     │   │   └── *.ts                  # Core implementation
     │   ├── fullstack-starter-kit-generator/  # Project scaffolding
     │   ├── prd-generator/            # PRD creation
-    │   ├── research-manager/         # Research tool
+    │   ├── research/                # Research tool
     │   ├── rules-generator/          # Rule generation
     │   ├── task-list-generator/      # Task list generation
     │   ├── user-stories-generator/   # User story generation
@@ -717,20 +717,20 @@ Refer to these individual READMEs for in-depth information:
 
 *   `src/tools/fullstack-starter-kit-generator/README.md`
 *   `src/tools/prd-generator/README.md`
-*   `src/tools/research-manager/README.md`
+*   `src/tools/research/README.md`
 *   `src/tools/rules-generator/README.md`
 *   `src/tools/task-list-generator/README.md`
 *   `src/tools/user-stories-generator/README.md`
 *   `src/tools/workflow-runner/README.md`
-*   `src/tools/code-map-generator/README.md`
+*   `src/tools/map-codebase/README.md`
 
 ## Tool Categories
 
 ### Analysis & Information Tools
 
-*   **Code Map Generator (`map-codebase`)**: Scans a codebase to extract semantic information (classes, functions, comments) and generates either a human-readable Markdown map with Mermaid diagrams or a structured JSON representation with absolute file paths for imports and enhanced class property information.
-*   **Context Curator (`curate-context`)**: Intelligent codebase analysis and context package curation with 8-phase workflow pipeline, intelligent codemap caching, language-agnostic project detection supporting 35+ programming languages, and multi-strategy file discovery for AI-driven development tasks.
-*   **Research Manager (`research-manager`)**: Performs deep research on technical topics using Perplexity Sonar, providing summaries and sources.
+*   **Code Map Tool (`map-codebase`)**: Scans a codebase to extract semantic information (classes, functions, comments) and generates either a human-readable Markdown map with Mermaid diagrams or a structured JSON representation with absolute file paths for imports and enhanced class property information.
+*   **Context Curation Tool (`curate-context`)**: Intelligent codebase analysis and context package curation with 8-phase workflow pipeline, intelligent codemap caching, language-agnostic project detection supporting 35+ programming languages, and multi-strategy file discovery for AI-driven development tasks.
+*   **Research Tool (`research`)**: Performs deep research on technical topics using Perplexity Sonar, providing summaries and sources.
 
 ### Planning & Documentation Tools
 
@@ -756,7 +756,7 @@ By default, outputs from the generator tools are stored for historical reference
 For security reasons, the Vibe Coder MCP tools maintain separate security boundaries for read and write operations with a **security-by-default** approach:
 
 * **Read Operations**:
-  - **Code Map Generator**: Only reads from directories explicitly authorized through the `CODE_MAP_ALLOWED_DIR` environment variable
+  - **Code Map Tool**: Only reads from directories explicitly authorized through the `CODE_MAP_ALLOWED_DIR` environment variable
   - **Vibe Task Manager**: Only reads from directories authorized through the `VIBE_TASK_MANAGER_READ_DIR` environment variable (defaults to `process.cwd()`)
   - **Security Mode**: The Vibe Task Manager defaults to 'strict' security mode, which prevents access to system directories like `/private/var/spool/postfix/`, `/System/`, and other unauthorized paths
   - **Filesystem Security**: Comprehensive blacklist enforcement and permission checking prevent EACCES errors and unauthorized file access
@@ -773,7 +773,7 @@ Example structure (default location):
 
 ```bash
 VibeCoderOutput/
-  ├── research-manager/         # Research reports
+  ├── research/                # Research reports
   │   └── TIMESTAMP-QUERY-research.md
   ├── rules-generator/          # Development rules
   │   └── TIMESTAMP-PROJECT-rules.md
@@ -785,7 +785,7 @@ VibeCoderOutput/
   │   └── TIMESTAMP-PROJECT-task-list.md
   ├── fullstack-starter-kit-generator/  # Project templates
   │   └── TIMESTAMP-PROJECT/
-  ├── code-map-generator/       # Code maps and diagrams
+  ├── map-codebase/            # Code maps and diagrams
   │   └── TIMESTAMP-code-map/
   └── workflow-runner/          # Workflow outputs
       └── TIMESTAMP-WORKFLOW/
@@ -842,7 +842,7 @@ Interact with the tools via your connected AI assistant:
 *   **Fullstack Starter Kit:** `Create a starter kit for a React/Node.js blog application with user authentication`
 *   **Run Workflow:** `Run workflow newProjectSetup with input { "projectName": "my-new-app", "description": "A simple task manager" }`
 *   **Map Codebase:** `Generate a code map for the current project`, `map-codebase path="./src"`, or `Generate a JSON representation of the codebase structure with output_format="json"`
-*   **Context Curator:** `Curate context for adding authentication to my React app`, `Generate context package for refactoring the user service`, or `Analyze this codebase for performance optimization opportunities`
+*   **Context Curation:** `Curate context for adding authentication to my React app`, `Generate context package for refactoring the user service`, or `Analyze this codebase for performance optimization opportunities`
 *   **Vibe Task Manager:** `Create a new project for building a todo app`, `List all my projects`, `Run task authentication-setup`, `What's the status of my React project?`
 
 ## Vibe Task Manager - AI-Native Task Management
@@ -859,7 +859,7 @@ The Vibe Task Manager is a comprehensive task management system designed specifi
 *   **Session Persistence**: Enhanced session tracking with orchestration workflow triggers for reliable multi-step operations
 *   **Comprehensive CLI**: Full command-line interface with natural language processing and structured commands
 *   **Agent Orchestration**: Coordinates multiple AI agents for parallel task execution
-*   **Integration Ready**: Works seamlessly with Code Map Generator, Research Manager, and other tools
+*   **Integration Ready**: Works seamlessly with Code Map Tool, Research Tool, and other tools
 *   **File Storage**: All project data stored in `VibeCoderOutput/vibe-task-manager/` following established conventions
 
 ### Quick Start Examples
@@ -930,7 +930,7 @@ gantt
 
     section Tool Development
     Research & Planning Tools  :done, epic4, 2024-02-01, 2024-04-01
-    Code Map Generator         :done, epic5, 2024-03-01, 2024-05-15
+    Code Map Tool              :done, epic5, 2024-03-01, 2024-05-15
     Vibe Task Manager Core     :done, epic6, 2024-04-01, 2024-06-15
 
     section Advanced Features
@@ -955,7 +955,7 @@ gantt
 | Response Time (Task Operations) | <200ms | <150ms | ✅ **Exceeded** |
 | Response Time (Sync Operations) | <500ms | <350ms | ✅ **Exceeded** |
 | Job Completion Rate | 95%+ | 96.7% | ✅ **Met** |
-| Memory Usage (Code Map Generator) | <512MB | <400MB | ✅ **Optimized** |
+| Memory Usage (Code Map Tool) | <512MB | <400MB | ✅ **Optimized** |
 | Test Coverage | >90% | 99.9% | ✅ **Exceeded** |
 | Security Overhead | <50ms | <35ms | ✅ **Optimized** |
 | Zero Mock Code Policy | 100% | 100% | ✅ **Achieved** |
@@ -969,20 +969,20 @@ gantt
 * **Performance**: <50ms response time for task operations
 * **Recent Additions**: PRD/task list integration, enhanced session tracking, orchestration workflows
 
-#### Code Map Generator
+#### Code Map Tool
 * **Status**: Production Ready with Advanced Features
 * **Memory Optimization**: 95-97% token reduction achieved
 * **Language Support**: 35+ programming languages
 * **Import Resolution**: Enhanced with adapter-based architecture
 
-#### Context Curator
+#### Context Curation Tool
 * **Status**: Production Ready with Intelligent Codemap Caching
 * **Language Support**: 35+ programming languages with 95%+ accuracy
 * **Workflow Pipeline**: 8-phase intelligent analysis and curation
 * **Project Detection**: Language-agnostic with multi-strategy file discovery
 * **Performance Optimization**: Intelligent caching system that reuses recent codemaps (configurable 1-1440 minutes)
 
-#### Research Manager
+#### Research Tool
 * **Status**: Production Ready
 * **Integration**: Perplexity Sonar API
 * **Performance**: <2s average research query response
@@ -1100,8 +1100,8 @@ While the primary use is integration with an AI assistant (using stdio), you can
 - **System Architecture**: `docs/ARCHITECTURE.md` - Comprehensive system architecture with Mermaid diagrams
 - **Performance & Testing**: `docs/PERFORMANCE_AND_TESTING.md` - Performance metrics, testing strategies, and quality assurance
 - **Vibe Task Manager**: `src/tools/vibe-task-manager/README.md` - Comprehensive task management documentation
-- **Context Curator**: `src/tools/context-curator/README.md` - Language-agnostic codebase analysis documentation
-- **Code Map Generator**: `src/tools/code-map-generator/README.md` - Advanced codebase analysis documentation
+- **Context Curation Tool**: `src/tools/curate-context/README.md` - Language-agnostic codebase analysis documentation
+- **Code Map Tool**: `src/tools/map-codebase/README.md` - Advanced codebase analysis documentation
 
 ### Tool Documentation
 - **Individual Tool READMEs**: Each tool directory contains detailed documentation
