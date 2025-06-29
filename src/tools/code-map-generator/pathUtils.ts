@@ -69,10 +69,16 @@ export function validatePathSecurity(
   allowedDirectory: string
 ): PathValidationResult {
   try {
-    // Handle empty allowedDirectory - use process.cwd() as fallback
-    if (!allowedDirectory) {
-      logger.warn('Empty allowedDirectory provided, using current working directory as fallback');
-      allowedDirectory = process.cwd();
+    // Handle empty allowedDirectory - use environment variable or process.cwd() as fallback
+    if (!allowedDirectory || allowedDirectory.trim() === '') {
+      const envAllowedDir = process.env.CODE_MAP_ALLOWED_DIR || process.env.VIBE_TASK_MANAGER_READ_DIR;
+      if (envAllowedDir) {
+        logger.debug('Empty allowedDirectory provided, using environment variable as fallback');
+        allowedDirectory = envAllowedDir;
+      } else {
+        logger.warn('Empty allowedDirectory provided, using current working directory as fallback');
+        allowedDirectory = process.cwd();
+      }
     }
 
     // Normalize both paths
@@ -112,10 +118,16 @@ export function createSecurePath(
   inputPath: string,
   allowedDirectory: string
 ): string {
-  // Handle empty allowedDirectory - use process.cwd() as fallback
-  if (!allowedDirectory) {
-    logger.warn('Empty allowedDirectory provided in createSecurePath, using current working directory as fallback');
-    allowedDirectory = process.cwd();
+  // Handle empty allowedDirectory - use environment variable or process.cwd() as fallback
+  if (!allowedDirectory || allowedDirectory.trim() === '') {
+    const envAllowedDir = process.env.CODE_MAP_ALLOWED_DIR || process.env.VIBE_TASK_MANAGER_READ_DIR;
+    if (envAllowedDir) {
+      logger.debug('Empty allowedDirectory provided in createSecurePath, using environment variable as fallback');
+      allowedDirectory = envAllowedDir;
+    } else {
+      logger.warn('Empty allowedDirectory provided in createSecurePath, using current working directory as fallback');
+      allowedDirectory = process.cwd();
+    }
   }
 
   const validationResult = validatePathSecurity(inputPath, allowedDirectory);
@@ -148,10 +160,16 @@ export function resolveSecurePath(
     throw new Error('Path cannot be empty or undefined');
   }
 
-  // Handle empty allowedDirectory - use process.cwd() as fallback
-  if (!allowedDirectory) {
-    logger.warn('Empty allowedDirectory provided in resolveSecurePath, using current working directory as fallback');
-    allowedDirectory = process.cwd();
+  // Handle empty allowedDirectory - use environment variable or process.cwd() as fallback
+  if (!allowedDirectory || allowedDirectory.trim() === '') {
+    const envAllowedDir = process.env.CODE_MAP_ALLOWED_DIR || process.env.VIBE_TASK_MANAGER_READ_DIR;
+    if (envAllowedDir) {
+      logger.debug('Empty allowedDirectory provided in resolveSecurePath, using environment variable as fallback');
+      allowedDirectory = envAllowedDir;
+    } else {
+      logger.warn('Empty allowedDirectory provided in resolveSecurePath, using current working directory as fallback');
+      allowedDirectory = process.cwd();
+    }
   }
 
   // If the path is already absolute, validate it directly
@@ -176,10 +194,16 @@ export function getRelativePath(
   absolutePath: string,
   allowedDirectory: string
 ): string {
-  // Handle empty allowedDirectory - use process.cwd() as fallback
-  if (!allowedDirectory) {
-    logger.warn('Empty allowedDirectory provided in getRelativePath, using current working directory as fallback');
-    allowedDirectory = process.cwd();
+  // Handle empty allowedDirectory - use environment variable or process.cwd() as fallback
+  if (!allowedDirectory || allowedDirectory.trim() === '') {
+    const envAllowedDir = process.env.CODE_MAP_ALLOWED_DIR || process.env.VIBE_TASK_MANAGER_READ_DIR;
+    if (envAllowedDir) {
+      logger.debug('Empty allowedDirectory provided in getRelativePath, using environment variable as fallback');
+      allowedDirectory = envAllowedDir;
+    } else {
+      logger.warn('Empty allowedDirectory provided in getRelativePath, using current working directory as fallback');
+      allowedDirectory = process.cwd();
+    }
   }
 
   // Validate the path first

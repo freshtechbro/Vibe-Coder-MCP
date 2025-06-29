@@ -18,6 +18,8 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
   let mockConfig: OpenRouterConfig;
 
   beforeEach(() => {
+    vi.clearAllMocks(); // Clear previous mock calls
+    
     mockConfig = {
       apiKey: 'test-key',
       llm_mapping: {

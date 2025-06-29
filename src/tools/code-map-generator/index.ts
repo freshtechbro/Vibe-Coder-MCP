@@ -387,7 +387,7 @@ try {
     sseNotifier.sendProgress(sessionId, jobId, JobStatus.RUNNING, 'Scanning for source files...');
 
     logger.info(`Scanning for source files in: ${projectRoot}`);
-    let filePathsResult = await collectSourceFiles(projectRoot, supportedExtensions, combinedIgnoredPatterns, config);
+    const filePathsResult = await collectSourceFiles(projectRoot, supportedExtensions, combinedIgnoredPatterns, config);
 
     // Ensure we have a flat array of strings
     let filePaths: string[] = Array.isArray(filePathsResult[0]) ? (filePathsResult as string[][]).flat() : filePathsResult as string[];

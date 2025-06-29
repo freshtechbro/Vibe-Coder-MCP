@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as astAnalyzer from '../astAnalyzer.js';
 import { SyntaxNode } from '../parser.js';
+import { parseCode } from '../parser.js';
 
 // Mock extractFunctions to return a single function with the expected name
 vi.spyOn(astAnalyzer, 'extractFunctions').mockImplementation((node, sourceCode, languageId) => {
@@ -218,6 +219,46 @@ describe('Function Name Detection', () => {
       const functions = astAnalyzer.extractFunctions(rootNode, rootNode.text, '.js');
       expect(functions).toHaveLength(1);
       expect(functions[0].name).toBe('map_callback');
+    });
+  });
+
+  describe('Parser WASM Validation', () => {
+    it('should handle parser with invalid state', async () => {
+      // Mock a parser with invalid state
+      const invalidParser = {
+        parse: undefined, // Invalid state - no parse method
+        getLanguage: vi.fn().mockReturnValue(null)
+      };
+
+      const result = await parseCode('console.log("test");', '.js', invalidParser as any);
+      
+      expect(result).toBeNull();
+    });
+
+    it('should handle parser with no language set', async () => {
+      // Mock a parser with no language
+      const parserWithoutLanguage = {
+        parse: vi.fn(),
+        getLanguage: vi.fn().mockReturnValue(null)
+      };
+
+      const result = await parseCode('console.log("test");', '.js', parserWithoutLanguage as any);
+      
+      expect(result).toBeNull();
+    });
+
+    it('should handle parser WASM corruption errors', async () => {
+      // Mock a parser that throws WASM corruption error
+      const corruptedParser = {
+        parse: vi.fn().mockImplementation(() => {
+          throw new TypeError("Cannot read properties of undefined (reading 'apply')");
+        }),
+        getLanguage: vi.fn().mockReturnValue({ name: 'javascript' })
+      };
+
+      const result = await parseCode('console.log("test");', '.js', corruptedParser as any);
+      
+      expect(result).toBeNull();
     });
   });
 });

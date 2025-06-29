@@ -682,6 +682,18 @@ export async function parseCode(
       }, `Used incremental parsing for large file with extension ${fileExtension}`);
     } else {
       // Use regular parsing for smaller files
+      // Validate parser state before parsing to prevent WASM corruption errors
+      if (!parser || typeof parser.parse !== 'function') {
+        logger.error({ fileExtension }, `Parser is in invalid state for extension ${fileExtension}`);
+        return null;
+      }
+
+      // Validate parser language is set
+      if (!parser.getLanguage || !parser.getLanguage()) {
+        logger.error({ fileExtension }, `Parser language not set for extension ${fileExtension}`);
+        return null;
+      }
+
       tree = parser.parse(sourceCode);
       logger.debug(`Successfully parsed code for extension ${fileExtension}. Root node: ${tree.rootNode.type}`);
     }
@@ -745,7 +757,20 @@ export async function parseCode(
 
     return tree;
   } catch (error) {
-    logger.error({ err: error, fileExtension }, `Error parsing code for extension ${fileExtension}.`);
+    // Enhanced error logging with parser state diagnostics
+    const errorInfo: any = { err: error, fileExtension };
+    
+    if (parser) {
+      errorInfo.parserState = {
+        hasParseMethod: typeof parser.parse === 'function',
+        hasLanguage: !!(parser.getLanguage && parser.getLanguage()),
+        languageName: parser.getLanguage ? (parser.getLanguage() as any)?.name || 'unknown' : 'unknown'
+      };
+    } else {
+      errorInfo.parserState = 'null';
+    }
+
+    logger.error(errorInfo, `Error parsing code for extension ${fileExtension}.`);
     return null;
   }
 }

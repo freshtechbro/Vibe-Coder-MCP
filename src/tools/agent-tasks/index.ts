@@ -331,7 +331,7 @@ export async function handleGetAgentTasks(args: any): Promise<CallToolResult> {
 
     // Verify agent exists and is registered
     const agentRegistry = await dependencyContainer.getAgentRegistry();
-    const agent = agentRegistry ? await agentRegistry.getAgent(agentId) : null;
+    const agent = agentRegistry ? await (agentRegistry as any).getAgent(agentId) : null;
 
     if (!agent) {
       return {

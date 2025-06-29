@@ -18,6 +18,8 @@ describe('SetupCommands Preprocessing', () => {
   let mockConfig: OpenRouterConfig;
 
   beforeEach(() => {
+    vi.clearAllMocks(); // Clear previous mock calls
+    
     mockConfig = {
       apiKey: 'test-key',
       llm_mapping: {

@@ -27,7 +27,7 @@ describe('ImportResolverManager', () => {
     vi.clearAllMocks();
 
     // Reset the singleton instance
-    // @ts-ignore - Accessing private property for testing
+    // @ts-expect-error - Accessing private property for testing
     ImportResolverManager.instance = undefined;
   });
 

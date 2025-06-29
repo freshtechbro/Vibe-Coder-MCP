@@ -68,7 +68,11 @@ describe('Python Language Handler', () => {
       const mockInitMethod = {
         type: 'function_definition',
         childForFieldName: vi.fn((field) => {
-          if (field === 'name') return { text: '__init__' };
+          if (field === 'name') return { 
+            text: '__init__',
+            startIndex: 113, // Position of "__init__" in sourceCode (after "    def ")
+            endIndex: 121    // End position of "__init__"
+          };
           if (field === 'body') return {
             descendantsOfType: vi.fn((type) => {
               if (type === 'assignment') {
@@ -79,7 +83,12 @@ describe('Python Language Handler', () => {
                       return null;
                     }),
                     startPosition: { row: 9, column: 8 },
-                    endPosition: { row: 9, column: 21 }
+                    endPosition: { row: 9, column: 21 },
+                    parent: {
+                      type: 'expression_statement',
+                      startPosition: { row: 9, column: 8 },
+                      endPosition: { row: 9, column: 21 }
+                    }
                   },
                   {
                     childForFieldName: vi.fn((field) => {
@@ -87,7 +96,12 @@ describe('Python Language Handler', () => {
                       return null;
                     }),
                     startPosition: { row: 12, column: 8 },
-                    endPosition: { row: 12, column: 22 }
+                    endPosition: { row: 12, column: 22 },
+                    parent: {
+                      type: 'expression_statement',
+                      startPosition: { row: 12, column: 8 },
+                      endPosition: { row: 12, column: 22 }
+                    }
                   },
                   {
                     childForFieldName: vi.fn((field) => {
@@ -95,7 +109,12 @@ describe('Python Language Handler', () => {
                       return null;
                     }),
                     startPosition: { row: 15, column: 8 },
-                    endPosition: { row: 15, column: 35 }
+                    endPosition: { row: 15, column: 35 },
+                    parent: {
+                      type: 'expression_statement',
+                      startPosition: { row: 15, column: 8 },
+                      endPosition: { row: 15, column: 35 }
+                    }
                   },
                   {
                     childForFieldName: vi.fn((field) => {
@@ -103,7 +122,12 @@ describe('Python Language Handler', () => {
                       return null;
                     }),
                     startPosition: { row: 18, column: 8 },
-                    endPosition: { row: 18, column: 30 }
+                    endPosition: { row: 18, column: 30 },
+                    parent: {
+                      type: 'expression_statement',
+                      startPosition: { row: 18, column: 8 },
+                      endPosition: { row: 18, column: 30 }
+                    }
                   }
                 ];
               }
@@ -114,39 +138,52 @@ describe('Python Language Handler', () => {
         })
       };
 
+      // Create class variables as proper nodes
+      const classVar1 = {
+        type: 'expression_statement',
+        firstChild: {
+          type: 'assignment',
+          childForFieldName: vi.fn((field) => {
+            if (field === 'left') return { 
+              type: 'identifier',
+              text: 'DEFAULT_ROLE',
+              startIndex: 65,  // Position in sourceCode where "DEFAULT_ROLE" starts
+              endIndex: 77,    // Position in sourceCode where "DEFAULT_ROLE" ends
+              nextSibling: null // No type annotation
+            };
+            return null;
+          })
+        },
+        startPosition: { row: 2, column: 4 },
+        endPosition: { row: 2, column: 25 }
+      };
+
+      const classVar2 = {
+        type: 'expression_statement',
+        firstChild: {
+          type: 'assignment',
+          childForFieldName: vi.fn((field) => {
+            if (field === 'left') return { 
+              type: 'identifier',
+              text: 'COMPANY',
+              startIndex: 110, // Position in sourceCode where "COMPANY" starts  
+              endIndex: 117,   // Position in sourceCode where "COMPANY" ends
+              nextSibling: null // No type annotation
+            };
+            return null;
+          })
+        },
+        startPosition: { row: 5, column: 4 },
+        endPosition: { row: 5, column: 25 }
+      };
+
       const mockClassBody = {
         type: 'block',
-        children: [
-          // Class variable 1
-          {
-            type: 'expression_statement',
-            firstChild: {
-              type: 'assignment',
-              childForFieldName: vi.fn((field) => {
-                if (field === 'left') return { text: 'DEFAULT_ROLE' };
-                return null;
-              })
-            },
-            startPosition: { row: 2, column: 4 },
-            endPosition: { row: 2, column: 25 }
-          },
-          // Class variable 2
-          {
-            type: 'expression_statement',
-            firstChild: {
-              type: 'assignment',
-              childForFieldName: vi.fn((field) => {
-                if (field === 'left') return { text: 'COMPANY' };
-                return null;
-              })
-            },
-            startPosition: { row: 5, column: 4 },
-            endPosition: { row: 5, column: 25 }
-          },
-          // __init__ method
-          mockInitMethod
-        ]
+        children: [classVar1, classVar2, mockInitMethod]
       };
+
+      // Make children array properly iterable
+      mockClassBody.children[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
       const mockClassNode = {
         type: 'class_definition',
@@ -181,6 +218,11 @@ class User:
 
       // Act - Test the actual extractClassProperties method
       const properties = handler['extractClassProperties'](mockClassNode as any, sourceCode);
+
+      // Debug: Log the returned properties
+      console.log('Extracted properties:', properties);
+      console.log('Properties length:', properties.length);
+      console.log('Mock class body children:', mockClassBody.children);
 
       // Assert
       expect(properties.length).toBeGreaterThan(0);
