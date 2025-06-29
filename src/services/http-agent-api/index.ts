@@ -27,7 +27,7 @@ interface HTTPTaskResponse {
   taskId: string;
   status: 'DONE' | 'ERROR' | 'PARTIAL';
   response: string;
-  completionDetails?: Record<string, unknown>;
+  completionDetails?: unknown;
 }
 
 interface HTTPAgentRegistration {
@@ -43,7 +43,7 @@ interface HTTPAgentRegistration {
 class HTTPAgentAPIServer {
   private static instance: HTTPAgentAPIServer;
   private app: express.Application;
-  private server?: import('http').Server;
+  private server?: unknown;
   private port: number = 3001;
 
   static getInstance(): HTTPAgentAPIServer {
@@ -394,7 +394,7 @@ class HTTPAgentAPIServer {
     }
   }
 
-  private async deliverTaskToAgent(agent: HTTPAgentRegistration, taskRequest: HTTPTaskRequest): Promise<boolean> {
+  private async deliverTaskToAgent(agent: unknown, taskRequest: HTTPTaskRequest): Promise<boolean> {
     try {
       if (!agent.httpEndpoint) {
         return false;
