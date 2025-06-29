@@ -17,7 +17,7 @@ vi.mock('../../../utils/json-preprocessing.js', () => ({
 vi.mock('../../../services/config-loader.js', () => ({
   ContextCuratorConfigLoader: {
     getInstance: vi.fn(() => ({
-      getLLMModel: vi.fn(() => 'google/gemini-2.5-flash-preview-05-20')
+      getLLMModel: vi.fn(() => 'deepseek/deepseek-r1-0528-qwen3-8b:free')
     }))
   }
 }));
@@ -40,7 +40,7 @@ describe('ContextCuratorLLMService - Relevance Scoring with Retry and Chunking',
   const mockConfig = {
     baseUrl: 'https://openrouter.ai/api/v1',
     apiKey: 'test-key',
-    geminiModel: 'google/gemini-2.5-flash-preview-05-20',
+    defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
     perplexityModel: 'perplexity/sonar-deep-research',
     llm_mapping: {}
   };

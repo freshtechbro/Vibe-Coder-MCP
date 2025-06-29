@@ -13,12 +13,12 @@ export function createMockConfig(overrides?: Partial<OpenRouterConfig>): OpenRou
   return {
     apiKey: 'test-api-key',
     baseUrl: 'https://openrouter.ai/api/v1',
-    geminiModel: 'google/gemini-2.5-flash-preview',
+    defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
     llm_mapping: {
-      'task_decomposition': 'google/gemini-2.5-flash-preview',
-      'atomic_detection': 'google/gemini-2.5-flash-preview',
-      'intent_recognition': 'google/gemini-2.5-flash-preview',
-      'default_generation': 'google/gemini-2.5-flash-preview'
+      'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+      'atomic_detection': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+      'intent_recognition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+      'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
     },
     ...overrides
   };

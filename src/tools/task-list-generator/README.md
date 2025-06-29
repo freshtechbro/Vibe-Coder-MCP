@@ -96,8 +96,8 @@ The Task List Generator uses models defined in `llm_config.json`:
 {
   "llm_mapping": {
     "task_list_research": "perplexity/sonar-deep-research",
-    "task_list_generation": "google/gemini-2.5-flash-preview",
-    "task_decomposition": "google/gemini-2.5-flash-preview"
+    "task_list_generation": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "task_decomposition": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```

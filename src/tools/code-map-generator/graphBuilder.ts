@@ -739,33 +739,41 @@ async function processFunctionCallGraphWithStorage(
 
             // Process in smaller batches to avoid memory issues
             const functionEntries = Object.entries(functionsMap);
-            const functionBatchSize = 100;
+            
+            // CRITICAL FIX: Pre-compile function patterns for efficient matching instead of nested loops
+            const functionPatterns: Array<{ name: string, regex: RegExp, calleeId: string }> = [];
+            
+            // Only process qualified function IDs (contain ::) to avoid duplicates
+            functionEntries.forEach(([key, { funcInfo: calleeInfo, filePath: calleeFilePath, className: calleeClassName }]) => {
+            if (!key.includes('::')) return; // Skip non-qualified entries
+            
+              const calleeName = calleeInfo.name;
+            const calleeId = calleeClassName
+            ? `${calleeFilePath}::${calleeClassName}.${calleeName}`
+            : `${calleeFilePath}::${calleeName}`;
+            
+              try {
+            const regex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);  
+                functionPatterns.push({ name: calleeName, regex, calleeId });
+            } catch (error) {
+            // Skip functions with names that can't be regex-escaped
+            logger.debug(`Skipping function with problematic name: ${calleeName}`);
+            }
+            });
+            
+            logger.debug(`Created ${functionPatterns.length} function patterns for batch processing`);
 
-            for (let j = 0; j < functionEntries.length; j += functionBatchSize) {
-              const functionBatch = functionEntries.slice(j, j + functionBatchSize);
+            // CRITICAL FIX: Single-pass pattern matching instead of O(n²) nested loops
+            for (const { name: calleeName, regex: callRegex, calleeId } of functionPatterns) {
+            if (callerId === calleeId) continue; // Don't link to self
 
-              functionBatch.forEach(([key, { funcInfo: calleeInfo, filePath: calleeFilePath, className: calleeClassName }]) => {
-                // Skip if not a fully qualified ID (contains ::)
-                if (!key.includes('::')) return;
-
-                const calleeName = calleeInfo.name;
-                const calleeId = calleeClassName
-                  ? `${calleeFilePath}::${calleeClassName}.${calleeName}`
-                  : `${calleeFilePath}::${calleeName}`;
-
-                if (callerId === calleeId) return; // Don't link to self
-
-                // Simple regex to find function name possibly followed by ( or .
-                // This is very basic and will have false positives/negatives.
-                const callRegex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);
-                if (callRegex.test(functionBody)) {
-                  batchEdges.push({
-                    from: callerId,
-                    to: calleeId,
-                    label: 'calls?', // Indicate heuristic nature
-                  });
-                }
-              });
+              if (callRegex.test(functionBody)) {
+                batchEdges.push({
+                  from: callerId,
+                  to: calleeId,
+                  label: 'calls?', // Indicate heuristic nature
+                });
+              }
             }
           });
         };
@@ -830,94 +838,112 @@ async function processFunctionCallGraphWithStorage(
 }
 
 /**
- * Processes function call graph directly without intermediate storage.
- * @param allFilesInfo Array of file information objects
- * @param sourceCodeCache Map of file paths to source code
- * @returns Object containing nodes and edges of the graph
- */
+* Processes function call graph directly without intermediate storage.
+* @param allFilesInfo Array of file information objects
+* @param sourceCodeCache Map of file paths to source code
+* @returns Object containing nodes and edges of the graph
+*/
 function processFunctionCallGraphDirectly(
-  allFilesInfo: FileInfo[],
-  sourceCodeCache: Map<string, string>
+allFilesInfo: FileInfo[],
+sourceCodeCache: Map<string, string>
 ): { nodes: GraphNode[], edges: GraphEdge[] } {
-  const nodes: GraphNode[] = [];
-  const edges: GraphEdge[] = [];
-  const allKnownFunctions = new Map<string, { funcInfo: FunctionInfo, filePath: string, className?: string }>();
+const nodes: GraphNode[] = [];
+const edges: GraphEdge[] = [];
+const allKnownFunctions = new Map<string, { funcInfo: FunctionInfo, filePath: string, className?: string }>();
 
-  // Populate allKnownFunctions and nodes
-  allFilesInfo.forEach(fileInfo => {
-    fileInfo.functions.forEach(funcInfo => {
-      const funcId = `${fileInfo.relativePath}::${funcInfo.name}`;
-      nodes.push({
-        id: funcId,
-        label: `${funcInfo.name} — ${funcInfo.comment || generateHeuristicComment(funcInfo.name, 'function')}`.substring(0, 80),
-        type: 'function',
-        comment: funcInfo.comment,
-        filePath: fileInfo.relativePath,
-      });
-      allKnownFunctions.set(funcInfo.name, { funcInfo, filePath: fileInfo.relativePath }); // Simple name for now
-      allKnownFunctions.set(funcId, { funcInfo, filePath: fileInfo.relativePath });
-    });
-    fileInfo.classes.forEach(classInfo => {
-      classInfo.methods.forEach(methodInfo => {
-        const methodId = `${fileInfo.relativePath}::${classInfo.name}.${methodInfo.name}`;
-        nodes.push({
-          id: methodId,
-          label: `${classInfo.name}.${methodInfo.name} — ${methodInfo.comment || generateHeuristicComment(methodInfo.name, 'method', undefined, classInfo.name)}`.substring(0, 80),
-          type: 'method',
-          comment: methodInfo.comment,
-          filePath: fileInfo.relativePath,
-        });
-        allKnownFunctions.set(`${classInfo.name}.${methodInfo.name}`, { funcInfo: methodInfo, filePath: fileInfo.relativePath, className: classInfo.name }); // Qualified name
-        allKnownFunctions.set(methodId, { funcInfo: methodInfo, filePath: fileInfo.relativePath, className: classInfo.name });
-      });
-    });
+// Populate allKnownFunctions and nodes
+allFilesInfo.forEach(fileInfo => {
+fileInfo.functions.forEach(funcInfo => {
+const funcId = `${fileInfo.relativePath}::${funcInfo.name}`;
+nodes.push({
+id: funcId,
+label: `${funcInfo.name} — ${funcInfo.comment || generateHeuristicComment(funcInfo.name, 'function')}`.substring(0, 80),
+type: 'function',
+comment: funcInfo.comment,
+filePath: fileInfo.relativePath,
+});
+allKnownFunctions.set(funcInfo.name, { funcInfo, filePath: fileInfo.relativePath }); // Simple name for now
+allKnownFunctions.set(funcId, { funcInfo, filePath: fileInfo.relativePath });
+});
+fileInfo.classes.forEach(classInfo => {
+classInfo.methods.forEach(methodInfo => {
+const methodId = `${fileInfo.relativePath}::${classInfo.name}.${methodInfo.name}`;
+nodes.push({
+id: methodId,
+label: `${classInfo.name}.${methodInfo.name} — ${methodInfo.comment || generateHeuristicComment(methodInfo.name, 'method', undefined, classInfo.name)}`.substring(0, 80),
+type: 'method',
+comment: methodInfo.comment,
+filePath: fileInfo.relativePath,
+});
+allKnownFunctions.set(`${classInfo.name}.${methodInfo.name}`, { funcInfo: methodInfo, filePath: fileInfo.relativePath, className: classInfo.name }); // Qualified name
+allKnownFunctions.set(methodId, { funcInfo: methodInfo, filePath: fileInfo.relativePath, className: classInfo.name });
+});
+});
+});
+
+// Create a pre-compiled list of function patterns for efficient matching
+const functionPatterns: Array<{ name: string, regex: RegExp, calleeId: string }> = [];
+
+// Only process qualified function IDs (contain ::) to avoid duplicates
+for (const [key, { funcInfo: calleeInfo, filePath: calleeFilePath, className: calleeClassName }] of allKnownFunctions) {
+  if (!key.includes('::')) continue; // Skip non-qualified entries
+
+  const calleeName = calleeInfo.name;
+  const calleeId = calleeClassName
+    ? `${calleeFilePath}::${calleeClassName}.${calleeName}`
+    : `${calleeFilePath}::${calleeName}`;
+
+  try {
+    const regex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);  
+    functionPatterns.push({ name: calleeName, regex, calleeId });
+  } catch (error) {
+    // Skip functions with names that can't be regex-escaped
+    logger.debug(`Skipping function with problematic name: ${calleeName}`);
+  }
+}
+
+logger.info(`Created ${functionPatterns.length} function patterns for matching`);
+
+// Heuristic call detection with efficient single-pass matching
+for (const fileInfo of allFilesInfo) {
+  const sourceCode = sourceCodeCache.get(fileInfo.filePath);
+  if (!sourceCode) continue;
+
+  const processSymbolList = (symbols: FunctionInfo[], currentSymbolType: 'function' | 'method', currentClassName?: string) => {
+    for (const callerInfo of symbols) {
+      const callerId = currentClassName
+        ? `${fileInfo.relativePath}::${currentClassName}.${callerInfo.name}`
+        : `${fileInfo.relativePath}::${callerInfo.name}`;
+
+      const functionBody = sourceCode.substring(
+        sourceCode.indexOf('{', callerInfo.startLine > 0 ? sourceCode.indexOf('\n', callerInfo.startLine - 1) : 0), // Approx start
+        sourceCode.lastIndexOf('}', callerInfo.endLine > 0 ? sourceCode.indexOf('\n', callerInfo.endLine) : sourceCode.length) //Approx end
+      );
+
+      if (!functionBody) continue;
+
+      // CRITICAL FIX: Single-pass pattern matching instead of nested loops
+      for (const { name: calleeName, regex: callRegex, calleeId } of functionPatterns) {
+        if (callerId === calleeId) continue; // Don't link to self
+
+        if (callRegex.test(functionBody)) {
+          edges.push({
+            from: callerId,
+            to: calleeId,
+            label: 'calls?', // Indicate heuristic nature
+          });
+        }
+      }
+    }
+  };
+
+  processSymbolList(fileInfo.functions, 'function');
+  fileInfo.classes.forEach(classInfo => {
+    processSymbolList(classInfo.methods, 'method', classInfo.name);
   });
+}
 
-  // Heuristic call detection
-  allFilesInfo.forEach(fileInfo => {
-    const sourceCode = sourceCodeCache.get(fileInfo.filePath);
-    if (!sourceCode) return;
-
-    const processSymbolList = (symbols: FunctionInfo[], currentSymbolType: 'function' | 'method', currentClassName?: string) => {
-      symbols.forEach(callerInfo => {
-        const callerId = currentClassName
-          ? `${fileInfo.relativePath}::${currentClassName}.${callerInfo.name}`
-          : `${fileInfo.relativePath}::${callerInfo.name}`;
-
-        const functionBody = sourceCode.substring(
-          sourceCode.indexOf('{', callerInfo.startLine > 0 ? sourceCode.indexOf('\n', callerInfo.startLine - 1) : 0), // Approx start
-          sourceCode.lastIndexOf('}', callerInfo.endLine > 0 ? sourceCode.indexOf('\n', callerInfo.endLine) : sourceCode.length) //Approx end
-        );
-
-        if (!functionBody) return;
-
-        allKnownFunctions.forEach(({ funcInfo: calleeInfo, filePath: calleeFilePath, className: calleeClassName }) => {
-          const calleeName = calleeInfo.name;
-          const calleeId = calleeClassName
-            ? `${calleeFilePath}::${calleeClassName}.${calleeName}`
-            : `${calleeFilePath}::${calleeName}`;
-
-          if (callerId === calleeId) return; // Don't link to self
-
-          // Simple regex to find function name possibly followed by ( or .
-          // This is very basic and will have false positives/negatives.
-          const callRegex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);
-          if (callRegex.test(functionBody)) {
-            edges.push({
-              from: callerId,
-              to: calleeId,
-              label: 'calls?', // Indicate heuristic nature
-            });
-          }
-        });
-      });
-    };
-
-    processSymbolList(fileInfo.functions, 'function');
-    fileInfo.classes.forEach(classInfo => {
-      processSymbolList(classInfo.methods, 'method', classInfo.name);
-    });
-  });
+logger.info(`Function call graph generation completed: ${edges.length} edges generated`);
 
   // Remove duplicate nodes
   const uniqueNodeIds = new Set(nodes.map(n => n.id));
@@ -1023,9 +1049,19 @@ async function processMethodCallSequenceGraphWithStorage(
 function processMethodCallSequenceGraphDirectly(
   allFilesInfo: FileInfo[],
   sourceCodeCache: Map<string, string>
-): Promise<{ nodes: GraphNode[], edges: GraphEdge[] }> {
-  // Reuse the function call graph building logic
-  return buildFunctionCallGraph(allFilesInfo, sourceCodeCache);
+): { nodes: GraphNode[], edges: GraphEdge[] } {
+  // CRITICAL FIX: Process directly instead of calling buildFunctionCallGraph to avoid circular dependency
+  const { nodes, edges } = processFunctionCallGraphDirectly(allFilesInfo, sourceCodeCache);
+  
+  // Enhance edges with sequence information
+  const sequenceEdges = edges.map((edge, index) => {
+    return {
+      ...edge,
+      sequenceOrder: index, // Add sequence order based on the edge index
+    };
+  });
+
+  return { nodes, edges: sequenceEdges };
 }
 
 // Helper function from astAnalyzer.ts, duplicated for now or move to a shared util

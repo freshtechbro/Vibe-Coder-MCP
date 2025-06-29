@@ -21,10 +21,10 @@ describe('Vibe Task Manager - Tool Registration and Basic Functionality', () => 
     mockConfig = {
       apiKey: 'test-api-key',
       baseUrl: 'https://openrouter.ai/api/v1',
-      geminiModel: 'google/gemini-2.5-flash-preview',
+      defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
       llm_mapping: {
-        'task_decomposition': 'google/gemini-2.5-flash-preview',
-        'default_generation': 'google/gemini-2.5-flash-preview'
+        'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+        'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
       }
     };
 

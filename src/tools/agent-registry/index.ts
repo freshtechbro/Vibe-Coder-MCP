@@ -8,6 +8,8 @@
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { sseNotifier } from '../../services/sse-notifier/index.js';
 import { registerTool, ToolDefinition } from '../../services/routing/toolRegistry.js';
+import { transportManager } from '../../services/transport-manager/index.js';
+import { InitializationMonitor } from '../../utils/initialization-monitor.js';
 import { z } from 'zod';
 
 // Agent registration interface
@@ -32,14 +34,85 @@ export interface AgentRegistration {
 // Agent registry singleton
 class AgentRegistry {
   private static instance: AgentRegistry;
+  private static isInitializing = false; // Initialization guard to prevent circular initialization
   private agents = new Map<string, AgentRegistration>();
   private sessionToAgent = new Map<string, string>(); // sessionId -> agentId mapping
+  private integrationBridge: any; // Lazy loaded to avoid circular dependencies
+  private isBridgeRegistration = false; // Flag to prevent circular registration
 
   static getInstance(): AgentRegistry {
+    if (AgentRegistry.isInitializing) {
+      console.warn('Circular initialization detected in AgentRegistry, using safe fallback');
+      return AgentRegistry.createSafeFallback();
+    }
+
     if (!AgentRegistry.instance) {
-      AgentRegistry.instance = new AgentRegistry();
+      const monitor = InitializationMonitor.getInstance();
+      monitor.startServiceInitialization('AgentRegistry', [
+        'SSENotifier',
+        'TransportManager'
+      ]);
+
+      AgentRegistry.isInitializing = true;
+      try {
+        monitor.startPhase('AgentRegistry', 'constructor');
+        AgentRegistry.instance = new AgentRegistry();
+        monitor.endPhase('AgentRegistry', 'constructor');
+
+        monitor.endServiceInitialization('AgentRegistry');
+      } catch (error) {
+        monitor.endPhase('AgentRegistry', 'constructor', error as Error);
+        monitor.endServiceInitialization('AgentRegistry', error as Error);
+        throw error;
+      } finally {
+        AgentRegistry.isInitializing = false;
+      }
     }
     return AgentRegistry.instance;
+  }
+
+  /**
+   * Create safe fallback instance to prevent recursion
+   */
+  private static createSafeFallback(): AgentRegistry {
+    const fallback = Object.create(AgentRegistry.prototype);
+
+    // Initialize with minimal safe properties
+    fallback.agents = new Map();
+    fallback.sessionToAgent = new Map();
+    fallback.integrationBridge = null;
+    fallback.isBridgeRegistration = false;
+
+    // Provide safe no-op methods
+    fallback.registerAgent = async () => {
+      console.warn('AgentRegistry fallback: registerAgent called during initialization');
+      return { success: false, message: 'Registry initializing' };
+    };
+    fallback.getAgent = async () => {
+      console.warn('AgentRegistry fallback: getAgent called during initialization');
+      return null;
+    };
+    fallback.getOnlineAgents = async () => {
+      console.warn('AgentRegistry fallback: getOnlineAgents called during initialization');
+      return [];
+    };
+
+    return fallback;
+  }
+
+  /**
+   * Initialize integration bridge (lazy loading to avoid circular dependencies)
+   */
+  private async initializeIntegrationBridge(): Promise<void> {
+    if (!this.integrationBridge) {
+      try {
+        const { AgentIntegrationBridge } = await import('../vibe-task-manager/services/agent-integration-bridge.js');
+        this.integrationBridge = AgentIntegrationBridge.getInstance();
+      } catch (error) {
+        console.warn('Integration bridge not available:', error);
+        this.integrationBridge = null;
+      }
+    }
   }
 
   async registerAgent(registration: AgentRegistration): Promise<void> {
@@ -58,6 +131,50 @@ class AgentRegistry {
 
     // Update session mapping
     this.sessionToAgent.set(registration.sessionId, registration.agentId);
+
+    // Only trigger integration bridge if this is not already a bridge-initiated registration
+    if (!this.isBridgeRegistration) {
+      await this.initializeIntegrationBridge();
+      if (this.integrationBridge) {
+        try {
+          await this.integrationBridge.registerAgent({
+            id: registration.agentId,
+            capabilities: registration.capabilities,
+            status: registration.status || 'online',
+            maxConcurrentTasks: registration.maxConcurrentTasks,
+            currentTasks: registration.currentTasks || [],
+            transportType: registration.transportType,
+            sessionId: registration.sessionId,
+            pollingInterval: registration.pollingInterval,
+            registeredAt: registration.registeredAt || Date.now(),
+            lastSeen: registration.lastSeen || Date.now(),
+            lastHeartbeat: new Date(registration.lastSeen || Date.now()),
+            performance: {
+              tasksCompleted: 0,
+              averageCompletionTime: 0,
+              successRate: 1.0
+            },
+            httpEndpoint: registration.httpEndpoint,
+            httpAuthToken: registration.httpAuthToken,
+            websocketConnection: registration.websocketConnection,
+            metadata: {
+              version: '1.0.0',
+              supportedProtocols: [registration.transportType],
+              preferences: {
+                transportType: registration.transportType,
+                sessionId: registration.sessionId,
+                pollingInterval: registration.pollingInterval,
+                httpEndpoint: registration.httpEndpoint,
+                httpAuthToken: registration.httpAuthToken
+              }
+            }
+          });
+          console.log(`Agent ${registration.agentId} registered in both registry and orchestrator via integration bridge`);
+        } catch (bridgeError) {
+          console.warn(`Integration bridge registration failed for agent ${registration.agentId}:`, bridgeError);
+        }
+      }
+    }
 
     // Notify SSE clients if applicable
     if (registration.transportType === 'sse') {
@@ -197,6 +314,53 @@ class AgentRegistry {
     }
   }
 
+  // Get dynamic endpoint URLs using allocated ports from Transport Manager
+  getTransportEndpoints(): { websocket?: string; http?: string; sse?: string } {
+    const allocatedPorts = transportManager.getAllocatedPorts();
+    const endpoints: { websocket?: string; http?: string; sse?: string } = {};
+
+    if (allocatedPorts.websocket) {
+      endpoints.websocket = `ws://localhost:${allocatedPorts.websocket}/agent-ws`;
+    }
+
+    if (allocatedPorts.http) {
+      endpoints.http = `http://localhost:${allocatedPorts.http}`;
+    }
+
+    if (allocatedPorts.sse) {
+      endpoints.sse = `http://localhost:${allocatedPorts.sse}/events`;
+    }
+
+    return endpoints;
+  }
+
+  // Get transport-specific instructions with dynamic port information
+  getTransportInstructions(registration: AgentRegistration): string {
+    const endpoints = this.getTransportEndpoints();
+
+    switch (registration.transportType) {
+      case 'stdio':
+        return `Poll for tasks using 'get-agent-tasks' every ${registration.pollingInterval}ms`;
+
+      case 'sse':
+        const sseEndpoint = endpoints.sse || 'http://localhost:3000/events';
+        return `Connect to SSE endpoint: ${sseEndpoint}/{sessionId} for real-time task notifications`;
+
+      case 'websocket':
+        const wsEndpoint = endpoints.websocket || 'ws://localhost:8080/agent-ws';
+        return `Connect to WebSocket endpoint: ${wsEndpoint} for real-time task notifications`;
+
+      case 'http':
+        const httpEndpoint = endpoints.http || 'http://localhost:3001';
+        return `Register with HTTP API: ${httpEndpoint}/agents/register. ` +
+               `Tasks will be sent to your endpoint: ${registration.httpEndpoint}. ` +
+               `Poll for additional tasks at: ${httpEndpoint}/agents/${registration.agentId}/tasks every ${registration.pollingInterval}ms`;
+
+      default:
+        return 'Transport-specific instructions not available';
+    }
+  }
+
   // Health check - mark agents as offline if not seen recently
   async performHealthCheck(): Promise<void> {
     const now = Date.now();
@@ -288,24 +452,15 @@ export async function handleRegisterAgent(args: any): Promise<CallToolResult> {
     // Register the agent
     await registry.registerAgent(registration);
 
-    // Prepare response message
-    let transportInstructions: string;
-    switch (registration.transportType) {
-      case 'stdio':
-        transportInstructions = `Poll for tasks using 'get-agent-tasks' every ${registration.pollingInterval}ms`;
-        break;
-      case 'sse':
-        transportInstructions = 'You will receive real-time task notifications via SSE events';
-        break;
-      case 'websocket':
-        transportInstructions = 'You will receive real-time task notifications via WebSocket connection';
-        break;
-      case 'http':
-        transportInstructions = `Tasks will be sent to your HTTP endpoint: ${registration.httpEndpoint}. Poll for additional tasks every ${registration.pollingInterval}ms`;
-        break;
-      default:
-        transportInstructions = 'Transport-specific instructions not available';
-    }
+    // Get dynamic transport instructions with allocated ports
+    const transportInstructions = registry.getTransportInstructions(registration);
+    const endpoints = registry.getTransportEndpoints();
+
+    // Prepare endpoint information for response
+    const endpointInfo = Object.entries(endpoints)
+      .filter(([_, url]) => url)
+      .map(([transport, url]) => `${transport.toUpperCase()}: ${url}`)
+      .join('\n');
 
     return {
       content: [{
@@ -316,6 +471,7 @@ export async function handleRegisterAgent(args: any): Promise<CallToolResult> {
               `Capabilities: ${registration.capabilities.join(', ')}\n` +
               `Max Concurrent Tasks: ${registration.maxConcurrentTasks}\n` +
               `Session: ${registration.sessionId}\n\n` +
+              `🌐 Available Endpoints (Dynamic Port Allocation):\n${endpointInfo || 'No endpoints available yet'}\n\n` +
               `📋 Next Steps:\n${transportInstructions}\n\n` +
               `🔧 Available Commands:\n` +
               `- get-agent-tasks: Poll for new task assignments\n` +

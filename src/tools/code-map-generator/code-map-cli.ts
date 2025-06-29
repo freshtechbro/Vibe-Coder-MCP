@@ -137,7 +137,7 @@ async function runCodeMap(params: Record<string, unknown>, config: CodeMapGenera
       {
         baseUrl: '',
         apiKey: '',
-        geminiModel: '',
+        defaultModel: '',
         perplexityModel: '',
         llm_mapping: {}
       }, // Minimal OpenRouterConfig
@@ -305,7 +305,7 @@ async function main(): Promise<void> {
     const mockConfig = {
       baseUrl: '',
       apiKey: '',
-      geminiModel: '',
+      defaultModel: '',
       perplexityModel: '',
       llm_mapping: {},
       config: {

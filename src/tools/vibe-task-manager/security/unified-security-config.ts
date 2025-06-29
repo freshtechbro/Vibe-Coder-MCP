@@ -33,6 +33,26 @@ export interface UnifiedSecurityConfiguration {
   enableBlacklist: boolean;
   enableExtensionFiltering: boolean;
   maxPathLength: number;
+
+  // Code-map-generator compatibility aliases
+  allowedDir?: string; // Alias for allowedReadDirectory
+  outputDir?: string;  // Alias for allowedWriteDirectory
+
+  // Service-specific boundaries
+  serviceBoundaries: {
+    vibeTaskManager: {
+      readDir: string;
+      writeDir: string;
+    };
+    codeMapGenerator: {
+      allowedDir: string;
+      outputDir: string;
+    };
+    contextCurator: {
+      readDir: string;
+      outputDir: string;
+    };
+  };
 }
 
 /**
@@ -90,7 +110,27 @@ export class UnifiedSecurityConfigManager {
         enablePermissionChecking: true,
         enableBlacklist: true,
         enableExtensionFiltering: securityConfig.securityMode === 'strict',
-        maxPathLength: 4096
+        maxPathLength: 4096,
+
+        // Code-map-generator compatibility aliases
+        allowedDir: securityConfig.allowedReadDirectory,
+        outputDir: securityConfig.allowedWriteDirectory,
+
+        // Service-specific boundaries for all services
+        serviceBoundaries: {
+          vibeTaskManager: {
+            readDir: securityConfig.allowedReadDirectory,
+            writeDir: securityConfig.allowedWriteDirectory
+          },
+          codeMapGenerator: {
+            allowedDir: securityConfig.allowedReadDirectory,
+            outputDir: securityConfig.allowedWriteDirectory
+          },
+          contextCurator: {
+            readDir: securityConfig.allowedReadDirectory,
+            outputDir: securityConfig.allowedWriteDirectory
+          }
+        }
       };
 
       logger.info({
@@ -173,6 +213,75 @@ export class UnifiedSecurityConfigManager {
       strictMode: config.securityMode === 'strict',
       performanceThresholdMs: config.performanceThresholdMs
     };
+  }
+
+  /**
+   * Get configuration for Code Map Generator (compatibility)
+   */
+  getCodeMapGeneratorConfig(): {
+    allowedDir: string;
+    outputDir: string;
+    securityMode: 'strict' | 'permissive';
+  } {
+    const config = this.getConfig();
+    return {
+      allowedDir: config.allowedReadDirectory,
+      outputDir: config.allowedWriteDirectory,
+      securityMode: config.securityMode
+    };
+  }
+
+  /**
+   * Get configuration for Context Curator
+   */
+  getContextCuratorConfig(): {
+    readDir: string;
+    outputDir: string;
+    allowedDirectories: string[];
+    securityMode: 'strict' | 'permissive';
+  } {
+    const config = this.getConfig();
+    return {
+      readDir: config.allowedReadDirectory,
+      outputDir: config.allowedWriteDirectory,
+      allowedDirectories: config.allowedDirectories,
+      securityMode: config.securityMode
+    };
+  }
+
+  /**
+   * Get configuration for Vibe Task Manager Security Validator
+   */
+  getVibeTaskManagerSecurityValidatorConfig(): {
+    readDir: string;
+    writeDir: string;
+    securityMode: 'strict' | 'permissive';
+  } {
+    const config = this.getConfig();
+    return {
+      readDir: config.allowedReadDirectory,
+      writeDir: config.allowedWriteDirectory,
+      securityMode: config.securityMode
+    };
+  }
+
+  /**
+   * Get service-specific boundaries
+   */
+  getServiceBoundaries(serviceName: 'vibeTaskManager' | 'codeMapGenerator' | 'contextCurator'): {
+    readDir?: string;
+    writeDir?: string;
+    allowedDir?: string;
+    outputDir?: string;
+  } {
+    const config = this.getConfig();
+    const boundaries = config.serviceBoundaries[serviceName];
+
+    if (!boundaries) {
+      throw new Error(`Service boundaries not found for service: ${serviceName}`);
+    }
+
+    return boundaries;
   }
 
   /**

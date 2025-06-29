@@ -100,7 +100,7 @@ Process the initial research findings (provided as context) related to the user'
 - **NO Conversational Filler:** Start directly with the '# Research Report: ...' title.
 - **NO New Research:** Do not attempt to access external websites or knowledge beyond the provided research context. Your task is synthesis and structuring.
 - **NO Hallucination:** Do not invent findings or data not present in the input.
-- **NO Process Commentary:** Do not mention Perplexity, Gemini, or the synthesis process itself.
+- **NO Process Commentary:** Do not mention Perplexity, Gemini, Default process, or the synthesis process itself.
 - **Strict Formatting:** Use \`##\` for main sections and \`###\` for subheadings within the Detailed Analysis. Use bullet points for Key Findings.
 `;
 

@@ -60,6 +60,13 @@ export class CommandGateway {
   private commandHistory = new Map<string, RecognizedIntent[]>();
   private contextCache = new Map<string, CommandContext>();
   private sessionMetrics = new Map<string, { commands: Array<{ processingTime: number }> }>();
+  private intentSuccessMetrics = new Map<string, {
+    total: number;
+    successful: number;
+    failed: number;
+    lastUpdated: Date;
+    recentFailures: Array<{ input: string; error: string; timestamp: Date }>;
+  }>();
 
   private constructor() {
     this.intentRecognizer = IntentRecognitionEngine.getInstance();
@@ -118,7 +125,7 @@ export class CommandGateway {
         intent: recognitionResult.intent,
         confidence: recognitionResult.confidence,
         confidenceLevel: recognitionResult.confidenceLevel,
-        entities: this.convertEntitiesToArray(recognitionResult.entities),
+        entities: this.convertEntitiesToArray(recognitionResult.entities as any),
         originalInput: input,
         processedInput: input.toLowerCase().trim(),
         alternatives: recognitionResult.alternatives.map(alt => ({
@@ -132,6 +139,16 @@ export class CommandGateway {
           timestamp: recognitionResult.metadata.timestamp
         }
       };
+
+      // Debug logging for entity extraction
+      logger.info({
+        intent: recognizedIntent.intent,
+        confidence: recognizedIntent.confidence,
+        strategy: recognitionResult.strategy,
+        rawEntities: recognitionResult.entities,
+        convertedEntities: recognizedIntent.entities,
+        originalInput: input
+      }, 'Intent recognition and entity extraction debug');
 
       // Update command history
       if (this.config.trackHistory) {
@@ -155,7 +172,19 @@ export class CommandGateway {
       // Map intent to tool parameters
       const toolParams = await this.mapIntentToToolParams(recognizedIntent, validation.normalizedParams);
 
+      // Debug logging for parameter extraction
+      logger.info({
+        intent: recognizedIntent.intent,
+        entities: recognizedIntent.entities,
+        normalizedParams: validation.normalizedParams,
+        toolParams,
+        originalInput: input
+      }, 'CommandGateway parameter extraction debug');
+
       const processingTime = Date.now() - startTime;
+
+      // Track successful intent recognition and command mapping
+      this.trackIntentSuccess(recognizedIntent.intent, true, input);
 
       return {
         success: true,
@@ -173,6 +202,9 @@ export class CommandGateway {
 
     } catch (error) {
       logger.error({ err: error, sessionId, input }, 'Command processing failed');
+
+      // Track failed intent recognition or command mapping
+      this.trackIntentSuccess('unknown', false, input, error instanceof Error ? error.message : 'Unknown error');
 
       return this.createFailureResult(
         input,
@@ -260,7 +292,14 @@ export class CommandGateway {
     const errors: string[] = [];
     const warnings: string[] = [];
     const suggestions: string[] = [];
-    const normalizedParams: Record<string, unknown> = { ...intent.entities };
+
+    // Convert entities array to Record format for validation
+    const normalizedParams: Record<string, unknown> = {};
+    for (const entity of intent.entities) {
+      // Map entity types to parameter names
+      const paramName = this.mapEntityTypeToParamName(entity.type);
+      normalizedParams[paramName] = entity.value;
+    }
 
     // Intent-specific validation
     switch (intent.intent) {
@@ -280,9 +319,15 @@ export class CommandGateway {
       case 'check_status':
         return this.validateStatusCheck(intent, context, normalizedParams, errors, warnings, suggestions);
 
+      case 'decompose_task':
+        return this.validateDecomposeTask(intent, context, normalizedParams, errors, warnings, suggestions);
+
+      case 'decompose_project':
+        return this.validateDecomposeProject(intent, context, normalizedParams, errors, warnings, suggestions);
+
       default:
         errors.push(`Unsupported intent: ${intent.intent}`);
-        suggestions.push('Try using a supported command like create, list, run, or status');
+        suggestions.push('Try using a supported command like create, list, run, status, or decompose');
     }
 
     return {
@@ -516,6 +561,96 @@ export class CommandGateway {
   }
 
   /**
+   * Validate decompose task command
+   */
+  private validateDecomposeTask(
+    intent: RecognizedIntent,
+    context: CommandContext,
+    params: Record<string, unknown>,
+    errors: string[],
+    warnings: string[],
+    suggestions: string[]
+  ): ValidationResult {
+    // Check for task ID in various forms
+    const hasTaskId = params.taskId || params.taskTitle;
+
+    if (!hasTaskId) {
+      errors.push('Task ID or task title is required for decomposition');
+      suggestions.push('Try: "Decompose task T001" or "Break down the authentication task"');
+    } else {
+      // Normalize task identifier
+      if (params.taskTitle && !params.taskId) {
+        warnings.push('Task title provided, will attempt to resolve to task ID');
+      }
+    }
+
+    // Validate decomposition scope if provided
+    if (params.decompositionScope) {
+      const validScopes = ['development tasks', 'implementation steps', 'technical tasks', 'all aspects'];
+      const scope = String(params.decompositionScope).toLowerCase();
+      if (!validScopes.some(validScope => scope.includes(validScope))) {
+        warnings.push('Decomposition scope may be too broad or unclear');
+        suggestions.push('Consider specifying: development tasks, implementation steps, or technical tasks');
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      suggestions,
+      normalizedParams: params
+    };
+  }
+
+  /**
+   * Validate decompose project command
+   */
+  private validateDecomposeProject(
+    intent: RecognizedIntent,
+    context: CommandContext,
+    params: Record<string, unknown>,
+    errors: string[],
+    warnings: string[],
+    suggestions: string[]
+  ): ValidationResult {
+    // Project name is required
+    if (!params.projectName) {
+      errors.push('Project name or ID is required for decomposition');
+      suggestions.push('Try: "Decompose project MyApp" or "Break down project PID-001"');
+    } else {
+      // Normalize project name
+      params.projectName = String(params.projectName).trim();
+    }
+
+    // Validate decomposition scope if provided
+    if (params.decompositionScope) {
+      const validScopes = ['development tasks', 'implementation phases', 'technical components', 'all aspects'];
+      const scope = String(params.decompositionScope).toLowerCase();
+      if (!validScopes.some(validScope => scope.includes(validScope))) {
+        warnings.push('Decomposition scope may be too broad or unclear');
+        suggestions.push('Consider specifying: development tasks, implementation phases, or technical components');
+      }
+    }
+
+    // Validate decomposition details if provided
+    if (params.decompositionDetails) {
+      const details = String(params.decompositionDetails);
+      if (details.length > 1000) {
+        warnings.push('Decomposition details are very long, may affect processing performance');
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      suggestions,
+      normalizedParams: params
+    };
+  }
+
+  /**
    * Check if command should require confirmation
    */
   private shouldRequireConfirmation(intent: RecognizedIntent, validation: ValidationResult): boolean {
@@ -606,6 +741,28 @@ export class CommandGateway {
         };
         break;
 
+      case 'decompose_task':
+        toolParams.command = 'decompose';
+        toolParams.taskId = normalizedParams.taskId || normalizedParams.taskTitle;
+        toolParams.description = normalizedParams.description;
+        toolParams.options = {
+          scope: normalizedParams.decompositionScope,
+          details: normalizedParams.decompositionDetails,
+          force: normalizedParams.force || false
+        };
+        break;
+
+      case 'decompose_project':
+        toolParams.command = 'decompose';
+        toolParams.projectName = normalizedParams.projectName;
+        toolParams.description = normalizedParams.description;
+        toolParams.options = {
+          scope: normalizedParams.decompositionScope,
+          details: normalizedParams.decompositionDetails,
+          force: normalizedParams.force || false
+        };
+        break;
+
       default:
         throw new Error(`Unsupported intent for tool mapping: ${intent.intent}`);
     }
@@ -674,9 +831,42 @@ export class CommandGateway {
   }
 
   /**
+   * Map entity type to parameter name
+   */
+  private mapEntityTypeToParamName(entityType: string): string {
+    const mapping: Record<string, string> = {
+      'project_name': 'projectName',
+      'task_name': 'taskName',
+      'task_title': 'taskTitle',
+      'task_id': 'taskId',
+      'description': 'description',
+      'priority': 'priority',
+      'type': 'type',
+      'status': 'status',
+      'assignee': 'assignee',
+      'timeframe': 'timeframe',
+      'features': 'features',
+      'decomposition_scope': 'decompositionScope',
+      'decomposition_details': 'decompositionDetails'
+    };
+
+    return mapping[entityType] || entityType;
+  }
+
+  /**
    * Convert entities from Record format to Entity array format
    */
-  private convertEntitiesToArray(entities: Record<string, any>): Entity[] {
+  private convertEntitiesToArray(entities: Record<string, any> | Entity[]): Entity[] {
+    // If already an array of entities, return as-is
+    if (Array.isArray(entities)) {
+      return entities.map(entity => ({
+        type: entity.type || 'unknown',
+        value: String(entity.value || ''),
+        confidence: entity.confidence || 1.0
+      }));
+    }
+
+    // Convert from Record format
     const entityArray: Entity[] = [];
 
     for (const [type, value] of Object.entries(entities)) {
@@ -766,5 +956,130 @@ export class CommandGateway {
     const totalCommands = allSessions.reduce((sum: number, session: { commands: Array<{ processingTime: number }> }) => sum + session.commands.length, 0);
 
     return totalCommands > 0 ? totalProcessingTime / totalCommands : 0;
+  }
+
+  /**
+   * Track intent recognition success/failure for monitoring
+   */
+  private trackIntentSuccess(intent: string, success: boolean, input: string, error?: string): void {
+    const metrics = this.intentSuccessMetrics.get(intent) || {
+      total: 0,
+      successful: 0,
+      failed: 0,
+      lastUpdated: new Date(),
+      recentFailures: []
+    };
+
+    metrics.total++;
+    metrics.lastUpdated = new Date();
+
+    if (success) {
+      metrics.successful++;
+    } else {
+      metrics.failed++;
+
+      // Track recent failures for debugging
+      metrics.recentFailures.push({
+        input: input.substring(0, 100), // Limit input length for storage
+        error: error || 'Unknown error',
+        timestamp: new Date()
+      });
+
+      // Keep only last 10 failures per intent
+      if (metrics.recentFailures.length > 10) {
+        metrics.recentFailures = metrics.recentFailures.slice(-10);
+      }
+    }
+
+    this.intentSuccessMetrics.set(intent, metrics);
+
+    // Log significant failure rates for monitoring
+    const failureRate = metrics.failed / metrics.total;
+    if (metrics.total >= 5 && failureRate > 0.5) {
+      logger.warn({
+        intent,
+        total: metrics.total,
+        successful: metrics.successful,
+        failed: metrics.failed,
+        failureRate: Math.round(failureRate * 100),
+        recentFailures: metrics.recentFailures.slice(-3)
+      }, 'High intent recognition failure rate detected');
+    }
+  }
+
+  /**
+   * Get intent recognition success rate statistics
+   */
+  getIntentSuccessRates(): Record<string, {
+    intent: string;
+    total: number;
+    successRate: number;
+    failureRate: number;
+    lastUpdated: Date;
+    recentFailures?: Array<{ input: string; error: string; timestamp: Date }>;
+  }> {
+    const stats: Record<string, any> = {};
+
+    for (const [intent, metrics] of this.intentSuccessMetrics.entries()) {
+      const successRate = metrics.total > 0 ? metrics.successful / metrics.total : 0;
+      const failureRate = metrics.total > 0 ? metrics.failed / metrics.total : 0;
+
+      stats[intent] = {
+        intent,
+        total: metrics.total,
+        successRate: Math.round(successRate * 100) / 100,
+        failureRate: Math.round(failureRate * 100) / 100,
+        lastUpdated: metrics.lastUpdated
+      };
+
+      // Include recent failures for intents with high failure rates
+      if (failureRate > 0.3 && metrics.recentFailures.length > 0) {
+        stats[intent].recentFailures = metrics.recentFailures.slice(-5);
+      }
+    }
+
+    return stats;
+  }
+
+  /**
+   * Get overall system health metrics
+   */
+  getSystemHealthMetrics(): {
+    totalCommands: number;
+    overallSuccessRate: number;
+    intentCoverage: number;
+    problematicIntents: string[];
+    lastUpdated: Date;
+  } {
+    let totalCommands = 0;
+    let totalSuccessful = 0;
+    const problematicIntents: string[] = [];
+    let lastUpdated = new Date(0);
+
+    for (const [intent, metrics] of this.intentSuccessMetrics.entries()) {
+      totalCommands += metrics.total;
+      totalSuccessful += metrics.successful;
+
+      if (metrics.lastUpdated > lastUpdated) {
+        lastUpdated = metrics.lastUpdated;
+      }
+
+      // Mark intents with >30% failure rate as problematic
+      const failureRate = metrics.total > 0 ? metrics.failed / metrics.total : 0;
+      if (metrics.total >= 3 && failureRate > 0.3) {
+        problematicIntents.push(intent);
+      }
+    }
+
+    const overallSuccessRate = totalCommands > 0 ? totalSuccessful / totalCommands : 0;
+    const intentCoverage = this.intentSuccessMetrics.size;
+
+    return {
+      totalCommands,
+      overallSuccessRate: Math.round(overallSuccessRate * 100) / 100,
+      intentCoverage,
+      problematicIntents,
+      lastUpdated
+    };
   }
 }

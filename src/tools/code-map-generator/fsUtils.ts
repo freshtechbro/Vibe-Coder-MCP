@@ -198,8 +198,8 @@ export async function readDirSecure(
     // Check if the directory exists and is readable
     await fs.access(securePath, fsSync.constants.R_OK);
 
-    // Read the directory
-    const entries = await fs.readdir(securePath, { ...options, withFileTypes: true });
+    // Read the directory with withFileTypes ALWAYS true to ensure Dirent objects
+    const entries = await fs.readdir(securePath, { withFileTypes: true }) as fsSync.Dirent[];
     logger.debug(`Successfully read directory: ${securePath}`);
 
     return entries;

@@ -28,7 +28,7 @@ describe('CommandHandlers', () => {
       config: {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'google/gemini-2.5-flash-preview',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
         llm_mapping: {}
       },
@@ -42,7 +42,7 @@ describe('CommandHandlers', () => {
         cacheTTL: 3600,
         llm: {
           provider: 'openrouter',
-          model: 'google/gemini-2.5-flash-preview',
+          model: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
           temperature: 0.7,
           maxTokens: 4000,
           llm_mapping: {}

@@ -243,7 +243,7 @@ describe('Context Curator Type Definitions', () => {
       expect(parsed.excludePatterns).toEqual(['node_modules/**', '.git/**', 'dist/**', 'build/**']);
       expect(parsed.focusAreas).toEqual([]);
       expect(parsed.useCodeMapCache).toBe(true);
-      expect(parsed.codeMapCacheMaxAgeMinutes).toBe(60);
+      expect(parsed.codeMapCacheMaxAgeMinutes).toBe(120);
     });
 
     it('should reject invalid input', () => {
@@ -300,7 +300,7 @@ describe('Context Curator Type Definitions', () => {
         llmIntegration: {
           maxRetries: 3,
           timeoutMs: 30000,
-          fallbackModel: 'google/gemini-2.5-flash-preview'
+          fallbackModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 

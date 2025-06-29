@@ -306,4 +306,65 @@ Notes: Task completed successfully`);
       expect(statsAfter.totalAssignments).toBeGreaterThanOrEqual(statsBefore.totalAssignments);
     });
   });
+
+  describe('Agent Module Loading', () => {
+    it('should load agent modules with corrected import paths', async () => {
+      // Test that the communication channel initializes properly with corrected paths
+      const communicationChannel = (orchestrator as any).communicationChannel;
+
+      // Verify that the communication channel is initialized
+      expect(communicationChannel).toBeDefined();
+
+      // Test that agent modules can be accessed (they should not be fallback implementations)
+      const agentRegistry = (communicationChannel as any).agentRegistry;
+      const taskQueue = (communicationChannel as any).taskQueue;
+      const responseProcessor = (communicationChannel as any).responseProcessor;
+
+      expect(agentRegistry).toBeDefined();
+      expect(taskQueue).toBeDefined();
+      expect(responseProcessor).toBeDefined();
+
+      // Verify these are not fallback implementations by checking for specific methods
+      expect(typeof agentRegistry.getAgent).toBe('function');
+      expect(typeof taskQueue.addTask).toBe('function');
+      expect(typeof responseProcessor.getAgentResponses).toBe('function');
+    });
+
+    it('should handle agent module import failures gracefully', async () => {
+      // This test verifies that if agent modules fail to load, fallback implementations are used
+      // The system should continue to function even with fallback implementations
+
+      const communicationChannel = (orchestrator as any).communicationChannel;
+      expect(communicationChannel).toBeDefined();
+
+      // Even with potential import failures, the orchestrator should still be functional
+      const agents = orchestrator.getAgents();
+      expect(Array.isArray(agents)).toBe(true);
+
+      // Should be able to register agents even with fallback implementations
+      const testAgentId = 'fallback-test-agent';
+      orchestrator.registerAgent({
+        id: testAgentId,
+        name: 'Fallback Test Agent',
+        capabilities: ['general'],
+        status: 'available',
+        maxConcurrentTasks: 1,
+        currentTasks: [],
+        performance: {
+          tasksCompleted: 0,
+          successRate: 1.0,
+          averageCompletionTime: 300000,
+          lastTaskCompletedAt: new Date()
+        },
+        lastHeartbeat: new Date(),
+        metadata: {
+          version: '1.0.0',
+          registeredAt: new Date()
+        }
+      });
+
+      const registeredAgent = orchestrator.getAgents().find(a => a.id === testAgentId);
+      expect(registeredAgent).toBeDefined();
+    });
+  });
 });

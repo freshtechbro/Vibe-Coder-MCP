@@ -1,0 +1,260 @@
+/**
+ * Unit Tests for Port Allocator
+ * 
+ * Comprehensive test suite for dynamic port allocation functionality
+ * Tests port availability checking, range parsing, system port exclusion, and batch allocation
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createServer } from 'net';
+import { PortAllocator, PortRange } from '../port-allocator.js';
+
+// Mock logger to avoid console output during tests
+vi.mock('../../logger.js', () => ({
+  default: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }
+}));
+
+describe('PortAllocator', () => {
+  let testServers: any[] = [];
+
+  beforeEach(() => {
+    testServers = [];
+  });
+
+  afterEach(async () => {
+    // Clean up test servers
+    await Promise.all(testServers.map(server => 
+      new Promise<void>((resolve) => {
+        if (server.listening) {
+          server.close(() => resolve());
+        } else {
+          resolve();
+        }
+      })
+    ));
+    testServers = [];
+  });
+
+  describe('findAvailablePort', () => {
+    it('should return true for available ports', async () => {
+      const port = 9999; // Use high port number to avoid conflicts
+      const isAvailable = await PortAllocator.findAvailablePort(port);
+      expect(isAvailable).toBe(true);
+    });
+
+    it('should return false for ports in use', async () => {
+      const port = 9998;
+      
+      // Create a server to occupy the port
+      const server = createServer();
+      testServers.push(server);
+      
+      await new Promise<void>((resolve) => {
+        server.listen(port, () => resolve());
+      });
+
+      const isAvailable = await PortAllocator.findAvailablePort(port);
+      expect(isAvailable).toBe(false);
+    });
+
+    it('should handle invalid port numbers gracefully', async () => {
+      const isAvailable1 = await PortAllocator.findAvailablePort(-1);
+      const isAvailable2 = await PortAllocator.findAvailablePort(65536);
+      const isAvailable3 = await PortAllocator.findAvailablePort(99999);
+
+      expect(isAvailable1).toBe(false);
+      expect(isAvailable2).toBe(false);
+      expect(isAvailable3).toBe(false);
+    });
+  });
+
+  describe('isPortExcluded', () => {
+    it('should exclude system ports (1-1024)', () => {
+      expect(PortAllocator.isPortExcluded(80)).toBe(true);
+      expect(PortAllocator.isPortExcluded(443)).toBe(true);
+      expect(PortAllocator.isPortExcluded(22)).toBe(true);
+      expect(PortAllocator.isPortExcluded(1024)).toBe(true);
+    });
+
+    it('should exclude common service ports', () => {
+      expect(PortAllocator.isPortExcluded(3306)).toBe(true); // MySQL
+      expect(PortAllocator.isPortExcluded(5432)).toBe(true); // PostgreSQL
+      expect(PortAllocator.isPortExcluded(6379)).toBe(true); // Redis
+      expect(PortAllocator.isPortExcluded(27017)).toBe(true); // MongoDB
+    });
+
+    it('should not exclude normal application ports', () => {
+      expect(PortAllocator.isPortExcluded(8080)).toBe(false);
+      expect(PortAllocator.isPortExcluded(3000)).toBe(false);
+      expect(PortAllocator.isPortExcluded(9000)).toBe(false);
+      expect(PortAllocator.isPortExcluded(4000)).toBe(false);
+    });
+  });
+
+  describe('parsePortRange', () => {
+    const defaultRange: PortRange = { start: 8080, end: 8090, service: 'test' };
+
+    it('should parse single port numbers', () => {
+      const result = PortAllocator.parsePortRange('8085', defaultRange);
+      expect(result).toEqual({
+        start: 8085,
+        end: 8085,
+        service: 'test'
+      });
+    });
+
+    it('should parse port ranges', () => {
+      const result = PortAllocator.parsePortRange('8080-8090', defaultRange);
+      expect(result).toEqual({
+        start: 8080,
+        end: 8090,
+        service: 'test'
+      });
+    });
+
+    it('should return default for empty input', () => {
+      const result1 = PortAllocator.parsePortRange('', defaultRange);
+      const result2 = PortAllocator.parsePortRange('   ', defaultRange);
+      
+      expect(result1).toEqual(defaultRange);
+      expect(result2).toEqual(defaultRange);
+    });
+
+    it('should return default for invalid formats', () => {
+      const result1 = PortAllocator.parsePortRange('invalid', defaultRange);
+      const result2 = PortAllocator.parsePortRange('8080-8090-9000', defaultRange);
+      const result3 = PortAllocator.parsePortRange('abc-def', defaultRange);
+      
+      expect(result1).toEqual(defaultRange);
+      expect(result2).toEqual(defaultRange);
+      expect(result3).toEqual(defaultRange);
+    });
+
+    it('should return default for invalid port numbers', () => {
+      const result1 = PortAllocator.parsePortRange('-1', defaultRange);
+      const result2 = PortAllocator.parsePortRange('65536', defaultRange);
+      const result3 = PortAllocator.parsePortRange('8090-8080', defaultRange); // start > end
+      
+      expect(result1).toEqual(defaultRange);
+      expect(result2).toEqual(defaultRange);
+      expect(result3).toEqual(defaultRange);
+    });
+  });
+
+  describe('findAvailablePortInRange', () => {
+    it('should find available port in range', async () => {
+      const range: PortRange = { start: 9990, end: 9999, service: 'test' };
+      const result = await PortAllocator.findAvailablePortInRange(range);
+      
+      expect(result.success).toBe(true);
+      expect(result.port).toBeGreaterThanOrEqual(range.start);
+      expect(result.port).toBeLessThanOrEqual(range.end);
+      expect(result.service).toBe('test');
+      expect(result.attempted.length).toBeGreaterThan(0);
+    });
+
+    it('should skip excluded ports', async () => {
+      const range: PortRange = { start: 80, end: 85, service: 'test' };
+      const result = await PortAllocator.findAvailablePortInRange(range);
+      
+      // Should fail because all ports in this range are excluded (system ports)
+      expect(result.success).toBe(false);
+      expect(result.attempted.length).toBe(0); // No ports attempted due to exclusion
+    });
+
+    it('should handle range with all ports occupied', async () => {
+      const range: PortRange = { start: 9980, end: 9982, service: 'test' };
+      
+      // Occupy all ports in the range
+      for (let port = range.start; port <= range.end; port++) {
+        const server = createServer();
+        testServers.push(server);
+        await new Promise<void>((resolve) => {
+          server.listen(port, () => resolve());
+        });
+      }
+      
+      const result = await PortAllocator.findAvailablePortInRange(range);
+      expect(result.success).toBe(false);
+      expect(result.attempted.length).toBe(range.end - range.start + 1);
+    });
+  });
+
+  describe('allocatePortsForServices', () => {
+    it('should allocate ports for multiple services', async () => {
+      const ranges: PortRange[] = [
+        { start: 9970, end: 9975, service: 'websocket' },
+        { start: 9960, end: 9965, service: 'http' },
+        { start: 9950, end: 9955, service: 'sse' }
+      ];
+      
+      const summary = await PortAllocator.allocatePortsForServices(ranges);
+      
+      expect(summary.allocations.size).toBe(3);
+      expect(summary.successful.length).toBe(3);
+      expect(summary.conflicts.length).toBe(0);
+      expect(summary.errors.length).toBe(0);
+      
+      // Check individual allocations
+      const wsAllocation = summary.allocations.get('websocket');
+      const httpAllocation = summary.allocations.get('http');
+      const sseAllocation = summary.allocations.get('sse');
+      
+      expect(wsAllocation?.success).toBe(true);
+      expect(httpAllocation?.success).toBe(true);
+      expect(sseAllocation?.success).toBe(true);
+      
+      // Ensure no port conflicts
+      const allocatedPorts = [wsAllocation?.port, httpAllocation?.port, sseAllocation?.port];
+      const uniquePorts = new Set(allocatedPorts);
+      expect(uniquePorts.size).toBe(3); // All ports should be unique
+    });
+
+    it('should handle partial allocation failures gracefully', async () => {
+      // Create a range where some ports will fail
+      const ranges: PortRange[] = [
+        { start: 9940, end: 9945, service: 'websocket' }, // Should succeed
+        { start: 80, end: 85, service: 'http' } // Should fail (excluded ports)
+      ];
+      
+      const summary = await PortAllocator.allocatePortsForServices(ranges);
+      
+      expect(summary.allocations.size).toBe(2);
+      expect(summary.successful.length).toBe(1); // Only websocket should succeed
+      expect(summary.errors.length).toBeGreaterThan(0);
+      
+      const wsAllocation = summary.allocations.get('websocket');
+      const httpAllocation = summary.allocations.get('http');
+      
+      expect(wsAllocation?.success).toBe(true);
+      expect(httpAllocation?.success).toBe(false);
+    });
+  });
+
+  describe('cleanupOrphanedPorts', () => {
+    it('should complete cleanup without errors', async () => {
+      const cleanedCount = await PortAllocator.cleanupOrphanedPorts();
+      expect(typeof cleanedCount).toBe('number');
+      expect(cleanedCount).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should detect occupied ports in common ranges', async () => {
+      // Use a different port to avoid conflicts with other tests
+      const testPort = 9876;
+      const server = createServer();
+      testServers.push(server);
+
+      await new Promise<void>((resolve) => {
+        server.listen(testPort, () => resolve());
+      });
+
+      const cleanedCount = await PortAllocator.cleanupOrphanedPorts();
+      expect(typeof cleanedCount).toBe('number');
+    }, 10000); // Increase timeout to 10 seconds
+  });
+});

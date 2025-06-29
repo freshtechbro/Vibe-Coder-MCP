@@ -162,28 +162,10 @@ export const generateUserStories: ToolExecutor = async (
       logs.push(`[${new Date().toISOString()}] Starting pre-generation research.`);
 
       let researchContext = '';
-    try {
-      const query1 = `User personas and stakeholders for: ${productDescription}`;
-      const query2 = `Common user workflows and use cases for: ${productDescription}`;
-      const query3 = `User experience expectations and pain points for: ${productDescription}`;
-
-      const researchResults = await Promise.allSettled([
-        performResearchQuery(query1, config),
-        performResearchQuery(query2, config),
-        performResearchQuery(query3, config)
-      ]);
-
-      researchContext = "## Pre-Generation Research Context (From Perplexity Sonar Deep Research):\n\n";
-
-      researchResults.forEach((result, index) => {
-        const queryLabels = ["User Personas & Stakeholders", "User Workflows & Use Cases", "User Experience Expectations & Pain Points"];
-        if (result.status === "fulfilled") {
-          researchContext += `### ${queryLabels[index]}:\n${result.value.trim()}\n\n`;
-        } else {
-          logger.warn({ error: result.reason }, `Research query ${index + 1} failed`);
-          researchContext += `### ${queryLabels[index]}:\n*Research on this topic failed.*\n\n`;
-        }
-      });
+      try {
+        // Skip research phase entirely to avoid paid API calls
+        logger.info({ jobId }, "Skipping research phase - avoiding paid API usage");
+        researchContext = "## Pre-Generation Research Context:\n*Research phase skipped to avoid paid API usage. Using standard user story best practices.*\n\n";
 
       logger.info({ jobId }, "User Stories Generator: Pre-generation research completed.");
       jobManager.updateJobStatus(jobId, JobStatus.RUNNING, 'Research complete. Starting main user stories generation...');

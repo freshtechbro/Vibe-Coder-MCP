@@ -105,9 +105,9 @@ describe('ContextCuratorConfigLoader', () => {
     it('should load LLM configuration successfully', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'intent_analysis': 'google/gemini-2.5-flash-preview',
-          'file_discovery': 'google/gemini-2.5-flash-preview',
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'intent_analysis': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'file_discovery': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -126,7 +126,7 @@ describe('ContextCuratorConfigLoader', () => {
 
       expect(result.success).toBe(true);
       expect(result.warnings).toEqual([]);
-      expect(configLoader.getLLMModel('intent_analysis')).toBe('google/gemini-2.5-flash-preview');
+      expect(configLoader.getLLMModel('intent_analysis')).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
 
     it('should handle missing LLM config gracefully', async () => {
@@ -137,7 +137,7 @@ describe('ContextCuratorConfigLoader', () => {
       expect(result.success).toBe(true);
       // The config loader handles missing LLM config gracefully without warnings
       expect(result.warnings.length).toBeGreaterThanOrEqual(0);
-      expect(configLoader.getLLMModel('intent_analysis')).toBe('google/gemini-2.5-flash-preview-05-20');
+      expect(configLoader.getLLMModel('intent_analysis')).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
 
     it('should load environment configuration', async () => {
@@ -270,8 +270,8 @@ describe('ContextCuratorConfigLoader', () => {
       const mockLLMConfig = {
         llm_mapping: {
           'intent_analysis': 'anthropic/claude-3-sonnet',
-          'file_discovery': 'google/gemini-2.5-flash-preview',
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'file_discovery': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -291,11 +291,11 @@ describe('ContextCuratorConfigLoader', () => {
 
     it('should return specific model for known operations', () => {
       expect(configLoader.getLLMModel('intent_analysis')).toBe('anthropic/claude-3-sonnet');
-      expect(configLoader.getLLMModel('file_discovery')).toBe('google/gemini-2.5-flash-preview');
+      expect(configLoader.getLLMModel('file_discovery')).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
 
     it('should return default model for unknown operations', () => {
-      expect(configLoader.getLLMModel('unknown_operation')).toBe('google/gemini-2.5-flash-preview');
+      expect(configLoader.getLLMModel('unknown_operation')).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
 
     it('should return fallback when no LLM config is loaded', () => {
@@ -306,7 +306,7 @@ describe('ContextCuratorConfigLoader', () => {
       // Reset internal state to ensure no LLM config
       (newLoader as any).llmConfig = null;
 
-      expect(newLoader.getLLMModel('intent_analysis')).toBe('google/gemini-2.5-flash-preview-05-20');
+      expect(newLoader.getLLMModel('intent_analysis')).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
   });
 

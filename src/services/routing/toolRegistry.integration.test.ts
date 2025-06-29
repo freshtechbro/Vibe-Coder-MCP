@@ -19,7 +19,7 @@ vi.mock('../../logger.js', () => ({
 }));
 
 // --- Test Setup ---
-const mockConfig: OpenRouterConfig = { baseUrl: 'test', apiKey: 'test', geminiModel: 'test', perplexityModel: 'test' };
+const mockConfig: OpenRouterConfig = { baseUrl: 'test', apiKey: 'test', defaultModel: 'test', perplexityModel: 'test' };
 
 // Define mock executors
 const mockSuccessExecutor = vi.fn();

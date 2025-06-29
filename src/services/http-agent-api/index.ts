@@ -439,22 +439,51 @@ class HTTPAgentAPIServer {
 
   async start(port: number = 3001): Promise<void> {
     try {
+      // Validate port parameter (should be pre-allocated by Transport Manager)
+      if (!port || port <= 0 || port > 65535) {
+        throw new Error(`Invalid port provided: ${port}. Port should be pre-allocated by Transport Manager.`);
+      }
+
       this.port = port;
+
+      logger.debug({ port }, 'Starting HTTP Agent API server with pre-allocated port');
 
       await new Promise<void>((resolve, reject) => {
         this.server = this.app.listen(port, (err?: Error) => {
           if (err) {
-            reject(err);
+            // Enhanced error handling for port allocation failures
+            if (err.message.includes('EADDRINUSE')) {
+              const enhancedError = new Error(
+                `Port ${port} is already in use. This should not happen with pre-allocated ports. ` +
+                `Transport Manager port allocation may have failed.`
+              );
+              enhancedError.name = 'PortAllocationError';
+              reject(enhancedError);
+            } else {
+              reject(err);
+            }
           } else {
             resolve();
           }
         });
       });
 
-      logger.info({ port }, 'HTTP Agent API server started');
+      logger.info({
+        port,
+        note: 'Using pre-allocated port from Transport Manager'
+      }, 'HTTP Agent API server started successfully');
 
     } catch (error) {
-      logger.error({ err: error, port }, 'Failed to start HTTP Agent API server');
+      logger.error({
+        err: error,
+        port,
+        context: 'HTTP Agent API server startup with pre-allocated port'
+      }, 'Failed to start HTTP Agent API server');
+
+      // Re-throw with additional context for Transport Manager retry logic
+      if (error instanceof Error) {
+        error.message = `HTTP Agent API server startup failed on pre-allocated port ${port}: ${error.message}`;
+      }
       throw error;
     }
   }

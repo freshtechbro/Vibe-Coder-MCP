@@ -6,6 +6,45 @@ import { AppError, ApiError, ConfigurationError, ParsingError } from './errors.j
 import { selectModelForTask } from './configLoader.js';
 import { getPromptOptimizer } from './prompt-optimizer.js';
 
+/**
+ * Processes Qwen3 thinking mode responses by extracting actual content
+ * and handling thinking blocks appropriately
+ */
+function processQwenThinkingResponse(responseText: string, modelUsed: string, logicalTaskName: string): string {
+  // Check if this is a Qwen3 model that might use thinking mode
+  const isQwenModel = modelUsed.toLowerCase().includes('qwen');
+  
+  if (!isQwenModel) {
+    return responseText; // Not a Qwen model, return as-is
+  }
+  
+  // Check if response contains thinking blocks
+  const thinkingBlockRegex = /<think[^>]*>([\s\S]*?)<\/think>/gi;
+  const hasThinkingBlocks = thinkingBlockRegex.test(responseText);
+  
+  if (!hasThinkingBlocks) {
+    return responseText; // No thinking blocks, return as-is
+  }
+  
+  logger.debug({ modelUsed, logicalTaskName, originalLength: responseText.length }, "Processing Qwen thinking mode response");
+  
+  // For markdown generation tasks, we want to extract the content after thinking blocks
+  if (logicalTaskName.includes('generation') || logicalTaskName.includes('markdown')) {
+    // Remove thinking blocks and extract the actual content
+    let processed = responseText.replace(thinkingBlockRegex, '').trim();
+    
+    // If there's remaining content after removing thinking blocks, use it
+    if (processed.length > 0) {
+      logger.debug({ modelUsed, logicalTaskName, processedLength: processed.length }, "Extracted content after thinking blocks");
+      return processed;
+    }
+  }
+  
+  // For other tasks or if no content remains, return the original response
+  // This preserves thinking blocks for tasks that might need them
+  return responseText;
+}
+
 // Configure axios with SSL settings to handle SSL/TLS issues
 const httpsAgent = new https.Agent({
   rejectUnauthorized: true, // Keep SSL verification enabled for security
@@ -52,6 +91,16 @@ export async function performDirectLlmCall(
   if (!config.apiKey) {
     throw new ConfigurationError("OpenRouter API key (OPENROUTER_API_KEY) is not configured.");
   }
+
+  // Enhanced debug logging for API call
+  logger.info({
+    logicalTaskName,
+    apiKeyPresent: Boolean(config.apiKey),
+    apiKeyLength: config.apiKey?.length || 0,
+    baseUrl: config.baseUrl,
+    promptLength: prompt.length,
+    systemPromptLength: systemPrompt.length
+  }, "DEBUG: About to make API call");
 
   // Apply prompt optimization for JSON generation tasks with explicit format control
   let optimizedSystemPrompt = systemPrompt;
@@ -122,22 +171,45 @@ export async function performDirectLlmCall(
 
   // Select the model using the utility function
   // Provide a sensible default if no specific model is found or configured
-  const defaultModel = config.geminiModel || "google/gemini-2.5-flash-preview-05-20"; // Use a known default
+  const defaultModel = config.defaultModel || "deepseek/deepseek-r1-0528-qwen3-8b:free"; // Use a known free default
   const modelToUse = selectModelForTask(config, logicalTaskName, defaultModel);
-  logger.info({ modelSelected: modelToUse, logicalTaskName }, `Selected model for direct LLM call.`);
+  logger.info({ modelSelected: modelToUse, logicalTaskName, apiKey: config.apiKey?.substring(0, 20) + '...' }, `Selected model for direct LLM call.`);
+
+  const requestPayload = {
+    model: modelToUse,
+    messages: [
+      { role: "system", content: optimizedSystemPrompt },
+      { role: "user", content: optimizedUserPrompt }
+    ],
+    max_tokens: 8000,
+    temperature: temperature
+  };
+
+  logger.info({
+  requestPayload: {
+  ...requestPayload,
+  messages: requestPayload.messages.map(m => ({ role: m.role, contentLength: m.content.length }))
+  },
+  headers: {
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${config.apiKey?.substring(0, 20)}...`,
+  "HTTP-Referer": "https://vibe-coder-mcp.local"
+  }
+  }, "DEBUG: Making API request");
+
+    // Debug API call details
+    logger.debug({
+      modelSelected: modelToUse,
+      endpoint: `${config.baseUrl}/chat/completions`,
+      systemPromptLength: requestPayload.messages[0].content.length,
+      userPromptLength: requestPayload.messages[1].content.length,
+      apiKeyPresent: Boolean(config.apiKey)
+    }, 'Making LLM API call');
 
   try {
     const response = await axios.post(
       `${config.baseUrl}/chat/completions`,
-      {
-        model: modelToUse,
-        messages: [
-          { role: "system", content: optimizedSystemPrompt },
-          { role: "user", content: optimizedUserPrompt }
-        ],
-        max_tokens: 8000, // Increased from 4000 to handle larger template generations
-        temperature: temperature // Use the provided or default temperature
-      },
+      requestPayload,
       {
         headers: {
           "Content-Type": "application/json",
@@ -147,19 +219,159 @@ export async function performDirectLlmCall(
         timeout: 90000, // Increased timeout to 90s for potentially longer generations
         httpsAgent: httpsAgent, // Use the configured HTTPS agent for SSL/TLS handling
         maxRedirects: 5,
-        validateStatus: (status) => status < 500 // Accept 4xx errors but reject 5xx
+        validateStatus: (status) => {
+          // Accept 2xx and 4xx status codes, but handle 402 specifically
+          if (status === 402) {
+            return true; // Accept 402 so we can handle it properly
+          }
+          return status < 500; // Accept other 4xx errors but reject 5xx
+        }
       }
     );
 
-    if (response.data?.choices?.[0]?.message?.content) {
-      const responseText = response.data.choices[0].message.content.trim();
-      logger.debug({ modelUsed: modelToUse, responseLength: responseText.length }, "Direct LLM call successful");
-      return responseText;
+    logger.info({
+    modelUsed: modelToUse,
+    responseStatus: response.status,
+    responseData: response.data,
+    responseHeaders: response.headers
+    }, "DEBUG: Received API response");
+
+        // Log response structure for debugging
+        logger.debug({
+          responseStatus: response.status,
+          responseDataType: typeof response.data,
+          responseKeys: response.data ? Object.keys(response.data) : 'no data',
+          hasChoices: Boolean(response.data?.choices),
+          choicesLength: response.data?.choices?.length || 0
+        }, 'Received LLM API response');
+
+    // Handle 402 Payment Required errors specifically
+    if (response.status === 402) {
+      logger.error({
+        modelUsed: modelToUse,
+        responseStatus: response.status,
+        responseData: response.data,
+        logicalTaskName
+      }, "OpenRouter API returned 402 Payment Required - insufficient credits");
+      
+      throw new ApiError(
+        `OpenRouter API Error: Insufficient credits for model ${modelToUse}. ` +
+        `Status 402 - Payment Required. Please add credits to your OpenRouter account. ` +
+        `Even free models require credits to avoid rate limits.`,
+        402,
+        { 
+          modelUsed: modelToUse, 
+          logicalTaskName, 
+          responseData: response.data,
+          errorType: 'insufficient_credits'
+        }
+      );
+    }
+
+    // Enhanced response validation to handle different OpenRouter model formats
+    let responseText: string | null = null;
+    
+    // Try different response format patterns with comprehensive checking
+    if (response.data?.choices?.[0]?.message?.content !== undefined) {
+      // Standard OpenAI format
+      const content = response.data.choices[0].message.content;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'openai_format', contentLength: responseText.length }, 'Content extracted via OpenAI format');
+      }
+    } else if (response.data?.content !== undefined) {
+      // Direct content field
+      const content = response.data.content;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'direct_content', contentLength: responseText.length }, 'Content extracted via direct content field');
+      }
+    } else if (response.data?.text !== undefined) {
+      // Text field
+      const content = response.data.text;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'text_field', contentLength: responseText.length }, 'Content extracted via text field');
+      }
+    } else if (response.data?.response !== undefined) {
+      // Response field
+      const content = response.data.response;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'response_field', contentLength: responseText.length }, 'Content extracted via response field');
+      }
+    } else if (typeof response.data === 'string' && response.data.trim() !== '') {
+      // Direct string response
+      responseText = response.data.trim();
+      logger.debug({ extractionMethod: 'direct_string', contentLength: responseText.length }, 'Content extracted as direct string');
+    } else if (response.data?.outputs?.[0]?.text !== undefined) {
+      // Outputs array format
+      const content = response.data.outputs[0].text;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'outputs_array', contentLength: responseText.length }, 'Content extracted via outputs array');
+      }
+    } else if (response.data?.data?.text !== undefined) {
+      // Nested data.text format (some OpenRouter models)
+      const content = response.data.data.text;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'nested_data_text', contentLength: responseText.length }, 'Content extracted via nested data.text');
+      }
+    } else if (response.data?.result !== undefined) {
+      // Result field (some API formats)
+      const content = response.data.result;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'result_field', contentLength: responseText.length }, 'Content extracted via result field');
+      }
+    } else if (response.data?.message !== undefined) {
+      // Direct message field (some formats)
+      const content = response.data.message;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'direct_message', contentLength: responseText.length }, 'Content extracted via direct message field');
+      }
+    }
+
+    if (responseText && responseText.length > 0) {
+      // Process Qwen3 thinking mode responses
+      const processedResponse = processQwenThinkingResponse(responseText, modelToUse, logicalTaskName);
+      logger.debug({ modelUsed: modelToUse, responseLength: processedResponse.length, responseFormat: 'detected', hadThinkingBlocks: processedResponse !== responseText }, "Direct LLM call successful with flexible parsing");
+      return processedResponse;
     } else {
-      logger.warn({ responseData: response.data, modelUsed: modelToUse }, "Received empty or unexpected response structure from LLM");
+      // Detailed analysis of the actual API response for debugging
+      logger.error({ 
+        responseData: response.data, 
+        modelUsed: modelToUse,
+        responseKeys: response.data ? Object.keys(response.data) : 'no data',
+        responseType: typeof response.data,
+        responseStatus: response.status,
+        hasChoicesArray: Boolean(response.data?.choices),
+        choicesLength: response.data?.choices?.length || 0,
+        firstChoiceKeys: response.data?.choices?.[0] ? Object.keys(response.data.choices[0]) : 'no first choice',
+        hasMessage: Boolean(response.data?.choices?.[0]?.message),
+        messageKeys: response.data?.choices?.[0]?.message ? Object.keys(response.data.choices[0].message) : 'no message',
+        contentValue: response.data?.choices?.[0]?.message?.content,
+        contentType: typeof response.data?.choices?.[0]?.message?.content,
+        contentIsNull: response.data?.choices?.[0]?.message?.content === null,
+        contentIsEmpty: response.data?.choices?.[0]?.message?.content === '',
+        fullResponseDump: JSON.stringify(response.data, null, 2)
+      }, "CONTENT EXTRACTION FAILED - API response analysis");
+      
       throw new ParsingError(
-        "Invalid API response structure received from LLM",
-        { responseData: response.data, modelUsed: modelToUse, logicalTaskName }
+        `OpenRouter API returned response but content extraction failed. Response status: ${response.status}, Model: ${modelToUse}. ` +
+        `Response has choices array: ${Boolean(response.data?.choices)}, ` +
+        `First choice has message: ${Boolean(response.data?.choices?.[0]?.message)}, ` +
+        `Content value: ${JSON.stringify(response.data?.choices?.[0]?.message?.content)}, ` +
+        `Content type: ${typeof response.data?.choices?.[0]?.message?.content}`,
+        { 
+          responseData: response.data, 
+          modelUsed: modelToUse, 
+          logicalTaskName,
+          responseStatus: response.status,
+          actualIssue: 'content_extraction_failed'
+        }
       );
     }
   } catch (error) {

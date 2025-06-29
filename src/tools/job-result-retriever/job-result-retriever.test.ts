@@ -35,7 +35,7 @@ describe('getJobResult Tool Executor', () => {
   const mockConfig: OpenRouterConfig = {
       baseUrl: 'mock-url',
       apiKey: 'mock-key',
-      geminiModel: 'mock-gemini',
+      defaultModel: 'mock-default',
       perplexityModel: 'mock-perplexity',
       // llm_mapping is optional
   };

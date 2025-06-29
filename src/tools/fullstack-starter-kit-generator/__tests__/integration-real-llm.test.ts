@@ -29,8 +29,8 @@ describe('Fullstack Starter Kit Generator - Real LLM Integration', () => {
     config = {
       apiKey: process.env.OPENROUTER_API_KEY || 'test-key',
       llm_mapping: {
-        'fullstack_starter_kit_module_selection': 'google/gemini-2.0-flash-exp',
-        'fullstack_starter_kit_dynamic_yaml_module_generation': 'google/gemini-2.0-flash-exp',
+        'fullstack_starter_kit_module_selection': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+        'fullstack_starter_kit_dynamic_yaml_module_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         'research_query': 'perplexity/sonar-small-online'
       }
     };

@@ -355,7 +355,10 @@ export class SemanticIntentMatcher {
       'open_project': ['projectId'],
       'refine_task': ['taskId'],
       'assign_task': ['taskId', 'assignee'],
-      'get_help': []
+      'get_help': [],
+      'parse_prd': ['projectName', 'filePath'],
+      'parse_tasks': ['projectName', 'filePath'],
+      'import_artifact': ['artifactType', 'projectName', 'filePath']
     };
 
     return entityMap[intent] || [];

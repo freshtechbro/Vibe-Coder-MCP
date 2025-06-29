@@ -268,10 +268,10 @@ export class ExecutionCoordinator {
    * Note: This creates a basic instance for status checking.
    * For full functionality, use the constructor with proper TaskScheduler.
    */
-  static getInstance(): ExecutionCoordinator {
+  static async getInstance(): Promise<ExecutionCoordinator> {
     if (!ExecutionCoordinator.instance) {
       // Create a minimal TaskScheduler for basic functionality
-      const { TaskScheduler } = require('./task-scheduler.js');
+      const { TaskScheduler } = await import('./task-scheduler.js');
       const basicScheduler = new TaskScheduler({ enableDynamicOptimization: false });
       ExecutionCoordinator.instance = new ExecutionCoordinator(basicScheduler);
     }
@@ -1604,6 +1604,160 @@ export class ExecutionCoordinator {
 
       default:
         return `Task status: ${status}`;
+    }
+  }
+
+  /**
+   * Optimize batch processing for better performance
+   */
+  async optimizeBatchProcessing(): Promise<void> {
+    logger.info('Starting batch processing optimization');
+
+    try {
+      // Optimize queue processing
+      await this.optimizeExecutionQueue();
+
+      // Optimize agent utilization
+      await this.optimizeAgentUtilization();
+
+      // Clean up completed executions
+      await this.cleanupCompletedExecutions();
+
+      logger.info('Batch processing optimization completed');
+    } catch (error) {
+      logger.error({ err: error }, 'Batch processing optimization failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Optimize execution queue processing
+   */
+  private async optimizeExecutionQueue(): Promise<void> {
+    if (this.executionQueue.length === 0) {
+      return;
+    }
+
+    // Sort queue by priority and estimated duration
+    this.executionQueue.sort((a, b) => {
+      const priorityWeight = this.getPriorityWeight(a.task.priority) - this.getPriorityWeight(b.task.priority);
+      if (priorityWeight !== 0) return priorityWeight;
+
+      // If same priority, prefer shorter tasks
+      return a.task.estimatedHours - b.task.estimatedHours;
+    });
+
+    // Group similar tasks for batch processing
+    const taskGroups = this.groupSimilarTasks(this.executionQueue);
+
+    // Process groups in optimal order
+    for (const group of taskGroups) {
+      if (group.length > 1) {
+        logger.debug({ groupSize: group.length, taskType: group[0].task.type }, 'Processing task group');
+      }
+    }
+
+    logger.debug({ queueSize: this.executionQueue.length, groups: taskGroups.length }, 'Execution queue optimized');
+  }
+
+  /**
+   * Optimize agent utilization
+   */
+  private async optimizeAgentUtilization(): Promise<void> {
+    const idleAgents = Array.from(this.agents.values()).filter(agent => agent.status === 'idle');
+    const busyAgents = Array.from(this.agents.values()).filter(agent => agent.status === 'busy');
+
+    // Rebalance tasks if some agents are overloaded
+    for (const busyAgent of busyAgents) {
+      if (busyAgent.currentUsage.activeTasks > busyAgent.capacity.maxConcurrentTasks * 0.8 && idleAgents.length > 0) {
+        // Try to redistribute some tasks
+        const redistributableTasks = Math.floor(busyAgent.currentUsage.activeTasks * 0.3);
+
+        for (let i = 0; i < redistributableTasks && idleAgents.length > 0; i++) {
+          const execution = Array.from(this.activeExecutions.values())
+            .find(exec => exec.agent.id === busyAgent.id && exec.status === 'queued');
+
+          if (execution) {
+            // Reassign to idle agent
+            const idleAgent = idleAgents.shift();
+            if (idleAgent) {
+              execution.agent = idleAgent;
+              busyAgent.currentUsage.activeTasks--;
+              idleAgent.currentUsage.activeTasks++;
+              idleAgent.status = 'busy';
+
+              logger.debug({
+                taskId: execution.scheduledTask.task.id,
+                fromAgent: busyAgent.id,
+                toAgent: idleAgent.id
+              }, 'Task redistributed for load balancing');
+            }
+          }
+        }
+      }
+    }
+
+    logger.debug({
+      idleAgents: idleAgents.length,
+      busyAgents: busyAgents.length
+    }, 'Agent utilization optimized');
+  }
+
+  /**
+   * Clean up completed executions to free memory
+   */
+  private async cleanupCompletedExecutions(): Promise<void> {
+    const cutoffTime = Date.now() - (60 * 60 * 1000); // 1 hour ago
+    let cleanedCount = 0;
+
+    // Clean up old completed executions
+    for (const [executionId, execution] of this.activeExecutions.entries()) {
+      if ((execution.status === 'completed' || execution.status === 'failed') &&
+          execution.endTime && execution.endTime.getTime() < cutoffTime) {
+        this.activeExecutions.delete(executionId);
+        cleanedCount++;
+      }
+    }
+
+    // Clean up old execution batches
+    for (const [batchId, batch] of this.executionBatches.entries()) {
+      if ((batch.status === 'completed' || batch.status === 'failed') &&
+          batch.endTime && batch.endTime.getTime() < cutoffTime) {
+        this.executionBatches.delete(batchId);
+        cleanedCount++;
+      }
+    }
+
+    logger.debug({ cleanedCount }, 'Completed executions cleaned up');
+  }
+
+  /**
+   * Group similar tasks for batch processing
+   */
+  private groupSimilarTasks(tasks: ScheduledTask[]): ScheduledTask[][] {
+    const groups = new Map<string, ScheduledTask[]>();
+
+    for (const task of tasks) {
+      const groupKey = `${task.task.type}_${task.task.priority}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(task);
+    }
+
+    return Array.from(groups.values());
+  }
+
+  /**
+   * Get priority weight for sorting
+   */
+  private getPriorityWeight(priority: string): number {
+    switch (priority) {
+      case 'critical': return 0;
+      case 'high': return 1;
+      case 'medium': return 2;
+      case 'low': return 3;
+      default: return 4;
     }
   }
 }

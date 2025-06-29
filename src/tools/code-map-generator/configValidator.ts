@@ -28,15 +28,15 @@ const DEFAULT_CONFIG: Partial<CodeMapGeneratorConfig> = {
     memoryThreshold: 0.8, // 80% memory usage threshold
   },
   processing: {
-    batchSize: 100,
-    logMemoryUsage: false,
-    maxMemoryUsage: 1024, // 1GB
-    incremental: true,
-    incrementalConfig: {
-      useFileHashes: true,
-      useFileMetadata: true,
-      saveProcessedFilesList: true
-    }
+  batchSize: 10000, // Set very high to disable batch processing for most cases
+  logMemoryUsage: false,
+  maxMemoryUsage: 1024, // 1GB
+  incremental: true,
+  incrementalConfig: {
+  useFileHashes: true,
+  useFileMetadata: true,
+  saveProcessedFilesList: true
+  }
   },
   output: {
     format: 'markdown',

@@ -139,26 +139,26 @@ describe('RDDEngine', () => {
 
       const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
-        subTasks: [
+        tasks: [ // Use "tasks" instead of "subTasks"
           {
-            title: 'Implement user authentication',
-            description: 'Create login and registration functionality',
+            title: 'Add login form component',
+            description: 'Create basic login form component with email input',
             type: 'development',
             priority: 'high',
-            estimatedHours: 4,
-            filePaths: ['src/auth/login.ts', 'src/auth/register.ts'],
-            acceptanceCriteria: ['Users can login', 'Users can register'],
+            estimatedHours: 0.1, // 6 minutes - atomic
+            filePaths: ['src/auth/LoginForm.tsx'],
+            acceptanceCriteria: ['Login form component renders correctly'],
             tags: ['auth'],
             dependencies: []
           },
           {
-            title: 'Implement user profiles',
-            description: 'Create user profile management',
+            title: 'Add user profile display',
+            description: 'Create user profile display component',
             type: 'development',
             priority: 'medium',
-            estimatedHours: 3,
-            filePaths: ['src/profiles/profile.ts'],
-            acceptanceCriteria: ['Users can view profile', 'Users can edit profile'],
+            estimatedHours: 0.15, // 9 minutes - atomic
+            filePaths: ['src/profiles/ProfileDisplay.tsx'],
+            acceptanceCriteria: ['Profile display component shows user data'],
             tags: ['profiles'],
             dependencies: ['T0001-01']
           }
@@ -174,8 +174,8 @@ describe('RDDEngine', () => {
       expect(result.subTasks).toHaveLength(2);
       expect(result.subTasks[0].id).toBe('T0001-01');
       expect(result.subTasks[1].id).toBe('T0001-02');
-      expect(result.subTasks[0].title).toBe('Implement user authentication');
-      expect(result.subTasks[1].title).toBe('Implement user profiles');
+      expect(result.subTasks[0].title).toBe('Add login form component');
+      expect(result.subTasks[1].title).toBe('Add user profile display');
     });
 
     it('should respect maximum depth limit', async () => {
@@ -257,13 +257,13 @@ describe('RDDEngine', () => {
 
       const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
-        subTasks: [
+        tasks: [
           {
-            title: 'Valid task',
-            description: 'Valid description',
+            title: 'Valid atomic task',
+            description: 'Valid atomic description',
             type: 'development',
             priority: 'high',
-            estimatedHours: 3,
+            estimatedHours: 0.1, // 6 minutes - atomic
             filePaths: ['src/valid.ts'],
             acceptanceCriteria: ['Valid criteria'],
             tags: ['valid'],
@@ -274,9 +274,9 @@ describe('RDDEngine', () => {
             description: 'Invalid task',
             type: 'development',
             priority: 'high',
-            estimatedHours: 3,
+            estimatedHours: 0.1,
             filePaths: [],
-            acceptanceCriteria: [],
+            acceptanceCriteria: ['Some criteria'],
             tags: [],
             dependencies: []
           },
@@ -285,9 +285,9 @@ describe('RDDEngine', () => {
             description: 'Task with invalid hours',
             type: 'development',
             priority: 'high',
-            estimatedHours: 10, // Invalid: too many hours
+            estimatedHours: 0.5, // 30 minutes - exceeds 20-minute limit
             filePaths: [],
-            acceptanceCriteria: [],
+            acceptanceCriteria: ['Some criteria'],
             tags: [],
             dependencies: []
           }
@@ -299,8 +299,13 @@ describe('RDDEngine', () => {
       const result = await engine.decomposeTask(mockTask, mockContext);
 
       expect(result.success).toBe(true);
+
+      // Our validation should filter out:
+      // 1. Empty title task (should fail)
+      // 2. 0.5 hours task (should fail - exceeds 20-minute limit)
+      // Only the valid atomic task should remain
       expect(result.subTasks).toHaveLength(1); // Only valid task should remain
-      expect(result.subTasks[0].title).toBe('Valid task');
+      expect(result.subTasks[0].title).toBe('Valid atomic task');
     });
 
     it('should handle recursive decomposition of sub-tasks', async () => {
@@ -352,55 +357,55 @@ describe('RDDEngine', () => {
 
       // First decomposition response - 2 sub-tasks
       const firstSplitResponse = JSON.stringify({
-        subTasks: [
+        tasks: [
           {
-            title: 'Complex authentication system',
-            description: 'Still complex auth system',
+            title: 'Add authentication service',
+            description: 'Create basic authentication service',
             type: 'development',
             priority: 'high',
-            estimatedHours: 6,
-            filePaths: ['src/auth/'],
-            acceptanceCriteria: ['Auth works'],
+            estimatedHours: 0.15, // 9 minutes - atomic
+            filePaths: ['src/auth/AuthService.ts'],
+            acceptanceCriteria: ['AuthService class exists'],
             tags: ['auth'],
             dependencies: []
           },
           {
-            title: 'Simple user profiles',
-            description: 'Basic profile management',
+            title: 'Add user profile component',
+            description: 'Create basic profile component',
             type: 'development',
             priority: 'medium',
-            estimatedHours: 3,
-            filePaths: ['src/profiles/'],
-            acceptanceCriteria: ['Profiles work'],
+            estimatedHours: 0.12, // 7 minutes - atomic
+            filePaths: ['src/profiles/ProfileComponent.tsx'],
+            acceptanceCriteria: ['Profile component renders'],
             tags: ['profiles'],
             dependencies: []
           }
         ]
       });
 
-      // Second decomposition response (for the complex auth system) - 2 sub-tasks
+      // Second decomposition response (for the auth service) - 2 sub-tasks
       const secondSplitResponse = JSON.stringify({
-        subTasks: [
+        tasks: [
           {
-            title: 'Login functionality',
-            description: 'Basic login',
+            title: 'Add login method',
+            description: 'Add login method to AuthService',
             type: 'development',
             priority: 'high',
-            estimatedHours: 2,
-            filePaths: ['src/auth/login.ts'],
-            acceptanceCriteria: ['Login works'],
+            estimatedHours: 0.08, // 5 minutes - atomic
+            filePaths: ['src/auth/AuthService.ts'],
+            acceptanceCriteria: ['Login method exists in AuthService'],
             tags: ['auth', 'login'],
             dependencies: []
           },
           {
-            title: 'Registration functionality',
-            description: 'Basic registration',
+            title: 'Add logout method',
+            description: 'Add logout method to AuthService',
             type: 'development',
             priority: 'high',
-            estimatedHours: 2,
-            filePaths: ['src/auth/register.ts'],
-            acceptanceCriteria: ['Registration works'],
-            tags: ['auth', 'register'],
+            estimatedHours: 0.08, // 5 minutes - atomic
+            filePaths: ['src/auth/AuthService.ts'],
+            acceptanceCriteria: ['Logout method exists in AuthService'],
+            tags: ['auth', 'logout'],
             dependencies: []
           }
         ]
@@ -423,8 +428,8 @@ describe('RDDEngine', () => {
       // Verify that decomposition occurred
       expect(result.subTasks.length).toBeGreaterThan(0);
       const taskTitles = result.subTasks.map(t => t.title);
-      expect(taskTitles).toContain('Complex authentication system');
-      expect(taskTitles).toContain('Simple user profiles');
+      expect(taskTitles).toContain('Add authentication service');
+      expect(taskTitles).toContain('Add user profile component');
     });
 
     it('should limit number of sub-tasks', async () => {
@@ -450,17 +455,17 @@ describe('RDDEngine', () => {
 
       const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
 
-      // Create exactly 8 valid sub-tasks
+      // Create exactly 8 valid atomic tasks
       const mockSplitResponse = JSON.stringify({
-        subTasks: [
-          { title: 'Task 1', description: 'Description 1', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file1.ts'], acceptanceCriteria: ['Criteria 1'], tags: ['tag1'], dependencies: [] },
-          { title: 'Task 2', description: 'Description 2', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file2.ts'], acceptanceCriteria: ['Criteria 2'], tags: ['tag2'], dependencies: [] },
-          { title: 'Task 3', description: 'Description 3', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file3.ts'], acceptanceCriteria: ['Criteria 3'], tags: ['tag3'], dependencies: [] },
-          { title: 'Task 4', description: 'Description 4', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file4.ts'], acceptanceCriteria: ['Criteria 4'], tags: ['tag4'], dependencies: [] },
-          { title: 'Task 5', description: 'Description 5', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file5.ts'], acceptanceCriteria: ['Criteria 5'], tags: ['tag5'], dependencies: [] },
-          { title: 'Task 6', description: 'Description 6', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file6.ts'], acceptanceCriteria: ['Criteria 6'], tags: ['tag6'], dependencies: [] },
-          { title: 'Task 7', description: 'Description 7', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file7.ts'], acceptanceCriteria: ['Criteria 7'], tags: ['tag7'], dependencies: [] },
-          { title: 'Task 8', description: 'Description 8', type: 'development', priority: 'medium', estimatedHours: 2, filePaths: ['file8.ts'], acceptanceCriteria: ['Criteria 8'], tags: ['tag8'], dependencies: [] }
+        tasks: [
+          { title: 'Add Task 1', description: 'Description 1', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file1.ts'], acceptanceCriteria: ['Criteria 1'], tags: ['tag1'], dependencies: [] },
+          { title: 'Add Task 2', description: 'Description 2', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file2.ts'], acceptanceCriteria: ['Criteria 2'], tags: ['tag2'], dependencies: [] },
+          { title: 'Add Task 3', description: 'Description 3', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file3.ts'], acceptanceCriteria: ['Criteria 3'], tags: ['tag3'], dependencies: [] },
+          { title: 'Add Task 4', description: 'Description 4', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file4.ts'], acceptanceCriteria: ['Criteria 4'], tags: ['tag4'], dependencies: [] },
+          { title: 'Add Task 5', description: 'Description 5', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file5.ts'], acceptanceCriteria: ['Criteria 5'], tags: ['tag5'], dependencies: [] },
+          { title: 'Add Task 6', description: 'Description 6', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file6.ts'], acceptanceCriteria: ['Criteria 6'], tags: ['tag6'], dependencies: [] },
+          { title: 'Add Task 7', description: 'Description 7', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file7.ts'], acceptanceCriteria: ['Criteria 7'], tags: ['tag7'], dependencies: [] },
+          { title: 'Add Task 8', description: 'Description 8', type: 'development', priority: 'medium', estimatedHours: 0.1, filePaths: ['file8.ts'], acceptanceCriteria: ['Criteria 8'], tags: ['tag8'], dependencies: [] }
         ]
       });
 
@@ -488,8 +493,11 @@ describe('RDDEngine', () => {
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 
-      expect(result.success).toBe(false);
+      // Enhanced error recovery now returns success=true but treats task as atomic
+      expect(result.success).toBe(true);
+      expect(result.isAtomic).toBe(true);
       expect(result.error).toContain('Atomic detector failed');
+      expect(result.analysis.reasoning).toContain('Fallback analysis due to decomposition failure');
     });
 
     it('should handle invalid task types and priorities', async () => {
@@ -513,13 +521,13 @@ describe('RDDEngine', () => {
 
       const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
       const mockSplitResponse = JSON.stringify({
-        subTasks: [
+        tasks: [
           {
-            title: 'Task with invalid type',
-            description: 'Valid description',
+            title: 'Add task with invalid type',
+            description: 'Valid atomic description',
             type: 'invalid_type', // Invalid type
             priority: 'invalid_priority', // Invalid priority
-            estimatedHours: 3,
+            estimatedHours: 0.1, // 6 minutes - atomic
             filePaths: ['src/valid.ts'],
             acceptanceCriteria: ['Valid criteria'],
             tags: ['valid'],
@@ -537,6 +545,132 @@ describe('RDDEngine', () => {
       // Should fall back to original task's type and priority
       expect(result.subTasks[0].type).toBe(mockTask.type);
       expect(result.subTasks[0].priority).toBe(mockTask.priority);
+    });
+  });
+
+  describe('timeout protection', () => {
+    it('should handle LLM timeout in splitTask gracefully', async () => {
+      // Test the timeout protection by directly testing the splitTask method behavior
+      // When splitTask fails (returns empty array), the task should be treated as atomic
+      mockAtomicDetector.analyzeTask.mockResolvedValue({
+        isAtomic: false, // Initially not atomic
+        confidence: 0.9,
+        reasoning: 'Task needs decomposition',
+        estimatedHours: 8,
+        complexityFactors: [],
+        recommendations: []
+      });
+
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      // Simulate timeout by rejecting the LLM call
+      vi.mocked(performFormatAwareLlmCall).mockRejectedValue(new Error('llmRequest operation timed out after 180000ms'));
+
+      const result = await engine.decomposeTask(mockTask, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(result.isAtomic).toBe(true); // Should fallback to atomic when splitTask fails
+      expect(result.subTasks).toHaveLength(0);
+      // When splitTask times out, it returns empty array and task is treated as atomic without error
+      expect(result.error).toBeUndefined();
+    });
+
+    it('should handle recursive decomposition timeout gracefully', async () => {
+      // First call succeeds, second call (recursive) times out
+      mockAtomicDetector.analyzeTask
+        .mockResolvedValueOnce({
+          isAtomic: false,
+          confidence: 0.9,
+          reasoning: 'Task needs decomposition',
+          estimatedHours: 8,
+          complexityFactors: [],
+          recommendations: []
+        })
+        .mockResolvedValueOnce({
+          isAtomic: false, // Sub-task also needs decomposition
+          confidence: 0.9,
+          reasoning: 'Sub-task needs further decomposition',
+          estimatedHours: 4,
+          complexityFactors: [],
+          recommendations: []
+        });
+
+      const { performFormatAwareLlmCall } = await import('../../../../utils/llmHelper.js');
+      const mockSplitResponse = JSON.stringify({
+        tasks: [
+          {
+            title: 'Complex sub-task',
+            description: 'A complex task that will need further decomposition',
+            type: 'development',
+            priority: 'medium',
+            estimatedHours: 0.15,
+            filePaths: ['src/complex.ts'],
+            acceptanceCriteria: ['Complex task completed'],
+            tags: ['complex'],
+            dependencies: []
+          }
+        ]
+      });
+
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(mockSplitResponse);
+
+      // Mock TimeoutManager to simulate timeout on recursive call
+      const mockTimeoutManager = {
+        raceWithTimeout: vi.fn()
+          .mockResolvedValueOnce(mockSplitResponse) // First call succeeds
+          .mockRejectedValueOnce(new Error('taskDecomposition operation timed out after 900000ms')) // Recursive call times out
+      };
+
+      vi.doMock('../utils/timeout-manager.js', () => ({
+        getTimeoutManager: () => mockTimeoutManager
+      }));
+
+      const result = await engine.decomposeTask(mockTask, mockContext);
+
+      expect(result.success).toBe(true);
+      expect(result.subTasks).toHaveLength(1); // Should keep the original sub-task when recursive decomposition times out
+    });
+
+    it('should track operations for health monitoring', async () => {
+      mockAtomicDetector.analyzeTask.mockResolvedValue({
+        isAtomic: true,
+        confidence: 0.9,
+        reasoning: 'Task is atomic',
+        estimatedHours: 0.1,
+        complexityFactors: [],
+        recommendations: []
+      });
+
+      // Check health before operation
+      const healthBefore = engine.getHealthStatus();
+      expect(healthBefore.activeOperations).toBe(0);
+
+      // Start decomposition and verify it completes successfully
+      const result = await engine.decomposeTask(mockTask, mockContext);
+      expect(result.success).toBe(true);
+
+      // Check health after operation (should be cleaned up)
+      const healthAfter = engine.getHealthStatus();
+      expect(healthAfter.activeOperations).toBe(0);
+      expect(healthAfter.healthy).toBe(true);
+    });
+
+    it('should clean up stale operations', async () => {
+      // Manually add a stale operation for testing
+      const staleOperationId = 'test-stale-operation';
+      const staleStartTime = new Date(Date.now() - 1000000); // 16+ minutes ago
+
+      // Access private property for testing (not ideal but necessary for this test)
+      (engine as any).activeOperations.set(staleOperationId, {
+        startTime: staleStartTime,
+        operation: 'test_operation',
+        taskId: 'test-task'
+      });
+
+      const cleanedCount = engine.cleanupStaleOperations();
+      expect(cleanedCount).toBe(1);
+
+      const health = engine.getHealthStatus();
+      expect(health.activeOperations).toBe(0);
     });
   });
 });

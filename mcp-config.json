@@ -1,9 +1,9 @@
 {
   "tools": {
     "fullstack-starter-kit-generator": {
-      "description": "Generates full-stack project starter kits with custom tech stacks (e.g., frontend framework, backend language, database).",
-      "use_cases": ["project scaffolding", "tech stack setup", "application boilerplate", "new project", "starter kit"],
-      "input_patterns": ["create starter kit for {use_case}", "generate {type} project", "scaffold {application_type} app", "setup boilerplate for {project}"]
+      "description": "Generates full-stack project starter kits with custom tech stacks. FREE MODE (request_recommendation=false): Basic kit generation using free LLM models. PAID MODE (request_recommendation=true): Advanced recommendations with comprehensive research using paid research API. Default: FREE mode.",
+      "use_cases": ["project scaffolding", "tech stack setup", "application boilerplate", "new project", "starter kit", "free basic kit", "paid advanced kit with research"],
+      "input_patterns": ["create starter kit for {use_case}", "generate {type} project", "scaffold {application_type} app", "setup boilerplate for {project}", "create free starter kit for {use_case}", "create advanced starter kit with recommendations for {use_case}"]
     },
     "research-manager": {
       "description": "Performs in-depth research on technical topics, concepts, or comparisons using Perplexity Sonar.",
@@ -46,14 +46,29 @@
       "input_patterns": ["map codebase {path}", "generate a code map for project {projectName}", "analyze the structure of {directory}", "show me a semantic map of the codebase", "create architecture diagram for {path}"]
     },
     "vibe-task-manager": {
-      "description": "AI-agent-native task management system with recursive decomposition design (RDD) methodology. Supports project creation, task decomposition, dependency management, and agent coordination for autonomous software development workflows.",
-      "use_cases": ["task management", "project planning", "task decomposition", "dependency tracking", "agent coordination", "recursive task breakdown", "atomic task detection", "development workflow", "project organization"],
-      "input_patterns": ["create project {projectName}", "decompose task {taskId}", "list projects", "run task {taskId}", "check status of {projectName}", "refine task {taskId}", "manage tasks for {projectName}", "break down {requirement} into atomic tasks", "coordinate agents for {projectName}"]
+      "description": "Production-ready AI-agent-native task management system with recursive decomposition design (RDD) methodology. Features natural language processing, multi-agent coordination, artifact parsing (PRD/task list integration), session persistence, and comprehensive CLI. Supports project creation, task decomposition, dependency management, and autonomous development workflows with 99.9% test success rate.",
+      "use_cases": ["task management", "project planning", "task decomposition", "dependency tracking", "agent coordination", "recursive task breakdown", "atomic task detection", "development workflow", "project organization", "artifact parsing", "PRD integration", "task list integration", "natural language commands", "session persistence", "orchestration workflows"],
+      "input_patterns": ["create project {projectName}", "decompose task {taskId}", "list projects", "run task {taskId}", "check status of {projectName}", "refine task {taskId}", "manage tasks for {projectName}", "break down {requirement} into atomic tasks", "coordinate agents for {projectName}", "parse prd {fileName}", "import artifact {type} {filePath}", "vibe-task-manager {naturalLanguageCommand}", "orchestrate workflow for {projectName}"]
     },
     "curate-context": {
       "description": "Intelligently analyzes codebases and curates comprehensive context packages for AI-driven development tasks. Generates refined prompts, relevance-ranked files, and meta-prompts for downstream AI agents. Supports automatic task type detection, file relevance scoring, content optimization, and XML output formatting for seamless integration with AI development workflows.",
       "use_cases": ["context curation", "codebase analysis", "AI task preparation", "file relevance ranking", "meta-prompt generation", "task decomposition", "development context", "code understanding", "AI workflow preparation"],
       "input_patterns": ["curate context for {task}", "analyze codebase for {feature}", "prepare context for {requirement}", "generate meta-prompt for {task_type}", "rank files for {development_task}", "create context package for {project}"]
+    },
+    "register-agent": {
+      "description": "Multi-agent coordination and registration system for distributed development workflows. Supports agent registration with capability-based matching, multi-transport support (stdio, SSE, WebSocket, HTTP), and real-time agent coordination.",
+      "use_cases": ["agent registration", "multi-agent coordination", "capability matching", "agent management", "distributed workflows", "agent orchestration", "transport configuration"],
+      "input_patterns": ["register agent {agentId} with capabilities {capabilities}", "register {transportType} agent for {project}", "add agent {agentId} to coordination system", "setup agent with {capabilities}"]
+    },
+    "get-agent-tasks": {
+      "description": "Task polling and retrieval system for AI agents. Provides capability-based task polling, intelligent task queue management, priority-based task assignment, and real-time task availability notifications.",
+      "use_cases": ["task polling", "agent task retrieval", "capability-based assignment", "task queue management", "agent coordination", "task distribution"],
+      "input_patterns": ["get tasks for agent {agentId}", "poll tasks with capabilities {capabilities}", "retrieve available tasks", "check task queue for {agentId}"]
+    },
+    "submit-task-response": {
+      "description": "Task completion and response handling system. Supports task completion status tracking (DONE, ERROR, PARTIAL), detailed completion metadata, automatic job status updates, and SSE notifications for real-time updates.",
+      "use_cases": ["task completion", "response submission", "status tracking", "completion metadata", "agent response handling", "task workflow"],
+      "input_patterns": ["submit response for task {taskId}", "complete task {taskId} with status {status}", "report task completion", "submit task result"]
     }
   }
 }

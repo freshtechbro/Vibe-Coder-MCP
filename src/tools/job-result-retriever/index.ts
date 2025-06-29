@@ -30,8 +30,8 @@ export const getJobResult: ToolExecutor = async (
   try {
     logger.info({ jobId, sessionId, transportType }, `Attempting to retrieve result for job.`);
 
-    // Use the new rate-limited job retrieval
-    const { job, waitTime, shouldWait } = jobManager.getJobWithRateLimit(jobId);
+    // Get job directly without rate limiting (fixed infinite polling loop, so no need for band-aid rate limiting)
+    const job = jobManager.getJob(jobId, false); // Don't update access tracking
 
     if (!job) {
       logger.warn({ jobId }, `Job not found.`);
@@ -44,33 +44,6 @@ export const getJobResult: ToolExecutor = async (
       };
     }
 
-    // If rate limited, return a message with the wait time
-    if (shouldWait) {
-      logger.info({ jobId, waitTime }, `Rate limited job status request.`);
-
-      // Create a standardized job status message
-      const statusMessage = createJobStatusMessage(
-        jobId,
-        job.toolName,
-        job.status,
-        `Rate limited: Please wait ${Math.ceil(waitTime / 1000)} seconds before checking again.`,
-        undefined,
-        job.createdAt,
-        job.updatedAt,
-        includeDetails ? job.details : undefined
-      );
-
-      return {
-        content: [{
-          type: 'text',
-          text: `Job '${jobId}' (${job.toolName}) status is being checked too frequently. Please wait ${Math.ceil(waitTime / 1000)} seconds before checking again. Current status: ${job.status}, last updated at: ${new Date(job.updatedAt).toISOString()}.`
-        }],
-        isError: false,
-        pollInterval: waitTime,
-        jobStatus: statusMessage
-      };
-    }
-
     // Prepare the response based on job status
     let responseText = '';
     let finalResult: CallToolResult | undefined = undefined;
@@ -80,7 +53,23 @@ export const getJobResult: ToolExecutor = async (
         responseText = `Job '${jobId}' (${job.toolName}) is pending. Created at: ${new Date(job.createdAt).toISOString()}.`;
         break;
       case JobStatus.RUNNING:
-        responseText = `Job '${jobId}' (${job.toolName}) is running. Status updated at: ${new Date(job.updatedAt).toISOString()}. Progress: ${job.progressMessage || 'No progress message available.'}`;
+        responseText = `Job '${jobId}' (${job.toolName}) is running. Status updated at: ${new Date(job.updatedAt).toISOString()}.`;
+
+        // NEW: Add enhanced progress information if available
+        if (job.progressMessage) {
+          responseText += `\n\n📊 **Progress**: ${job.progressMessage}`;
+        }
+
+        if (job.progressPercentage !== undefined) {
+          responseText += `\n⏱️ **Completion**: ${job.progressPercentage}%`;
+        }
+
+        // Add estimated completion time if available
+        if (job.details?.metadata?.estimatedCompletion) {
+          responseText += `\n🕒 **Estimated Completion**: ${new Date(job.details.metadata.estimatedCompletion).toISOString()}`;
+        }
+
+        responseText += `\n\n💡 **Tip**: Continue polling for updates. This job will provide detailed results when complete.`;
         break;
       case JobStatus.COMPLETED:
         responseText = `Job '${jobId}' (${job.toolName}) completed successfully at: ${new Date(job.updatedAt).toISOString()}.`;
@@ -90,10 +79,27 @@ export const getJobResult: ToolExecutor = async (
             finalResult = JSON.parse(JSON.stringify(job.result));
             // Check if finalResult is defined before accessing content
             if (finalResult) {
-                // Optionally add a note about completion to the result content
-                const completionNote: TextContent = { type: 'text', text: `\n---\nJob Status: COMPLETED (${new Date(job.updatedAt).toISOString()})` };
-                // Ensure content array exists before pushing
-                finalResult.content = [...(finalResult.content || []), completionNote];
+                // NEW: Enhance response with rich content if available
+                if (finalResult.taskData && Array.isArray(finalResult.taskData) && finalResult.taskData.length > 0) {
+                  const taskSummary = `\n\n📊 **Task Summary:**\n` +
+                    `• Total Tasks: ${finalResult.taskData.length}\n` +
+                    `• Total Hours: ${finalResult.taskData.reduce((sum: number, task: any) => sum + (task.estimatedHours || 0), 0)}h\n` +
+                    `• Files Created: ${Array.isArray(finalResult.fileReferences) ? finalResult.fileReferences.length : 0}\n`;
+
+                  const completionNote: TextContent = {
+                    type: 'text',
+                    text: taskSummary + `\n---\nJob Status: COMPLETED (${new Date(job.updatedAt).toISOString()})`
+                  };
+
+                  finalResult.content = [...(finalResult.content || []), completionNote];
+                } else {
+                  // Standard completion note for jobs without rich content
+                  const completionNote: TextContent = {
+                    type: 'text',
+                    text: `\n---\nJob Status: COMPLETED (${new Date(job.updatedAt).toISOString()})`
+                  };
+                  finalResult.content = [...(finalResult.content || []), completionNote];
+                }
             } else {
                  // Log if deep copy failed unexpectedly
                  logger.error({ jobId }, "Deep copy of job result failed unexpectedly for COMPLETED job.");

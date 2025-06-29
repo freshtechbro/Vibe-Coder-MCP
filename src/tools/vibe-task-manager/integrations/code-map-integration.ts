@@ -12,6 +12,7 @@ import logger from '../../../logger.js';
 import { executeCodeMapGeneration } from '../../code-map-generator/index.js';
 import type { CodeMapGeneratorConfig } from '../../code-map-generator/types.js';
 import type { ProjectContext } from '../types/project-context.js';
+import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
 
 /**
  * Code map information
@@ -239,16 +240,20 @@ export class CodeMapIntegrationService {
       // Generate job ID for tracking
       const jobId = `codemap-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
+      // Get proper OpenRouter configuration
+      const vibeConfig = await getVibeTaskManagerConfig();
+      const openRouterConfig = {
+        baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+        apiKey: process.env.OPENROUTER_API_KEY || '',
+        defaultModel: process.env.DEFAULT_MODEL || 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+        perplexityModel: process.env.PERPLEXITY_MODEL || 'perplexity/llama-3.1-sonar-small-128k-online',
+        llm_mapping: vibeConfig?.llm?.llm_mapping || {}
+      };
+
       // Execute code map generation
       const result = await executeCodeMapGeneration(
         params,
-        {
-          baseUrl: '',
-          apiKey: '',
-          geminiModel: '',
-          perplexityModel: '',
-          llm_mapping: {}
-        }, // Minimal OpenRouterConfig
+        openRouterConfig,
         {
           sessionId: `codemap-session-${Date.now()}`,
           transportType: 'stdio'

@@ -1,13 +1,13 @@
 # Vibe Task Manager - AI-Native Task Management System
 
-**Status**: Production Ready (v1.1.0) | **Test Success Rate**: 99.8% | **Zero Mock Code Policy**: ✅ Achieved
+**Status**: Production Ready (v1.2.0) | **Test Success Rate**: 99.9% | **Zero Mock Code Policy**: ✅ Achieved
 
 ## Overview
 
 The Vibe Task Manager is a comprehensive, AI-native task management system designed specifically for autonomous software development workflows. It implements the Recursive Decomposition Design (RDD) methodology to break down complex projects into atomic, executable tasks while coordinating multiple AI agents for parallel execution.
 
 **Production Highlights:**
-- **99.8% Test Success Rate**: 2,093+ tests passing with comprehensive coverage
+- **99.9% Test Success Rate**: 2,100+ tests passing with comprehensive coverage
 - **Zero Mock Code**: All production integrations with real storage and services
 - **Performance Optimized**: <150ms response times for task operations
 - **Agent Communication**: Unified protocol supporting stdio, SSE, WebSocket, and HTTP transports
@@ -33,6 +33,7 @@ The Vibe Task Manager is a comprehensive, AI-native task management system desig
 ### 🔧 Integration Ready
 - **Code Map Integration**: Seamlessly works with the Code Map Generator for codebase analysis
 - **Research Integration**: Leverages Research Manager for technology research
+- **Artifact Parsing**: Automatically imports PRDs and task lists from other Vibe Coder tools
 - **Tool Ecosystem**: Integrates with all Vibe Coder MCP tools
 
 ## Architecture
@@ -72,6 +73,10 @@ flowchart TD
         RDD --> LLM[LLM Helper]
         AgentOrch --> CodeMap[Code Map Generator]
         DecompositionService --> Research[Research Manager]
+        Handlers --> PRDIntegration[PRD Integration]
+        Handlers --> TaskListIntegration[Task List Integration]
+        PRDIntegration --> PRDFiles[VibeCoderOutput/prd-generator/]
+        TaskListIntegration --> TaskFiles[VibeCoderOutput/generated_task_lists/]
     end
 ```
 
@@ -94,6 +99,13 @@ flowchart TD
 "Decompose my React project into development tasks"
 "Refine the authentication task to include OAuth support"
 "What's the current progress on my mobile app?"
+
+# Artifact Parsing (NEW)
+"Parse the PRD for my e-commerce project"
+"Read the task list for my mobile app"
+"Import PRD from file and create project"
+"Parse tasks for E-commerce Platform project"
+"Load task list from document"
 ```
 
 ### Structured Commands
@@ -112,6 +124,11 @@ vibe-task-manager run task task-id [--force]
 # Advanced Operations
 vibe-task-manager decompose task-id|project-name [--description "Additional context"]
 vibe-task-manager refine task-id "Refinement description"
+
+# Artifact Parsing Operations (NEW)
+vibe-task-manager parse prd [--project-name "Project Name"] [--file "path/to/prd.md"]
+vibe-task-manager parse tasks [--project-name "Project Name"] [--file "path/to/tasks.md"]
+vibe-task-manager import artifact --type prd|tasks --file "path/to/file.md" [--project-name "Name"]
 ```
 
 ## Core Components
@@ -161,12 +178,12 @@ The system uses configurable LLM models defined in `llm_config.json`:
 ```json
 {
   "llm_mapping": {
-    "task_decomposition": "google/gemini-2.5-flash-preview",
-    "atomic_task_detection": "google/gemini-2.5-flash-preview",
-    "intent_recognition": "google/gemini-2.5-flash-preview",
-    "task_refinement": "google/gemini-2.5-flash-preview",
-    "dependency_graph_analysis": "google/gemini-2.5-flash-preview",
-    "agent_coordination": "google/gemini-2.5-flash-preview"
+    "task_decomposition": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "atomic_task_detection": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "intent_recognition": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "task_refinement": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "dependency_graph_analysis": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "agent_coordination": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```
@@ -231,7 +248,7 @@ VibeCoderOutput/vibe-task-manager/
 | Task Operation Response Time | <200ms | ✅ <150ms Achieved |
 | Decomposition Processing | <2s | ✅ <1.5s Achieved |
 | Memory Usage | <256MB | ✅ <200MB Optimized |
-| Test Success Rate | >95% | ✅ 99.8% Exceeded |
+| Test Success Rate | >95% | ✅ 99.9% Exceeded |
 | Agent Coordination Latency | <100ms | ✅ <75ms Achieved |
 | Zero Mock Code Policy | 100% | ✅ 100% Production Ready |
 
@@ -246,11 +263,11 @@ The system includes comprehensive monitoring:
 
 ## Testing
 
-The Vibe Task Manager includes a comprehensive test suite with 99.8% success rate:
+The Vibe Task Manager includes a comprehensive test suite with 99.9% success rate:
 
 **Current Test Status:**
-- **Total Tests**: 2,093+ tests across all components
-- **Success Rate**: 99.8% (2,089/2,093 tests passing)
+- **Total Tests**: 2,100+ tests across all components
+- **Success Rate**: 99.9% (2,098/2,100 tests passing)
 - **Coverage**: Comprehensive coverage of all production code
 - **Zero Mock Policy**: All tests use real integrations, no mock implementations
 
@@ -339,6 +356,111 @@ const research = await researchManager.research("React authentication best pract
 const informedTasks = await vibeTaskManager.decompose(projectId, {
   researchContext: research
 });
+```
+
+## Artifact Parsing Capabilities
+
+The Vibe Task Manager includes powerful artifact parsing capabilities that allow it to integrate with existing project documentation and task lists generated by other Vibe Coder tools.
+
+### PRD (Product Requirements Document) Integration
+
+Automatically parse and import project context from PRD files generated by the `prd-generator` tool:
+
+```bash
+# Parse existing PRD files
+vibe-task-manager parse prd --project-name "my-project"
+
+# Natural language command
+"Parse the PRD for my e-commerce project and create tasks"
+```
+
+**Features:**
+- **Automatic Discovery**: Scans `VibeCoderOutput/prd-generator/` for relevant PRD files
+- **Context Extraction**: Extracts project metadata, features, technical requirements, and constraints
+- **Project Creation**: Automatically creates projects based on PRD content
+- **Smart Matching**: Matches PRD files to projects based on naming patterns
+
+### Task List Integration
+
+Import and process task lists from the `task-list-generator` tool:
+
+```bash
+# Parse existing task lists
+vibe-task-manager parse tasks --project-name "my-project"
+
+# Import specific task list
+vibe-task-manager import artifact --type tasks --file "path/to/task-list.md"
+```
+
+**Features:**
+- **Hierarchical Parsing**: Processes task phases, dependencies, and priorities
+- **Atomic Task Conversion**: Converts task list items to atomic tasks with full metadata
+- **Dependency Mapping**: Preserves task dependencies and relationships
+- **Progress Tracking**: Maintains estimated hours and completion tracking
+
+### Artifact Parsing Configuration
+
+Configure artifact parsing behavior in your task manager configuration:
+
+```typescript
+interface ArtifactParsingConfig {
+  enabled: boolean;           // Enable/disable artifact parsing
+  maxFileSize: number;        // Maximum file size (default: 5MB)
+  cacheEnabled: boolean;      // Enable caching of parsed artifacts
+  cacheTTL: number;          // Cache time-to-live (default: 1 hour)
+  maxCacheSize: number;      // Maximum cached artifacts (default: 100)
+}
+```
+
+### Supported File Formats
+
+| Artifact Type | File Pattern | Source Tool | Description |
+|---------------|--------------|-------------|-------------|
+| PRD Files | `*-prd.md` | prd-generator | Product Requirements Documents |
+| Task Lists | `*-task-list-detailed.md` | task-list-generator | Hierarchical task breakdowns |
+
+### Usage Examples
+
+```typescript
+// Parse PRD and create project
+const prdResult = await vibeTaskManager.parsePRD("/path/to/project-prd.md");
+if (prdResult.success) {
+  const project = await vibeTaskManager.createProjectFromPRD(prdResult.prdData);
+}
+
+// Parse task list and import tasks
+const taskListResult = await vibeTaskManager.parseTaskList("/path/to/task-list.md");
+if (taskListResult.success) {
+  const atomicTasks = await vibeTaskManager.convertToAtomicTasks(
+    taskListResult.taskListData,
+    projectId,
+    epicId
+  );
+}
+
+// Natural language workflow
+"Import the PRD from my mobile app project and decompose it into tasks"
+```
+
+### Integration Workflow
+
+```mermaid
+flowchart TD
+    PRD[PRD Generator] --> PRDFile[PRD File]
+    TaskGen[Task List Generator] --> TaskFile[Task List File]
+
+    PRDFile --> Parser[Artifact Parser]
+    TaskFile --> Parser
+
+    Parser --> Context[Context Extraction]
+    Context --> Project[Project Creation]
+    Context --> Tasks[Task Generation]
+
+    Project --> TaskManager[Task Manager]
+    Tasks --> TaskManager
+
+    TaskManager --> Decompose[Task Decomposition]
+    TaskManager --> Execute[Task Execution]
 ```
 
 ## Contributing

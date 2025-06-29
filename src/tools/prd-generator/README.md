@@ -96,8 +96,8 @@ The PRD Generator uses models defined in `llm_config.json`:
 {
   "llm_mapping": {
     "prd_research": "perplexity/sonar-deep-research",
-    "prd_generation": "google/gemini-2.5-flash-preview",
-    "prd_enhancement": "google/gemini-2.5-flash-preview"
+    "prd_generation": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+    "prd_enhancement": "deepseek/deepseek-r1-0528-qwen3-8b:free"
   }
 }
 ```

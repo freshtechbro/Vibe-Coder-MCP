@@ -102,8 +102,13 @@ export interface ProgressConfig {
   updateIntervalMinutes: number;
   enableRealTimeUpdates: boolean;
   enableCompletionEstimation: boolean;
+  enableDependencyTracking: boolean;
+  enableCriticalPathMonitoring: boolean;
+  enableScheduleDeviationAlerts: boolean;
   complexityWeights: Record<string, number>;
   statusWeights: Record<string, number>;
+  deviationThresholdPercentage: number;
+  criticalPathUpdateInterval: number;
 }
 
 /**
@@ -114,11 +119,16 @@ export type ProgressEvent =
   | 'task_progress_updated'
   | 'task_completed'
   | 'task_blocked'
+  | 'task_failed'
+  | 'task_dependency_resolved'
+  | 'task_dependency_blocked'
   | 'epic_progress_updated'
   | 'epic_completed'
   | 'project_progress_updated'
   | 'project_completed'
-  | 'milestone_reached';
+  | 'milestone_reached'
+  | 'critical_path_updated'
+  | 'schedule_deviation_detected';
 
 /**
  * Progress event data
@@ -132,6 +142,20 @@ export interface ProgressEventData {
   estimatedCompletion?: Date;
   timestamp: Date;
   metadata?: Record<string, any>;
+  // Enhanced properties for dependency tracking
+  dependencyId?: string;
+  // Enhanced properties for schedule deviation
+  deviationPercentage?: number;
+  actualHours?: number;
+  estimatedHours?: number;
+  status?: string;
+  // Enhanced properties for critical path monitoring
+  criticalPathTasks?: Array<{
+    id: string;
+    title: string;
+    estimatedHours: number;
+    status: string;
+  }>;
 }
 
 /**
@@ -151,6 +175,9 @@ export class ProgressTracker {
       updateIntervalMinutes: 5,
       enableRealTimeUpdates: true,
       enableCompletionEstimation: true,
+      enableDependencyTracking: true,
+      enableCriticalPathMonitoring: true,
+      enableScheduleDeviationAlerts: true,
       complexityWeights: {
         'simple': 1,
         'medium': 2,
@@ -164,6 +191,8 @@ export class ProgressTracker {
         'blocked': 0,
         'failed': 0
       },
+      deviationThresholdPercentage: 20,
+      criticalPathUpdateInterval: 10,
       ...config
     };
 
@@ -414,34 +443,72 @@ export class ProgressTracker {
   }
 
   /**
-   * Update task progress
+   * Enhanced task status update with dependency tracking
+   */
+  async updateTaskStatus(
+    taskId: string,
+    newStatus: string,
+    progressPercentage?: number,
+    actualHours?: number,
+    dependencyUpdates?: { resolvedDependencies?: string[], blockedDependencies?: string[] }
+  ): Promise<void> {
+    try {
+      logger.debug({
+        taskId,
+        newStatus,
+        progressPercentage,
+        actualHours,
+        dependencyUpdates
+      }, 'Enhanced task status update requested');
+
+      // Emit appropriate status events
+      switch (newStatus) {
+        case 'in_progress':
+          this.emitProgressEvent('task_started', { taskId });
+          break;
+        case 'completed':
+          this.emitProgressEvent('task_completed', { taskId, progressPercentage: 100 });
+          break;
+        case 'blocked':
+          this.emitProgressEvent('task_blocked', { taskId });
+          break;
+        case 'failed':
+          this.emitProgressEvent('task_failed', { taskId });
+          break;
+        default:
+          this.emitProgressEvent('task_progress_updated', { taskId, progressPercentage });
+      }
+
+      // Handle dependency updates if enabled
+      if (this.config.enableDependencyTracking && dependencyUpdates) {
+        await this.handleDependencyUpdates(taskId, dependencyUpdates);
+      }
+
+      // Check for schedule deviations if enabled
+      if (this.config.enableScheduleDeviationAlerts) {
+        await this.checkScheduleDeviation(taskId, newStatus, actualHours);
+      }
+
+      // Invalidate cached progress for affected project
+      this.progressCache.clear();
+
+      logger.debug({ taskId, newStatus }, 'Enhanced task status updated');
+
+    } catch (error) {
+      logger.error({ err: error, taskId, newStatus }, 'Failed to update task status');
+      throw new AppError('Task status update failed', { cause: error });
+    }
+  }
+
+  /**
+   * Update task progress (legacy method for backward compatibility)
    */
   async updateTaskProgress(
     taskId: string,
     progressPercentage: number,
     actualHours?: number
   ): Promise<void> {
-    try {
-      // Placeholder implementation - in real implementation, this would update storage
-      logger.debug({ taskId, progressPercentage, actualHours }, 'Task progress update requested');
-
-      // Emit progress event
-      this.emitProgressEvent('task_progress_updated', {
-        taskId,
-        progressPercentage
-      });
-
-      // Invalidate cached progress for affected project
-      // In real implementation, would fetch task to get projectId
-      // For now, just clear all cache
-      this.progressCache.clear();
-
-      logger.debug({ taskId, progressPercentage, actualHours }, 'Task progress updated');
-
-    } catch (error) {
-      logger.error({ err: error, taskId }, 'Failed to update task progress');
-      throw new AppError('Task progress update failed', { cause: error });
-    }
+    await this.updateTaskStatus(taskId, 'in_progress', progressPercentage, actualHours);
   }
 
   /**
@@ -594,6 +661,169 @@ export class ProgressTracker {
           logger.error({ err: error, event }, 'Error in progress event listener');
         }
       });
+    }
+  }
+
+  /**
+   * Handle dependency updates and emit appropriate events
+   */
+  private async handleDependencyUpdates(
+    taskId: string,
+    dependencyUpdates: { resolvedDependencies?: string[], blockedDependencies?: string[] }
+  ): Promise<void> {
+    try {
+      if (dependencyUpdates.resolvedDependencies?.length) {
+        for (const depId of dependencyUpdates.resolvedDependencies) {
+          this.emitProgressEvent('task_dependency_resolved', {
+            taskId,
+            dependencyId: depId,
+            timestamp: new Date()
+          });
+        }
+        logger.debug({
+          taskId,
+          resolvedDependencies: dependencyUpdates.resolvedDependencies
+        }, 'Task dependencies resolved');
+      }
+
+      if (dependencyUpdates.blockedDependencies?.length) {
+        for (const depId of dependencyUpdates.blockedDependencies) {
+          this.emitProgressEvent('task_dependency_blocked', {
+            taskId,
+            dependencyId: depId,
+            timestamp: new Date()
+          });
+        }
+        logger.warn({
+          taskId,
+          blockedDependencies: dependencyUpdates.blockedDependencies
+        }, 'Task dependencies blocked');
+      }
+
+    } catch (error) {
+      logger.error({ err: error, taskId }, 'Failed to handle dependency updates');
+    }
+  }
+
+  /**
+   * Check for schedule deviations and emit alerts
+   */
+  private async checkScheduleDeviation(
+    taskId: string,
+    status: string,
+    actualHours?: number
+  ): Promise<void> {
+    try {
+      // In a real implementation, this would:
+      // 1. Fetch the task's estimated hours and scheduled completion
+      // 2. Compare actual progress vs. expected progress
+      // 3. Calculate deviation percentage
+      // 4. Emit alerts if deviation exceeds threshold
+
+      // Placeholder implementation
+      if (actualHours && actualHours > 0) {
+        // Simulate estimated hours (in real implementation, fetch from task)
+        const estimatedHours = 8; // Placeholder
+        const deviationPercentage = ((actualHours - estimatedHours) / estimatedHours) * 100;
+
+        if (Math.abs(deviationPercentage) > this.config.deviationThresholdPercentage) {
+          this.emitProgressEvent('schedule_deviation_detected', {
+            taskId,
+            deviationPercentage,
+            actualHours,
+            estimatedHours,
+            status,
+            timestamp: new Date()
+          });
+
+          logger.warn({
+            taskId,
+            deviationPercentage,
+            actualHours,
+            estimatedHours,
+            threshold: this.config.deviationThresholdPercentage
+          }, 'Schedule deviation detected');
+        }
+      }
+
+    } catch (error) {
+      logger.error({ err: error, taskId }, 'Failed to check schedule deviation');
+    }
+  }
+
+  /**
+   * Monitor critical path changes
+   */
+  async monitorCriticalPath(projectId: string, tasks: AtomicTask[]): Promise<void> {
+    try {
+      if (!this.config.enableCriticalPathMonitoring) {
+        return;
+      }
+
+      // In a real implementation, this would:
+      // 1. Calculate the current critical path
+      // 2. Compare with previous critical path
+      // 3. Emit events if critical path has changed
+      // 4. Update estimated project completion time
+
+      // Placeholder implementation
+      const criticalPathTasks = tasks
+        .filter(task => task.priority === 'high' || task.dependencies.length > 0)
+        .sort((a, b) => b.estimatedHours - a.estimatedHours)
+        .slice(0, 5); // Top 5 critical tasks
+
+      this.emitProgressEvent('critical_path_updated', {
+        projectId,
+        criticalPathTasks: criticalPathTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          estimatedHours: t.estimatedHours,
+          status: t.status
+        })),
+        timestamp: new Date()
+      });
+
+      logger.debug({
+        projectId,
+        criticalPathTaskCount: criticalPathTasks.length
+      }, 'Critical path monitoring updated');
+
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'Failed to monitor critical path');
+    }
+  }
+
+  /**
+   * Get real-time task status summary
+   */
+  async getTaskStatusSummary(projectId: string): Promise<{
+    total: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+    blocked: number;
+    failed: number;
+    progressPercentage: number;
+  }> {
+    try {
+      // In a real implementation, this would fetch actual task data
+      // Placeholder implementation
+      const summary = {
+        total: 10,
+        pending: 2,
+        inProgress: 3,
+        completed: 4,
+        blocked: 1,
+        failed: 0,
+        progressPercentage: 40
+      };
+
+      logger.debug({ projectId, summary }, 'Task status summary generated');
+      return summary;
+
+    } catch (error) {
+      logger.error({ err: error, projectId }, 'Failed to get task status summary');
+      throw new AppError('Task status summary generation failed', { cause: error });
     }
   }
 

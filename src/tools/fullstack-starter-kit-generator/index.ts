@@ -44,7 +44,7 @@ export interface FullstackStarterKitInput {
     deployment?: string;
     [key: string]: string | undefined;
   };
-  request_recommendation?: boolean;
+  request_recommendation?: boolean; // When true: PAID (uses research API), When false: FREE (basic generation)
   include_optional_features?: string[];
 }
 
@@ -63,7 +63,7 @@ export async function initDirectories() {
 const starterKitInputSchemaShape = {
   use_case: z.string().min(5, { message: "Use case must be at least 5 characters." }).describe("The specific use case for the starter kit (e.g., 'E-commerce site', 'Blog platform')"),
   tech_stack_preferences: z.record(z.string().optional()).optional().describe("Optional tech stack preferences (e.g., { frontend: 'Vue', backend: 'Python' })"),
-  request_recommendation: z.boolean().optional().describe("Whether to request recommendations for tech stack components based on research"),
+  request_recommendation: z.boolean().optional().describe("Whether to request recommendations for tech stack components based on research. TRUE=PAID (uses research API), FALSE=FREE (basic generation). Default: false"),
   include_optional_features: z.array(z.string()).optional().describe("Optional features to include (e.g., ['Docker', 'CI/CD'])")
 };
 
@@ -160,6 +160,13 @@ export const generateFullstackStarterKit: ToolExecutor = async (
   }
 
   const input = params as unknown as FullstackStarterKitInput;
+  
+  // Apply default for request_recommendation from environment variable or default to false (FREE mode)
+  if (input.request_recommendation === undefined) {
+    const envDefault = process.env.VIBE_FULLSTACK_PAID_RESEARCH?.toLowerCase() === 'true';
+    input.request_recommendation = envDefault;
+    logger.debug({ envDefault, finalValue: input.request_recommendation }, 'Applied default for request_recommendation from environment');
+  }
 
   const jobId = jobManager.createJob('generate-fullstack-starter-kit', params);
   logger.info({ jobId, tool: 'generateFullstackStarterKit', sessionId }, 'Starting background job.');
@@ -176,16 +183,17 @@ export const generateFullstackStarterKit: ToolExecutor = async (
     const yamlComposer = new YAMLComposer(config);
 
     try {
-      logger.info({ jobId }, `Starting Fullstack Starter Kit Generator background job for use case: ${input.use_case}`);
-      logs.push(`[${new Date().toISOString()}] Starting Fullstack Starter Kit Generator for ${input.use_case}`);
-      jobManager.updateJobStatus(jobId, JobStatus.RUNNING, 'Initializing starter kit generation...');
-      sseNotifier.sendProgress(sessionId, jobId, JobStatus.RUNNING, 'Initializing...');
+      const mode = input.request_recommendation ? 'PAID (with research)' : 'FREE (basic)';
+      logger.info({ jobId }, `Starting Fullstack Starter Kit Generator background job for use case: ${input.use_case} [Mode: ${mode}]`);
+      logs.push(`[${new Date().toISOString()}] Starting Fullstack Starter Kit Generator for ${input.use_case} [Mode: ${mode}]`);
+      jobManager.updateJobStatus(jobId, JobStatus.RUNNING, `Initializing starter kit generation [Mode: ${mode}]...`);
+      sseNotifier.sendProgress(sessionId, jobId, JobStatus.RUNNING, `Initializing [Mode: ${mode}]...`);
 
       let researchContext = '';
       if (input.request_recommendation) {
-        logger.info({ jobId }, "Performing comprehensive pre-generation research...");
-        sseNotifier.sendProgress(sessionId, jobId, JobStatus.RUNNING, 'Performing comprehensive research...');
-        jobManager.updateJobStatus(jobId, JobStatus.RUNNING, 'Performing comprehensive research...');
+        logger.info({ jobId }, "Performing comprehensive pre-generation research (PAID mode)...");
+        sseNotifier.sendProgress(sessionId, jobId, JobStatus.RUNNING, 'Performing comprehensive research (PAID mode)...');
+        jobManager.updateJobStatus(jobId, JobStatus.RUNNING, 'Performing comprehensive research (PAID mode)...');
 
         // Enhanced research with 3 comprehensive queries (aligns with research manager's maxConcurrentRequests: 3)
         const researchQueries = [
@@ -481,7 +489,7 @@ If any modules were dynamically generated because their templates were missing, 
 
 const starterKitToolDefinition: ToolDefinition = {
   name: "generate-fullstack-starter-kit",
-  description: "Generates full-stack project starter kits by composing YAML modules based on user requirements, tech stacks, research-informed recommendations, and then provides setup scripts. Dynamically generates missing YAML modules using LLM.",
+  description: "Generates full-stack project starter kits by composing YAML modules based on user requirements, tech stacks, research-informed recommendations, and then provides setup scripts. FREE MODE (request_recommendation=false): Basic generation using free LLM models. PAID MODE (request_recommendation=true): Advanced recommendations with comprehensive research using paid research API. Dynamically generates missing YAML modules using LLM.",
   inputSchema: starterKitInputSchemaShape,
   executor: generateFullstackStarterKit
 };

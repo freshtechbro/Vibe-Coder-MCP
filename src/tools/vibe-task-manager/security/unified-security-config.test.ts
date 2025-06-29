@@ -25,7 +25,7 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'pplx-7b-online',
         tools: {
           'vibe-task-manager': {
@@ -57,7 +57,7 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'pplx-7b-online',
         tools: {},
         config: {},
@@ -81,7 +81,7 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'pplx-7b-online',
         tools: {
           'vibe-task-manager': {
@@ -117,7 +117,7 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'pplx-7b-online',
         tools: {
           'vibe-task-manager': {
@@ -157,7 +157,7 @@ describe('UnifiedSecurityConfigManager', () => {
       const mockMCPConfig: OpenRouterConfig = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: 'test-key',
-        geminiModel: 'gemini-pro',
+        defaultModel: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
         perplexityModel: 'pplx-7b-online',
         tools: {
           'vibe-task-manager': {

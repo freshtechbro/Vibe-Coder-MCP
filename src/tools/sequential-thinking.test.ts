@@ -26,7 +26,7 @@ vi.mock('../logger.js', () => ({
 
 // Mock config with a valid URL structure
 const mockConfig: OpenRouterConfig = {
-    baseUrl: 'http://mock-api.test', apiKey: 'mock-key', geminiModel: 'mock-gemini', perplexityModel: 'mock-perplexity'
+    baseUrl: 'http://mock-api.test', apiKey: 'mock-key', defaultModel: 'mock-default', perplexityModel: 'mock-perplexity'
 };
 const baseUserPrompt = 'Solve this problem';
 const baseSystemPrompt = 'System prompt';

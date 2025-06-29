@@ -36,10 +36,10 @@ describe('ConfigLoader', () => {
     it('should load configuration from existing files successfully', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'task_decomposition': 'google/gemini-2.5-flash-preview',
-          'atomic_task_detection': 'google/gemini-2.5-flash-preview',
-          'intent_recognition': 'google/gemini-2.5-flash-preview',
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'atomic_task_detection': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'intent_recognition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -80,7 +80,7 @@ describe('ConfigLoader', () => {
     it('should handle missing MCP config file', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -117,7 +117,7 @@ describe('ConfigLoader', () => {
     it('should return config after loading', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -148,7 +148,7 @@ describe('ConfigLoader', () => {
     it('should return a copy to prevent mutations', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -181,9 +181,9 @@ describe('ConfigLoader', () => {
     beforeEach(async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'task_decomposition': 'google/gemini-2.5-flash-preview',
+          'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
           'atomic_task_detection': 'anthropic/claude-3-sonnet',
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -208,7 +208,7 @@ describe('ConfigLoader', () => {
 
     it('should return specific model for operation', () => {
       const model = configLoader.getLLMModel('task_decomposition');
-      expect(model).toBe('google/gemini-2.5-flash-preview');
+      expect(model).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
 
     it('should return different model for different operation', () => {
@@ -218,13 +218,13 @@ describe('ConfigLoader', () => {
 
     it('should fallback to default_generation for unknown operation', () => {
       const model = configLoader.getLLMModel('unknown_operation');
-      expect(model).toBe('google/gemini-2.5-flash-preview');
+      expect(model).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
 
     it('should fallback to hardcoded default when config not loaded', () => {
       const newLoader = new (ConfigLoader as any)();
       const model = newLoader.getLLMModel('task_decomposition');
-      expect(model).toBe('google/gemini-2.5-flash-preview-05-20');
+      expect(model).toBe('deepseek/deepseek-r1-0528-qwen3-8b:free');
     });
   });
 
@@ -232,12 +232,12 @@ describe('ConfigLoader', () => {
     it('should validate required LLM mappings are present', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'task_decomposition': 'google/gemini-2.5-flash-preview',
-          'atomic_task_detection': 'google/gemini-2.5-flash-preview',
-          'intent_recognition': 'google/gemini-2.5-flash-preview',
-          'task_refinement': 'google/gemini-2.5-flash-preview',
-          'dependency_graph_analysis': 'google/gemini-2.5-flash-preview',
-          'agent_coordination': 'google/gemini-2.5-flash-preview'
+          'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'atomic_task_detection': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'intent_recognition': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'task_refinement': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'dependency_graph_analysis': 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+          'agent_coordination': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -267,7 +267,7 @@ describe('ConfigLoader', () => {
     it('should identify missing LLM mappings', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'task_decomposition': 'google/gemini-2.5-flash-preview'
+          'task_decomposition': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
           // Missing other required mappings
         }
       };
@@ -301,7 +301,7 @@ describe('ConfigLoader', () => {
     it('should validate MCP registration is correct', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -331,7 +331,7 @@ describe('ConfigLoader', () => {
     it('should detect missing MCP registration', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -363,7 +363,7 @@ describe('ConfigLoader', () => {
     it('getVibeTaskManagerConfig should load and return config', async () => {
       const mockLLMConfig = {
         llm_mapping: {
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 
@@ -394,7 +394,7 @@ describe('ConfigLoader', () => {
       const mockLLMConfig = {
         llm_mapping: {
           'task_decomposition': 'anthropic/claude-3-sonnet',
-          'default_generation': 'google/gemini-2.5-flash-preview'
+          'default_generation': 'deepseek/deepseek-r1-0528-qwen3-8b:free'
         }
       };
 

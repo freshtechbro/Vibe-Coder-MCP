@@ -38,6 +38,35 @@
           "Development Rules generated based on description and generated user stories."
         ]
       }
+    },
+    "codeAnalysis": {
+      "description": "Maps codebase and generates analysis report",
+      "inputSchema": {
+        "targetDirectory": "string"
+      },
+      "steps": [
+        {
+          "id": "step1_map_code",
+          "toolName": "map-codebase",
+          "params": {
+            "ignored_files_patterns": ["node_modules/*", "*.log"]
+          }
+        },
+        {
+          "id": "step2_curate_context",
+          "toolName": "curate-context",
+          "params": {
+            "prompt": "Analyze this codebase for potential improvements"
+          }
+        }
+      ],
+      "output": {
+        "summary": "Code analysis workflow completed",
+        "details": [
+          "Codebase mapped with structure analysis",
+          "Context curated for improvement recommendations"
+        ]
+      }
     }
   }
 }

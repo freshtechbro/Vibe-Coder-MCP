@@ -7,7 +7,15 @@
  */
 
 import { AtomicTask, TaskPriority } from '../types/task.js';
+import { ProjectContext } from '../types/project-context.js';
 import { OptimizedDependencyGraph, ParallelBatch } from '../core/dependency-graph.js';
+import {
+  EnhancedError,
+  ConfigurationError,
+  TaskExecutionError,
+  ValidationError,
+  createErrorContext
+} from '../utils/enhanced-errors.js';
 import logger from '../../../logger.js';
 
 /**
@@ -244,6 +252,9 @@ export class TaskScheduler {
   private optimizationTimer: NodeJS.Timeout | null = null;
   private scheduleVersion = 0;
 
+  // Static instance tracking for callback support
+  private static currentInstance: TaskScheduler | null = null;
+
   constructor(config: Partial<SchedulingConfig> = {}) {
     this.config = { ...DEFAULT_SCHEDULING_CONFIG, ...config };
 
@@ -251,11 +262,21 @@ export class TaskScheduler {
       this.startOptimizationTimer();
     }
 
+    // Set as current instance for callback support
+    TaskScheduler.currentInstance = this;
+
     logger.info('TaskScheduler initialized', {
       algorithm: this.config.algorithm,
       maxConcurrentTasks: this.config.resources.maxConcurrentTasks,
       enableDynamicOptimization: this.config.enableDynamicOptimization
     });
+  }
+
+  /**
+   * Get current scheduler instance for callback support
+   */
+  static getCurrentInstance(): TaskScheduler | null {
+    return TaskScheduler.currentInstance;
   }
 
   /**
@@ -331,12 +352,64 @@ export class TaskScheduler {
       return optimizedSchedule;
 
     } catch (error) {
-      logger.error('Failed to generate schedule', {
-        error: error instanceof Error ? error.message : String(error),
-        taskCount: tasks.length,
-        algorithm: this.config.algorithm
-      });
-      throw error;
+      const context = createErrorContext('TaskScheduler', 'generateSchedule')
+        .projectId(projectId)
+        .metadata({
+          taskCount: tasks.length,
+          algorithm: this.config.algorithm,
+          generationTime: Date.now() - startTime
+        })
+        .build();
+
+      if (error instanceof EnhancedError) {
+        // Re-throw enhanced errors with additional context
+        throw error;
+      }
+
+      // Convert generic errors to enhanced errors
+      if (error instanceof Error) {
+        if (error.message.includes('validation') || error.message.includes('invalid')) {
+          throw new ValidationError(
+            `Schedule generation validation failed: ${error.message}`,
+            context,
+            {
+              cause: error,
+              field: 'tasks',
+              expectedFormat: 'Array of valid AtomicTask objects'
+            }
+          );
+        }
+
+        if (error.message.includes('algorithm') || error.message.includes('config')) {
+          throw new ConfigurationError(
+            `Schedule generation configuration error: ${error.message}`,
+            context,
+            {
+              cause: error,
+              configKey: 'algorithm',
+              actualValue: this.config.algorithm
+            }
+          );
+        }
+
+        throw new TaskExecutionError(
+          `Schedule generation failed: ${error.message}`,
+          context,
+          {
+            cause: error,
+            retryable: true
+          }
+        );
+      }
+
+      // Handle unknown errors
+      throw new TaskExecutionError(
+        `Schedule generation failed with unknown error: ${String(error)}`,
+        context,
+        {
+          retryable: false
+        }
+      );
     }
   }
 
@@ -347,27 +420,70 @@ export class TaskScheduler {
     updatedTasks: AtomicTask[],
     dependencyGraph: OptimizedDependencyGraph
   ): Promise<ExecutionSchedule> {
+    const context = createErrorContext('TaskScheduler', 'updateSchedule')
+      .metadata({
+        updatedTaskCount: updatedTasks.length,
+        hasCurrentSchedule: !!this.currentSchedule
+      })
+      .build();
+
     if (!this.currentSchedule) {
-      throw new Error('No current schedule to update');
+      throw new ValidationError(
+        'No current schedule exists to update. Generate a schedule first.',
+        context,
+        {
+          field: 'currentSchedule',
+          expectedFormat: 'Valid ExecutionSchedule object'
+        }
+      );
     }
 
-    logger.info('Updating existing schedule', {
-      scheduleId: this.currentSchedule.id,
-      updatedTaskCount: updatedTasks.length
-    });
+    try {
+      logger.info('Updating existing schedule', {
+        scheduleId: this.currentSchedule.id,
+        updatedTaskCount: updatedTasks.length
+      });
 
-    // Determine if re-scheduling is needed based on sensitivity
-    const needsReschedule = this.shouldReschedule(updatedTasks);
+      // Validate updated tasks
+      if (!Array.isArray(updatedTasks) || updatedTasks.length === 0) {
+        throw new ValidationError(
+          'Updated tasks must be a non-empty array of AtomicTask objects',
+          context,
+          {
+            field: 'updatedTasks',
+            expectedFormat: 'Array<AtomicTask>',
+            actualValue: updatedTasks
+          }
+        );
+      }
 
-    if (needsReschedule) {
-      return this.generateSchedule(
-        updatedTasks,
-        dependencyGraph,
-        this.currentSchedule.projectId
+      // Determine if re-scheduling is needed based on sensitivity
+      const needsReschedule = this.shouldReschedule(updatedTasks);
+
+      if (needsReschedule) {
+        return this.generateSchedule(
+          updatedTasks,
+          dependencyGraph,
+          this.currentSchedule.projectId
+        );
+      } else {
+        // Incremental update
+        return this.incrementalUpdate(updatedTasks, dependencyGraph);
+      }
+
+    } catch (error) {
+      if (error instanceof EnhancedError) {
+        throw error;
+      }
+
+      throw new TaskExecutionError(
+        `Schedule update failed: ${error instanceof Error ? error.message : String(error)}`,
+        context,
+        {
+          cause: error instanceof Error ? error : undefined,
+          retryable: true
+        }
       );
-    } else {
-      // Incremental update
-      return this.incrementalUpdate(updatedTasks, dependencyGraph);
     }
   }
 
@@ -468,45 +584,147 @@ export class TaskScheduler {
   }
 
   /**
-   * Get schedule statistics and metrics
+   * Execute scheduled tasks using AgentOrchestrator
    */
-  getScheduleMetrics(): {
-    totalTasks: number;
-    completedTasks: number;
-    inProgressTasks: number;
-    pendingTasks: number;
-    blockedTasks: number;
-    averageTaskDuration: number;
-    estimatedCompletion: Date;
-    resourceUtilization: number;
-    parallelismFactor: number;
-  } | null {
+  async executeScheduledTasks(): Promise<{
+    success: boolean;
+    executedTasks: string[];
+    queuedTasks: string[];
+    errors: Array<{ taskId: string; error: string }>;
+  }> {
     if (!this.currentSchedule) {
-      return null;
+      return {
+        success: false,
+        executedTasks: [],
+        queuedTasks: [],
+        errors: [{ taskId: 'N/A', error: 'No current schedule available' }]
+      };
     }
 
-    const tasks = Array.from(this.currentSchedule.scheduledTasks.values());
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.task.status === 'completed').length;
-    const inProgressTasks = tasks.filter(t => t.task.status === 'in_progress').length;
-    const pendingTasks = tasks.filter(t => t.task.status === 'pending').length;
-    const blockedTasks = tasks.filter(t => t.task.status === 'blocked').length;
+    const executedTasks: string[] = [];
+    const queuedTasks: string[] = [];
+    const errors: Array<{ taskId: string; error: string }> = [];
 
-    const averageTaskDuration = tasks.reduce((sum, t) =>
-      sum + t.task.estimatedHours, 0) / totalTasks;
+    try {
+      // Get ready tasks for execution
+      const readyTasks = this.getReadyTasks();
 
-    return {
-      totalTasks,
-      completedTasks,
-      inProgressTasks,
-      pendingTasks,
-      blockedTasks,
-      averageTaskDuration,
-      estimatedCompletion: this.currentSchedule.timeline.endTime,
-      resourceUtilization: this.currentSchedule.resourceUtilization.resourceEfficiency,
-      parallelismFactor: this.currentSchedule.timeline.parallelismFactor
-    };
+      if (readyTasks.length === 0) {
+        logger.debug('No ready tasks for execution');
+        return {
+          success: true,
+          executedTasks,
+          queuedTasks,
+          errors
+        };
+      }
+
+      // Import AgentOrchestrator dynamically to avoid circular dependencies
+      const { AgentOrchestrator } = await import('./agent-orchestrator.js');
+      const orchestrator = AgentOrchestrator.getInstance();
+
+      logger.info(`Executing ${readyTasks.length} ready tasks`);
+
+      // Execute each ready task
+      for (const scheduledTask of readyTasks) {
+        try {
+          // Create project context for task execution
+          const projectContext: ProjectContext = {
+            projectPath: process.cwd(),
+            projectName: scheduledTask.task.projectId,
+            description: `Scheduled task execution for ${scheduledTask.task.title}`,
+            languages: ['typescript', 'javascript'], // Default languages
+            frameworks: [],
+            buildTools: ['npm'],
+            configFiles: [],
+            entryPoints: [],
+            architecturalPatterns: [],
+            structure: {
+              sourceDirectories: ['src'],
+              testDirectories: ['test', 'tests'],
+              docDirectories: ['docs'],
+              buildDirectories: ['build', 'dist']
+            },
+            dependencies: {
+              production: [],
+              development: [],
+              external: []
+            },
+            metadata: {
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              version: '1.0.0',
+              source: 'auto-detected'
+            }
+          };
+
+          // Execute task via orchestrator
+          const result = await orchestrator.executeTask(
+            scheduledTask.task,
+            projectContext,
+            {
+              priority: this.mapTaskPriorityToExecutionPriority(scheduledTask.task.priority),
+              timeout: scheduledTask.assignedResources.memoryMB * 1000, // Use memory as timeout indicator
+              enableMonitoring: true
+            }
+          );
+
+          if (result.success) {
+            executedTasks.push(scheduledTask.task.id);
+            logger.info(`Task ${scheduledTask.task.id} executed successfully`);
+          } else if (result.queued) {
+            queuedTasks.push(scheduledTask.task.id);
+            logger.info(`Task ${scheduledTask.task.id} queued for later execution`);
+          } else {
+            errors.push({
+              taskId: scheduledTask.task.id,
+              error: result.error || result.message
+            });
+            logger.warn(`Task ${scheduledTask.task.id} execution failed: ${result.error || result.message}`);
+          }
+
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          errors.push({
+            taskId: scheduledTask.task.id,
+            error: errorMessage
+          });
+          logger.error({ err: error, taskId: scheduledTask.task.id }, 'Task execution failed with exception');
+        }
+      }
+
+      logger.info({
+        executed: executedTasks.length,
+        queued: queuedTasks.length,
+        errors: errors.length
+      }, 'Scheduled task execution completed');
+
+      return {
+        success: errors.length === 0,
+        executedTasks,
+        queuedTasks,
+        errors
+      };
+
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to execute scheduled tasks');
+      return {
+        success: false,
+        executedTasks,
+        queuedTasks,
+        errors: [{ taskId: 'N/A', error: error instanceof Error ? error.message : 'Unknown error' }]
+      };
+    }
   }
+
+  /**
+   * Map task priority to execution priority
+   */
+  private mapTaskPriorityToExecutionPriority(taskPriority: TaskPriority): 'low' | 'medium' | 'high' | 'critical' {
+    return taskPriority; // Direct mapping since they use the same values
+  }
+
+
 
   /**
    * Cleanup and dispose of scheduler
@@ -681,21 +899,49 @@ export class TaskScheduler {
 
   /**
    * Hybrid optimal scheduling algorithm
+   * Combines multiple scheduling strategies for optimal resource utilization
    */
   private hybridOptimalScheduling(
     tasks: AtomicTask[],
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[],
-    _dependencyGraph: OptimizedDependencyGraph
+    dependencyGraph: OptimizedDependencyGraph
   ): Map<string, ScheduledTask> {
-    // Combine multiple factors for optimal scheduling
     const scheduledTasks = new Map<string, ScheduledTask>();
 
-    // Sort tasks by total score (weighted combination of all factors)
+    // Get critical path for prioritization
+    const criticalPath = dependencyGraph.getCriticalPath();
+    const criticalPathSet = new Set(criticalPath);
+
+    // Enhanced sorting with multiple criteria
     const sortedTasks = tasks.sort((a, b) => {
-      const scoreA = taskScores.get(a.id)?.totalScore || 0;
-      const scoreB = taskScores.get(b.id)?.totalScore || 0;
-      return scoreB - scoreA;
+      const scoreA = taskScores.get(a.id);
+      const scoreB = taskScores.get(b.id);
+
+      // Primary: Critical path tasks first
+      const aCritical = criticalPathSet.has(a.id);
+      const bCritical = criticalPathSet.has(b.id);
+      if (aCritical !== bCritical) {
+        return bCritical ? 1 : -1;
+      }
+
+      // Secondary: Total score
+      const totalA = scoreA?.totalScore || 0;
+      const totalB = scoreB?.totalScore || 0;
+      if (Math.abs(totalA - totalB) > 0.1) {
+        return totalB - totalA;
+      }
+
+      // Tertiary: Priority level
+      const priorityOrder = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
+      const priorityA = priorityOrder[a.priority] || 0;
+      const priorityB = priorityOrder[b.priority] || 0;
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA;
+      }
+
+      // Quaternary: Shorter tasks first for better parallelism
+      return a.estimatedHours - b.estimatedHours;
     });
 
     let currentTime = new Date();
@@ -731,13 +977,96 @@ export class TaskScheduler {
         scheduledTasks.set(task.id, scheduledTask);
       }
 
-      // Calculate actual batch duration based on parallel execution
+      // Calculate actual batch duration based on parallel execution with buffer
       const maxTaskDuration = Math.max(...batchTasks.map(t => t.estimatedHours));
-      currentTime = new Date(currentTime.getTime() + maxTaskDuration * 60 * 60 * 1000);
+      const bufferTime = maxTaskDuration * 0.1; // 10% buffer for variance
+      currentTime = new Date(currentTime.getTime() + (maxTaskDuration + bufferTime) * 60 * 60 * 1000);
       batchId++;
     }
 
     return scheduledTasks;
+  }
+
+  /**
+   * Optimize batch order for better resource utilization
+   */
+  private optimizeBatchOrder(
+    batch: ParallelBatch,
+    sortedTasks: AtomicTask[],
+    taskScores: Map<string, TaskScores>
+  ): AtomicTask[] {
+    const batchTasks = batch.taskIds
+      .map(id => sortedTasks.find(t => t.id === id))
+      .filter(task => task !== undefined) as AtomicTask[];
+
+    // Sort batch tasks by resource efficiency and priority
+    return batchTasks.sort((a, b) => {
+      const scoreA = taskScores.get(a.id);
+      const scoreB = taskScores.get(b.id);
+
+      // Prioritize by resource score (better resource utilization first)
+      const resourceA = scoreA?.resourceScore || 0;
+      const resourceB = scoreB?.resourceScore || 0;
+      if (Math.abs(resourceA - resourceB) > 0.1) {
+        return resourceB - resourceA;
+      }
+
+      // Then by total score
+      const totalA = scoreA?.totalScore || 0;
+      const totalB = scoreB?.totalScore || 0;
+      return totalB - totalA;
+    });
+  }
+
+  /**
+   * Initialize resource tracker for batch optimization
+   */
+  private initializeResourceTracker(): {
+    memoryUsed: number;
+    cpuUsed: number;
+    agentsAssigned: Set<string>;
+  } {
+    return {
+      memoryUsed: 0,
+      cpuUsed: 0,
+      agentsAssigned: new Set()
+    };
+  }
+
+  /**
+   * Update resource tracker with allocated resources
+   */
+  private updateResourceTracker(
+    tracker: { memoryUsed: number; cpuUsed: number; agentsAssigned: Set<string> },
+    resources: { memoryMB: number; cpuWeight: number; agentId?: string }
+  ): void {
+    tracker.memoryUsed += resources.memoryMB;
+    tracker.cpuUsed += resources.cpuWeight;
+    if (resources.agentId) {
+      tracker.agentsAssigned.add(resources.agentId);
+    }
+  }
+
+  /**
+   * Calculate optimal batch start time considering dependencies
+   */
+  private calculateOptimalBatchStartTime(
+    batchTasks: AtomicTask[],
+    scheduledTasks: Map<string, ScheduledTask>,
+    defaultStartTime: Date
+  ): Date {
+    let latestPrerequisiteEnd = defaultStartTime;
+
+    for (const task of batchTasks) {
+      for (const depId of task.dependencies) {
+        const depTask = scheduledTasks.get(depId);
+        if (depTask && depTask.scheduledEnd > latestPrerequisiteEnd) {
+          latestPrerequisiteEnd = depTask.scheduledEnd;
+        }
+      }
+    }
+
+    return latestPrerequisiteEnd;
   }
 
   /**
@@ -864,10 +1193,35 @@ export class TaskScheduler {
     return priorityMap[priority] || 0.5;
   }
 
-  private calculateDeadlineScore(_task: AtomicTask): number {
-    // For now, return a default score since deadline is not in the task interface
-    // This would be enhanced when deadline support is added to AtomicTask
-    return 0.5;
+  private calculateDeadlineScore(task: AtomicTask): number {
+    // Enhanced deadline scoring based on task priority and estimated duration
+    const now = new Date();
+
+    // Calculate implied deadline based on priority and estimated hours
+    const priorityMultipliers = {
+      'critical': 1.0,   // Immediate deadline
+      'high': 2.0,       // 2x estimated time
+      'medium': 4.0,     // 4x estimated time
+      'low': 8.0         // 8x estimated time
+    };
+
+    const multiplier = priorityMultipliers[task.priority] || 4.0;
+    const impliedDeadlineHours = task.estimatedHours * multiplier;
+    const impliedDeadline = new Date(now.getTime() + impliedDeadlineHours * 60 * 60 * 1000);
+
+    // Calculate urgency score (higher score = more urgent)
+    const timeToDeadline = impliedDeadline.getTime() - now.getTime();
+    const maxTimeWindow = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
+    // Normalize to 0-1 scale (1 = most urgent, 0 = least urgent)
+    const urgencyScore = Math.max(0, 1 - (timeToDeadline / maxTimeWindow));
+
+    // Apply exponential curve for critical tasks
+    if (task.priority === 'critical') {
+      return Math.min(1.0, urgencyScore * 1.5);
+    }
+
+    return Math.min(1.0, urgencyScore);
   }
 
   private calculateDependencyScore(
@@ -908,6 +1262,27 @@ export class TaskScheduler {
     return 1.0 - Math.min(task.estimatedHours / maxHours, 0.8);
   }
 
+  /**
+   * Calculate task deadline based on priority and estimated hours
+   * Used for earliest deadline scheduling when no explicit deadline is set
+   */
+  private calculateTaskDeadline(task: AtomicTask): Date {
+    const now = new Date();
+
+    // Base deadline calculation: priority affects urgency
+    const priorityMultipliers = {
+      'critical': 0.5,  // Half the normal time
+      'high': 1.0,      // Normal time
+      'medium': 2.0,    // Double time
+      'low': 3.0        // Triple time
+    };
+
+    const multiplier = priorityMultipliers[task.priority] || 2.0;
+    const deadlineHours = task.estimatedHours * multiplier + 24; // Add 24h buffer
+
+    return new Date(now.getTime() + deadlineHours * 60 * 60 * 1000);
+  }
+
   // Resource allocation methods
 
   private allocateResources(task: AtomicTask): {
@@ -933,7 +1308,7 @@ export class TaskScheduler {
     return {
       memoryMB: taskTypeResources?.memoryMB || defaultMemory,
       cpuWeight: taskTypeResources?.cpuWeight || defaultCpu,
-      agentId: this.assignAgent()
+      agentId: this.assignAgent(task)
     };
   }
 
@@ -959,29 +1334,64 @@ export class TaskScheduler {
       baseResources.memoryMB = Math.floor(baseResources.memoryMB * scaleFactor);
     }
 
+    // Reassign agent with task context for optimal allocation
+    baseResources.agentId = this.assignAgent(task);
+
     return baseResources;
   }
 
-  private assignAgent(): string | undefined {
-    // Simple round-robin agent assignment
+  private assignAgent(task?: AtomicTask): string | undefined {
+    // Enhanced agent assignment with capability matching and load balancing
     const agentCount = this.config.resources.availableAgents;
     if (agentCount === 0) return undefined;
 
-    const agentId = `agent_${(this.scheduleVersion % agentCount) + 1}`;
-    return agentId;
+    if (!task) {
+      // Fallback to round-robin if no task provided
+      const agentId = `agent_${(this.scheduleVersion % agentCount) + 1}`;
+      return agentId;
+    }
+
+    // Agent capability mapping
+    const agentCapabilities = new Map([
+      ['agent_1', ['development', 'testing', 'review']],
+      ['agent_2', ['deployment', 'documentation', 'research']],
+      ['agent_3', ['development', 'testing', 'deployment']]
+    ]);
+
+    // Generate available agent IDs
+    const availableAgents = Array.from({ length: agentCount }, (_, i) => `agent_${i + 1}`);
+
+    // Find agents capable of handling this task type
+    const capableAgents = availableAgents.filter(agentId => {
+      const capabilities = agentCapabilities.get(agentId) || ['development', 'testing']; // Default capabilities
+      return capabilities.includes(task.type);
+    });
+
+    if (capableAgents.length === 0) {
+      // No specific capability match, use round-robin
+      const agentId = `agent_${(this.scheduleVersion % agentCount) + 1}`;
+      return agentId;
+    }
+
+    // Simple load balancing - prefer agents with fewer assigned tasks
+    // In a real implementation, this would check actual agent workloads
+    const agentLoads = new Map(
+      availableAgents.map(agentId => [agentId, Math.floor(Math.random() * 5)])
+    );
+
+    // Select capable agent with lowest load
+    const selectedAgent = capableAgents.reduce((best, current) => {
+      const currentLoad = agentLoads.get(current) || 0;
+      const bestLoad = agentLoads.get(best) || 0;
+      return currentLoad < bestLoad ? current : best;
+    });
+
+    return selectedAgent;
   }
 
   // Helper methods for scheduling algorithms
 
-  private optimizeBatchOrder(
-    batch: ParallelBatch,
-    sortedTasks: AtomicTask[],
-    _taskScores: Map<string, TaskScores>
-  ): AtomicTask[] {
-    return batch.taskIds
-      .map(id => sortedTasks.find(t => t.id === id))
-      .filter(task => task !== undefined) as AtomicTask[];
-  }
+
 
   private findCriticalPath(scheduledTasks: Map<string, ScheduledTask>): string[] {
     // Simple implementation - find longest chain by duration
@@ -1104,8 +1514,8 @@ export class TaskScheduler {
     }
 
     // Check if optimization is needed based on schedule performance
-    const metrics = this.getScheduleMetrics();
-    if (metrics && metrics.resourceUtilization < 0.7) {
+    const resourceEfficiency = this.currentSchedule.resourceUtilization.resourceEfficiency;
+    if (resourceEfficiency < 0.7) {
       logger.info('Triggering schedule optimization due to low resource utilization');
       // Trigger optimization in background
       setTimeout(() => this.optimizeCurrentSchedule(), 1000);
@@ -1141,8 +1551,54 @@ export class TaskScheduler {
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[]
   ): Map<string, ScheduledTask> {
-    // Implement earliest deadline first algorithm
-    return this.priorityFirstScheduling(tasks, taskScores, parallelBatches);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Sort tasks by earliest deadline (using priority and estimated hours as fallback)
+    const sortedTasks = tasks.sort((a, b) => {
+      const deadlineA = this.calculateTaskDeadline(a);
+      const deadlineB = this.calculateTaskDeadline(b);
+      return deadlineA.getTime() - deadlineB.getTime();
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    for (const batch of parallelBatches) {
+      const batchTasks = batch.taskIds
+        .map(id => sortedTasks.find(t => t.id === id))
+        .filter(task => task !== undefined) as AtomicTask[];
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateResources(task);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: new Date(currentTime),
+          scheduledEnd: new Date(currentTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'earliest_deadline',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Move to next batch time
+      currentTime = new Date(currentTime.getTime() + batch.estimatedDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 
   private criticalPathScheduling(
@@ -1151,8 +1607,67 @@ export class TaskScheduler {
     parallelBatches: ParallelBatch[],
     dependencyGraph: OptimizedDependencyGraph
   ): Map<string, ScheduledTask> {
-    // Implement critical path method
-    return this.hybridOptimalScheduling(tasks, taskScores, parallelBatches, dependencyGraph);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Get critical path tasks from dependency graph
+    const criticalPath = dependencyGraph.getCriticalPath();
+    const criticalPathSet = new Set(criticalPath);
+
+    // Sort tasks prioritizing critical path tasks first, then by total score
+    const sortedTasks = tasks.sort((a, b) => {
+      const aOnCriticalPath = criticalPathSet.has(a.id);
+      const bOnCriticalPath = criticalPathSet.has(b.id);
+
+      // Critical path tasks get highest priority
+      if (aOnCriticalPath && !bOnCriticalPath) return -1;
+      if (!aOnCriticalPath && bOnCriticalPath) return 1;
+
+      // For tasks both on or both off critical path, sort by total score
+      const scoreA = taskScores.get(a.id)?.totalScore || 0;
+      const scoreB = taskScores.get(b.id)?.totalScore || 0;
+      return scoreB - scoreA;
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    // Process batches with critical path optimization
+    for (const batch of parallelBatches) {
+      const batchTasks = this.optimizeBatchOrder(batch, sortedTasks, taskScores);
+      const batchStartTime = new Date(currentTime);
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateOptimalResources(task, batchTasks);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: batchStartTime,
+          scheduledEnd: new Date(batchStartTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'critical_path',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Calculate actual batch duration based on parallel execution
+      const maxTaskDuration = Math.max(...batchTasks.map(t => t.estimatedHours));
+      currentTime = new Date(currentTime.getTime() + maxTaskDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 
   private resourceBalancedScheduling(
@@ -1160,8 +1675,54 @@ export class TaskScheduler {
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[]
   ): Map<string, ScheduledTask> {
-    // Implement resource-balanced scheduling
-    return this.priorityFirstScheduling(tasks, taskScores, parallelBatches);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Sort tasks by resource optimization scores (prioritize resource-efficient tasks)
+    const sortedTasks = tasks.sort((a, b) => {
+      const scoreA = taskScores.get(a.id)?.resourceScore || 0;
+      const scoreB = taskScores.get(b.id)?.resourceScore || 0;
+      return scoreB - scoreA;
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    for (const batch of parallelBatches) {
+      const batchTasks = batch.taskIds
+        .map(id => sortedTasks.find(t => t.id === id))
+        .filter(task => task !== undefined) as AtomicTask[];
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateOptimalResources(task, batchTasks);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: new Date(currentTime),
+          scheduledEnd: new Date(currentTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'resource_balanced',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Move to next batch time
+      currentTime = new Date(currentTime.getTime() + batch.estimatedDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
   }
 
   private shortestJobScheduling(
@@ -1169,7 +1730,335 @@ export class TaskScheduler {
     taskScores: Map<string, TaskScores>,
     parallelBatches: ParallelBatch[]
   ): Map<string, ScheduledTask> {
-    // Implement shortest job first algorithm
-    return this.priorityFirstScheduling(tasks, taskScores, parallelBatches);
+    const scheduledTasks = new Map<string, ScheduledTask>();
+
+    // Sort tasks by estimated duration (shortest first)
+    const sortedTasks = tasks.sort((a, b) => {
+      return a.estimatedHours - b.estimatedHours;
+    });
+
+    let currentTime = new Date();
+    let batchId = 0;
+
+    for (const batch of parallelBatches) {
+      const batchTasks = batch.taskIds
+        .map(id => sortedTasks.find(t => t.id === id))
+        .filter(task => task !== undefined) as AtomicTask[];
+
+      for (const task of batchTasks) {
+        const scores = taskScores.get(task.id);
+        const resources = this.allocateResources(task);
+
+        const scheduledTask: ScheduledTask = {
+          task,
+          scheduledStart: new Date(currentTime),
+          scheduledEnd: new Date(currentTime.getTime() + task.estimatedHours * 60 * 60 * 1000),
+          assignedResources: resources,
+          batchId,
+          prerequisiteTasks: task.dependencies,
+          dependentTasks: task.dependents,
+          metadata: {
+            algorithm: 'shortest_job',
+            priorityScore: scores?.priorityScore || 0,
+            resourceScore: scores?.resourceScore || 0,
+            deadlineScore: scores?.deadlineScore || 0,
+            scheduledAt: new Date(),
+            lastOptimized: new Date()
+          }
+        };
+
+        scheduledTasks.set(task.id, scheduledTask);
+      }
+
+      // Move to next batch time
+      currentTime = new Date(currentTime.getTime() + batch.estimatedDuration * 60 * 60 * 1000);
+      batchId++;
+    }
+
+    return scheduledTasks;
+  }
+
+  /**
+   * Get comprehensive schedule metrics
+   */
+  getScheduleMetrics(): {
+    resourceUtilization: number;
+    timelineEfficiency: number;
+    dependencyCompliance: number;
+    parallelismFactor: number;
+    criticalPathOptimization: number;
+    overallScore: number;
+  } | null {
+    if (!this.currentSchedule) {
+      return null;
+    }
+
+    const schedule = this.currentSchedule;
+
+    // Calculate resource utilization
+    const maxMemory = this.config.resources.maxMemoryMB;
+    const maxCpu = this.config.resources.maxCpuUtilization;
+    const peakMemoryUtilization = schedule.resourceUtilization.peakMemoryMB / maxMemory;
+    const avgCpuUtilization = schedule.resourceUtilization.averageCpuUtilization / maxCpu;
+    const resourceUtilization = (peakMemoryUtilization + avgCpuUtilization) / 2;
+
+    // Calculate timeline efficiency (actual vs theoretical minimum)
+    const totalTaskHours = Array.from(schedule.scheduledTasks.values())
+      .reduce((sum, task) => sum + task.task.estimatedHours, 0);
+    const theoreticalMinimum = totalTaskHours / this.config.resources.availableAgents;
+    const actualDuration = schedule.timeline.totalDuration / (60 * 60 * 1000); // Convert to hours
+    const timelineEfficiency = Math.min(1, theoreticalMinimum / actualDuration);
+
+    // Calculate dependency compliance (tasks scheduled after dependencies)
+    let dependencyViolations = 0;
+    let totalDependencies = 0;
+
+    for (const [taskId, scheduledTask] of schedule.scheduledTasks) {
+      for (const depId of scheduledTask.prerequisiteTasks) {
+        totalDependencies++;
+        const depTask = schedule.scheduledTasks.get(depId);
+        if (depTask && scheduledTask.scheduledStart < depTask.scheduledEnd) {
+          dependencyViolations++;
+        }
+      }
+    }
+
+    const dependencyCompliance = totalDependencies > 0
+      ? 1 - (dependencyViolations / totalDependencies)
+      : 1;
+
+    // Calculate parallelism factor
+    const parallelismFactor = schedule.timeline.parallelismFactor;
+
+    // Calculate critical path optimization
+    const criticalPathTasks = schedule.timeline.criticalPath.length;
+    const totalTasks = schedule.scheduledTasks.size;
+    const criticalPathOptimization = criticalPathTasks > 0
+      ? 1 - (criticalPathTasks / totalTasks)
+      : 1;
+
+    // Calculate overall score
+    const overallScore = (
+      resourceUtilization * 0.25 +
+      timelineEfficiency * 0.3 +
+      dependencyCompliance * 0.2 +
+      parallelismFactor * 0.15 +
+      criticalPathOptimization * 0.1
+    );
+
+    return {
+      resourceUtilization,
+      timelineEfficiency,
+      dependencyCompliance,
+      parallelismFactor,
+      criticalPathOptimization,
+      overallScore
+    };
+  }
+
+  /**
+   * Get detailed schedule analytics
+   */
+  getScheduleAnalytics(): {
+    taskDistribution: Record<string, number>;
+    batchAnalysis: Array<{
+      batchId: number;
+      taskCount: number;
+      estimatedDuration: number;
+      resourceUsage: number;
+      parallelismScore: number;
+    }>;
+    bottlenecks: Array<{
+      taskId: string;
+      type: 'resource' | 'dependency' | 'timeline';
+      severity: 'low' | 'medium' | 'high';
+      description: string;
+    }>;
+    optimizationOpportunities: Array<{
+      type: 'parallelization' | 'resource_reallocation' | 'timeline_compression';
+      impact: 'low' | 'medium' | 'high';
+      description: string;
+      estimatedImprovement: number;
+    }>;
+  } | null {
+    if (!this.currentSchedule) {
+      return null;
+    }
+
+    const schedule = this.currentSchedule;
+
+    // Task distribution by type, priority, etc.
+    const taskDistribution: Record<string, number> = {};
+    for (const scheduledTask of schedule.scheduledTasks.values()) {
+      const type = scheduledTask.task.type || 'unknown';
+      taskDistribution[type] = (taskDistribution[type] || 0) + 1;
+    }
+
+    // Batch analysis
+    const batchAnalysis = schedule.executionBatches.map(batch => {
+      const batchTasks = batch.taskIds.map(id => schedule.scheduledTasks.get(id)).filter(Boolean);
+      const totalMemory = batchTasks.reduce((sum, task) => sum + (task?.assignedResources.memoryMB || 0), 0);
+      const totalCpu = batchTasks.reduce((sum, task) => sum + (task?.assignedResources.cpuWeight || 0), 0);
+      const resourceUsage = (totalMemory / this.config.resources.maxMemoryMB +
+                           totalCpu / this.config.resources.maxCpuUtilization) / 2;
+
+      return {
+        batchId: batch.batchId,
+        taskCount: batch.taskIds.length,
+        estimatedDuration: batch.estimatedDuration,
+        resourceUsage,
+        parallelismScore: Math.min(1, batch.taskIds.length / this.config.resources.availableAgents)
+      };
+    });
+
+    // Identify bottlenecks
+    const bottlenecks: Array<{
+      taskId: string;
+      type: 'resource' | 'dependency' | 'timeline';
+      severity: 'low' | 'medium' | 'high';
+      description: string;
+    }> = [];
+
+    // Resource bottlenecks
+    for (const [taskId, scheduledTask] of schedule.scheduledTasks) {
+      const memoryRatio = scheduledTask.assignedResources.memoryMB / this.config.resources.maxMemoryMB;
+      const cpuRatio = scheduledTask.assignedResources.cpuWeight / this.config.resources.maxCpuUtilization;
+
+      if (memoryRatio > 0.8 || cpuRatio > 0.8) {
+        bottlenecks.push({
+          taskId,
+          type: 'resource',
+          severity: memoryRatio > 0.9 || cpuRatio > 0.9 ? 'high' : 'medium',
+          description: `High resource usage: ${Math.round(memoryRatio * 100)}% memory, ${Math.round(cpuRatio * 100)}% CPU`
+        });
+      }
+    }
+
+    // Dependency bottlenecks (tasks with many dependencies)
+    for (const [taskId, scheduledTask] of schedule.scheduledTasks) {
+      if (scheduledTask.prerequisiteTasks.length > 3) {
+        bottlenecks.push({
+          taskId,
+          type: 'dependency',
+          severity: scheduledTask.prerequisiteTasks.length > 5 ? 'high' : 'medium',
+          description: `High dependency count: ${scheduledTask.prerequisiteTasks.length} prerequisites`
+        });
+      }
+    }
+
+    // Optimization opportunities
+    const optimizationOpportunities: Array<{
+      type: 'parallelization' | 'resource_reallocation' | 'timeline_compression';
+      impact: 'low' | 'medium' | 'high';
+      description: string;
+      estimatedImprovement: number;
+    }> = [];
+
+    // Look for parallelization opportunities
+    const underutilizedBatches = batchAnalysis.filter(batch => batch.parallelismScore < 0.7);
+    if (underutilizedBatches.length > 0) {
+      optimizationOpportunities.push({
+        type: 'parallelization',
+        impact: 'medium',
+        description: `${underutilizedBatches.length} batches could benefit from better parallelization`,
+        estimatedImprovement: 0.15
+      });
+    }
+
+    // Look for resource reallocation opportunities
+    const overallocatedTasks = Array.from(schedule.scheduledTasks.values())
+      .filter(task => task.assignedResources.memoryMB > 1024 && task.task.estimatedHours < 2);
+    if (overallocatedTasks.length > 0) {
+      optimizationOpportunities.push({
+        type: 'resource_reallocation',
+        impact: 'low',
+        description: `${overallocatedTasks.length} short tasks are over-allocated resources`,
+        estimatedImprovement: 0.08
+      });
+    }
+
+    return {
+      taskDistribution,
+      batchAnalysis,
+      bottlenecks,
+      optimizationOpportunities
+    };
+  }
+
+  /**
+   * Load schedule from persistence
+   */
+  async loadSchedule(scheduleId: string): Promise<ExecutionSchedule | null> {
+    try {
+      const filePath = `./VibeCoderOutput/vibe-task-manager/schedules/${scheduleId}.json`;
+      const fs = await import('fs-extra');
+
+      if (!(await fs.pathExists(filePath))) {
+        return null;
+      }
+
+      const scheduleData = await fs.readJson(filePath);
+
+      // Convert scheduledTasks object back to Map
+      const schedule: ExecutionSchedule = {
+        ...scheduleData,
+        scheduledTasks: new Map(Object.entries(scheduleData.scheduledTasks)),
+        timeline: {
+          ...scheduleData.timeline,
+          startTime: new Date(scheduleData.timeline.startTime),
+          endTime: new Date(scheduleData.timeline.endTime)
+        },
+        metadata: {
+          ...scheduleData.metadata,
+          generatedAt: new Date(scheduleData.metadata.generatedAt),
+          optimizedAt: new Date(scheduleData.metadata.optimizedAt)
+        }
+      };
+
+      return schedule;
+
+    } catch (error) {
+      logger.error({ err: error, scheduleId }, 'Failed to load schedule from persistence');
+      return null;
+    }
+  }
+
+  /**
+   * Clean up old schedules
+   */
+  async cleanupOldSchedules(olderThanDays: number = 7): Promise<number> {
+    try {
+      const fs = await import('fs-extra');
+      const scheduleDir = './VibeCoderOutput/vibe-task-manager/schedules';
+
+      if (!(await fs.pathExists(scheduleDir))) {
+        return 0;
+      }
+
+      const files = await fs.readdir(scheduleDir);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+      let cleanedCount = 0;
+
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const filePath = `${scheduleDir}/${file}`;
+          const stats = await fs.stat(filePath);
+
+          if (stats.mtime < cutoffDate) {
+            await fs.remove(filePath);
+            cleanedCount++;
+          }
+        }
+      }
+
+      logger.info({ cleanedCount, olderThanDays }, 'Schedule cleanup completed');
+      return cleanedCount;
+
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to cleanup old schedules');
+      return 0;
+    }
   }
 }

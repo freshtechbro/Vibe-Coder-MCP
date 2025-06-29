@@ -115,7 +115,7 @@ Generate a detailed set of development rules based on the user's product descrip
 - **NO Conversational Filler:** Start directly with the '# Development Rules: ...' title. No greetings, summaries, or apologies.
 - **NO Markdown Violations:** Strictly adhere to the specified Markdown format, especially the rule template.
 - **NO External Knowledge:** Base rules *only* on the provided inputs and research context.
-- **NO Process Commentary:** Do not mention Perplexity, Gemini, or the generation process in the output.
+- **NO Process Commentary:** Do not mention Perplexity, Gemini, Default process, or the generation process in the output.
 - **Strict Formatting:** Use \`##\` for categories and \`###\` for individual rule titles. Use the exact field names (Description, Rationale, etc.) in bold. Use code blocks with language hints for examples.
 `;
 

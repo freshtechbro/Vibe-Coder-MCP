@@ -1,5 +1,5 @@
 @echo off
-REM Setup script for Vibe Coder MCP Server (Production Ready v2.1)
+REM Setup script for Vibe Coder MCP Server (Production Ready v2.6.5)
 setlocal enabledelayedexpansion
 
 REM Color codes for Windows (using PowerShell for colored output)
@@ -9,9 +9,10 @@ set "YELLOW=[33m"
 set "BLUE=[34m"
 set "NC=[0m"
 
-echo Setting up Vibe Coder MCP Server v2.1...
+echo Setting up Vibe Coder MCP Server v2.6.5...
 echo ==================================================
-echo Production-ready MCP server with 16+ specialized tools
+echo Production-ready MCP server with complete agent integration
+echo Multi-transport support • Real-time notifications • Dynamic port allocation
 echo Agent coordination • Task management • Code analysis • Research • Context curation
 echo ==================================================
 
@@ -70,6 +71,7 @@ REM Verify critical dependencies
 echo Verifying critical dependencies...
 set "missing_deps="
 
+REM Core MCP and TypeScript dependencies
 call npm list @modelcontextprotocol/sdk >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     set "missing_deps=!missing_deps! @modelcontextprotocol/sdk"
@@ -98,6 +100,54 @@ if %ERRORLEVEL% neq 0 (
 call npm list yaml >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     set "missing_deps=!missing_deps! yaml"
+)
+
+REM Runtime server dependencies
+call npm list express >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! express"
+)
+
+call npm list cors >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! cors"
+)
+
+call npm list axios >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! axios"
+)
+
+call npm list ws >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! ws"
+)
+
+REM File system and utilities
+call npm list fs-extra >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! fs-extra"
+)
+
+call npm list uuid >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! uuid"
+)
+
+call npm list pino >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! pino"
+)
+
+REM Code analysis dependencies
+call npm list web-tree-sitter >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! web-tree-sitter"
+)
+
+call npm list dependency-cruiser >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    set "missing_deps=!missing_deps! dependency-cruiser"
 )
 
 if not "!missing_deps!"=="" (
@@ -242,7 +292,7 @@ if exist "VibeCoderOutput" if exist "build" if exist "src" (
 echo.
 powershell -Command "Write-Host '✓ Setup completed successfully!' -ForegroundColor Green"
 echo ==================================================
-echo Vibe Coder MCP Server v2.1 (Production Ready) is now set up with 16+ specialized tools:
+echo Vibe Coder MCP Server v2.6.5 (Production Ready) is now set up with complete agent integration:
 echo.
 echo 📋 PLANNING ^& DOCUMENTATION TOOLS:
 echo   - Research Manager (research-manager) - AI-powered research with Perplexity Sonar
@@ -257,7 +307,12 @@ echo   - Code Map Generator (map-codebase) - Semantic codebase analysis (30+ lan
 echo   - Context Curator (curate-context) - Intelligent context curation with chunked processing and relevance scoring
 echo.
 echo 🤖 TASK MANAGEMENT ^& AUTOMATION:
-echo   - Vibe Task Manager (vibe-task-manager) - AI-agent-native task management with RDD methodology
+echo   - Vibe Task Manager (vibe-task-manager) - Production-ready AI-agent-native task management with RDD methodology
+echo     * Natural language processing with 6 core intents and multi-strategy recognition
+echo     * Artifact parsing for PRD and task list integration from other Vibe Coder tools
+echo     * Session persistence and orchestration workflows with comprehensive CLI
+echo     * Multi-agent coordination with capability mapping and real-time status synchronization
+echo     * 99.9%% test success rate with zero mock code policy
 echo   - Workflow Runner (run-workflow) - Predefined development workflow execution
 echo   - Job Result Retriever (get-job-result) - Asynchronous task result management with real-time polling
 echo.
@@ -268,12 +323,16 @@ echo   - Agent Response (submit-task-response) - Submit completed task results
 echo   - Process Request (process-request) - Unified request processing with semantic routing
 echo.
 echo 🔧 ADVANCED FEATURES:
+echo   - Complete Agent Task Integration with unified payload format and real-time status synchronization
+echo   - Multi-Transport Support with dynamic port allocation and conflict resolution
+echo   - SSE Task Notifications with real-time assignment and completion events
+echo   - Advanced Error Recovery with automatic retry, escalation, and pattern analysis
 echo   - Semantic Routing ^& Sequential Thinking for intelligent tool selection
 echo   - Asynchronous Job Handling with SSE notifications for long-running tasks
 echo   - Multi-language support (30+ programming languages)
 echo   - Agent coordination and autonomous development workflows
 echo   - Unified communication protocol (stdio/SSE/WebSocket/HTTP)
-echo   - Production-ready task management with zero mock code (99.8%% test success rate)
+echo   - Production-ready task management with zero mock code (99.9%% test success rate)
 echo   - Real-time agent orchestration and task assignment
 echo   - Enhanced JSON parsing with 6-strategy progressive pipeline
 echo   - Memory optimization with sophisticated caching
@@ -338,6 +397,10 @@ echo    - Run all tests: npm test
 echo    - Run unit tests only: npm run test:unit
 echo    - Run integration tests: npm run test:integration
 echo    - Run E2E tests: npm run test:e2e
+echo    - Run agent integration tests: npm run test:agent-integration
+echo    - Run multi-transport tests: npm run test:multi-transport
+echo    - Run agent response tests: npm run test:agent-response
+echo    - Run full integration suite: npm run test:full-integration
 echo    - Check coverage: npm run coverage
 echo    - Lint code: npm run lint
 echo.

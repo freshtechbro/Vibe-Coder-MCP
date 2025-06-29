@@ -7,7 +7,7 @@ declare namespace NodeJS {
   export interface ProcessEnv {
     OPENROUTER_API_KEY: string;
     OPENROUTER_BASE_URL: string;
-    GEMINI_MODEL: string;
+    DEFAULT_MODEL: string;
     PERPLEXITY_MODEL: string;
     PORT: string;
     NODE_ENV: 'development' | 'production' | 'test';
