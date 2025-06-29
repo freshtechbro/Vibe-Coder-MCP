@@ -229,7 +229,8 @@ class WebSocketServerManager {
 
   private async handleAgentRegistration(sessionId: string, message: WebSocketMessage): Promise<void> {
     try {
-      const { agentId, capabilities, maxConcurrentTasks } = message.data || {};
+      const data = message.data as { agentId?: string; capabilities?: string[]; maxConcurrentTasks?: number } || {};
+      const { agentId, capabilities, maxConcurrentTasks } = data;
 
       if (!agentId || !capabilities) {
         this.sendError(sessionId, 'Agent registration requires agentId and capabilities');
@@ -291,13 +292,27 @@ class WebSocketServerManager {
       const { AgentResponseProcessor } = await import('../../tools/agent-response/index.js');
       const responseProcessor = AgentResponseProcessor.getInstance();
 
+      // Type assertion for message data
+      const taskData = message.data as { 
+        taskId?: string; 
+        status?: string; 
+        response?: any; 
+        completionDetails?: any 
+      } || {};
+
+      // Validate required fields
+      if (!taskData.taskId || !taskData.status) {
+        this.sendError(sessionId, 'Task response requires taskId and status');
+        return;
+      }
+
       // Process the task response
       await responseProcessor.processResponse({
         agentId: connection.agentId,
-        taskId: message.data.taskId,
-        status: message.data.status,
-        response: message.data.response,
-        completionDetails: message.data.completionDetails,
+        taskId: taskData.taskId,
+        status: taskData.status as "DONE" | "ERROR" | "PARTIAL",
+        response: taskData.response,
+        completionDetails: taskData.completionDetails,
         receivedAt: Date.now()
       });
 
@@ -307,7 +322,7 @@ class WebSocketServerManager {
         agentId: connection.agentId,
         data: {
           success: true,
-          taskId: message.data.taskId,
+          taskId: taskData.taskId,
           acknowledged: true,
           timestamp: Date.now()
         }
@@ -316,7 +331,7 @@ class WebSocketServerManager {
       logger.info({
         sessionId,
         agentId: connection.agentId,
-        taskId: message.data.taskId
+        taskId: taskData.taskId
       }, 'Task response received via WebSocket');
 
     } catch (error) {

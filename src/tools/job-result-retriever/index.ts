@@ -92,7 +92,10 @@ export const getJobResult: ToolExecutor = async (
         }
 
         // Add estimated completion time if available
-        if (job.details?.metadata?.estimatedCompletion) {
+        if (job.details?.metadata?.estimatedCompletion && 
+            (typeof job.details.metadata.estimatedCompletion === 'string' || 
+             typeof job.details.metadata.estimatedCompletion === 'number' ||
+             job.details.metadata.estimatedCompletion instanceof Date)) {
           responseText += `\n🕒 **Estimated Completion**: ${new Date(job.details.metadata.estimatedCompletion).toISOString()}`;
         }
 

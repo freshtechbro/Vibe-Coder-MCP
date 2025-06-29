@@ -485,7 +485,7 @@ class TransportManager {
         this.startedServices.push('stdio');
         serviceSuccesses.push({ service: 'stdio', note: 'MCP server managed' });
       } catch (error) {
-        const failure = { service: 'stdio', reason: 'Startup failed', error };
+        const failure = { service: 'stdio', reason: 'Startup failed', error: error instanceof Error ? error : new Error(String(error)) };
         serviceFailures.push(failure);
         logger.error({ err: error }, 'stdio transport: Failed to start');
       }
@@ -498,7 +498,7 @@ class TransportManager {
         this.startedServices.push('sse');
         serviceSuccesses.push({ service: 'sse', note: 'MCP server integrated' });
       } catch (error) {
-        const failure = { service: 'sse', reason: 'Startup failed', error };
+        const failure = { service: 'sse', reason: 'Startup failed', error: error instanceof Error ? error : new Error(String(error)) };
         serviceFailures.push(failure);
         logger.error({ err: error }, 'SSE transport: Failed to start');
       }
@@ -539,7 +539,7 @@ class TransportManager {
             this.startedServices.push('websocket');
             serviceSuccesses.push({ service: 'websocket', port: retryResult.port });
           } else {
-            const failure = { service: 'websocket', reason: 'Service startup failed after retries', error };
+            const failure = { service: 'websocket', reason: 'Service startup failed after retries', error: error instanceof Error ? error : new Error(String(error)) };
             serviceFailures.push(failure);
             logger.error({
               attempts: retryResult.attempts,
@@ -616,7 +616,7 @@ class TransportManager {
             this.startedServices.push('http');
             serviceSuccesses.push({ service: 'http', port: retryResult.port });
           } else {
-            const failure = { service: 'http', reason: 'Service startup failed after retries', error };
+            const failure = { service: 'http', reason: 'Service startup failed after retries', error: error instanceof Error ? error : new Error(String(error)) };
             serviceFailures.push(failure);
             logger.error({
               attempts: retryResult.attempts,
