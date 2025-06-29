@@ -171,7 +171,7 @@ export async function performDirectLlmCall(
 
   // Select the model using the utility function
   // Provide a sensible default if no specific model is found or configured
-  const defaultModel = config.geminiModel || "google/gemini-2.5-flash-preview-05-20"; // Use a known default
+  const defaultModel = config.defaultModel || "deepseek/deepseek-r1-0528-qwen3-8b:free"; // Use a known free default
   const modelToUse = selectModelForTask(config, logicalTaskName, defaultModel);
   logger.info({ modelSelected: modelToUse, logicalTaskName, apiKey: config.apiKey?.substring(0, 20) + '...' }, `Selected model for direct LLM call.`);
 
@@ -197,15 +197,14 @@ export async function performDirectLlmCall(
   }
   }, "DEBUG: Making API request");
 
-    // CRITICAL DEBUG: Log the actual API call details before making the request
-    console.error(`\n=== CRITICAL DEBUG INFO ===`);
-    console.error(`Model selected: ${modelToUse}`);
-    console.error(`API endpoint: ${config.baseUrl}/chat/completions`);
-    console.error(`Request payload model: ${requestPayload.model}`);
-    console.error(`System prompt length: ${requestPayload.messages[0].content.length}`);
-    console.error(`User prompt length: ${requestPayload.messages[1].content.length}`);
-    console.error(`API key present: ${Boolean(config.apiKey)}`);
-    console.error(`=== END DEBUG ===\n`);
+    // Debug API call details
+    logger.debug({
+      modelSelected: modelToUse,
+      endpoint: `${config.baseUrl}/chat/completions`,
+      systemPromptLength: requestPayload.messages[0].content.length,
+      userPromptLength: requestPayload.messages[1].content.length,
+      apiKeyPresent: Boolean(config.apiKey)
+    }, 'Making LLM API call');
 
   try {
     const response = await axios.post(
@@ -220,7 +219,13 @@ export async function performDirectLlmCall(
         timeout: 90000, // Increased timeout to 90s for potentially longer generations
         httpsAgent: httpsAgent, // Use the configured HTTPS agent for SSL/TLS handling
         maxRedirects: 5,
-        validateStatus: (status) => status < 500 // Accept 4xx errors but reject 5xx
+        validateStatus: (status) => {
+          // Accept 2xx and 4xx status codes, but handle 402 specifically
+          if (status === 402) {
+            return true; // Accept 402 so we can handle it properly
+          }
+          return status < 500; // Accept other 4xx errors but reject 5xx
+        }
       }
     );
 
@@ -231,105 +236,103 @@ export async function performDirectLlmCall(
     responseHeaders: response.headers
     }, "DEBUG: Received API response");
 
-        // CRITICAL DEBUG: Log the actual response structure
-        console.error(`\n=== RESPONSE DEBUG ===`);
-        console.error(`Response status: ${response.status}`);
-        console.error(`Response data type: ${typeof response.data}`);
-        console.error(`Response data keys: ${response.data ? Object.keys(response.data) : 'no data'}`);
-        if (response.data?.choices) {
-            console.error(`Choices array length: ${response.data.choices.length}`);
-            if (response.data.choices[0]) {
-                console.error(`First choice keys: ${Object.keys(response.data.choices[0])}`);
-                if (response.data.choices[0].message) {
-                    console.error(`Message keys: ${Object.keys(response.data.choices[0].message)}`);
-                    console.error(`Content length: ${response.data.choices[0].message.content?.length || 'no content'}`);
-                    console.error(`Content preview: ${response.data.choices[0].message.content?.substring(0, 100) || 'no content'}`);
-                }
-            }
+        // Log response structure for debugging
+        logger.debug({
+          responseStatus: response.status,
+          responseDataType: typeof response.data,
+          responseKeys: response.data ? Object.keys(response.data) : 'no data',
+          hasChoices: Boolean(response.data?.choices),
+          choicesLength: response.data?.choices?.length || 0
+        }, 'Received LLM API response');
+
+    // Handle 402 Payment Required errors specifically
+    if (response.status === 402) {
+      logger.error({
+        modelUsed: modelToUse,
+        responseStatus: response.status,
+        responseData: response.data,
+        logicalTaskName
+      }, "OpenRouter API returned 402 Payment Required - insufficient credits");
+      
+      throw new ApiError(
+        `OpenRouter API Error: Insufficient credits for model ${modelToUse}. ` +
+        `Status 402 - Payment Required. Please add credits to your OpenRouter account. ` +
+        `Even free models require credits to avoid rate limits.`,
+        402,
+        { 
+          modelUsed: modelToUse, 
+          logicalTaskName, 
+          responseData: response.data,
+          errorType: 'insufficient_credits'
         }
-        console.error(`=== END RESPONSE DEBUG ===\n`);
+      );
+    }
 
     // Enhanced response validation to handle different OpenRouter model formats
     let responseText: string | null = null;
     
-    // CRITICAL FIX: More thorough response extraction with detailed logging
-    console.error(`\n=== CRITICAL RESPONSE EXTRACTION DEBUG ===`);
-    console.error(`Response data type: ${typeof response.data}`);
-    console.error(`Response data is null/undefined: ${response.data == null}`);
-    
-    if (response.data) {
-      console.error(`Response data keys: ${Object.keys(response.data)}`);
-      console.error(`Has choices: ${Boolean(response.data.choices)}`);
-      
-      if (response.data.choices) {
-        console.error(`Choices array length: ${response.data.choices.length}`);
-        if (response.data.choices[0]) {
-          console.error(`First choice keys: ${Object.keys(response.data.choices[0])}`);
-          console.error(`Has message: ${Boolean(response.data.choices[0].message)}`);
-          
-          if (response.data.choices[0].message) {
-            console.error(`Message keys: ${Object.keys(response.data.choices[0].message)}`);
-            console.error(`Content value: ${JSON.stringify(response.data.choices[0].message.content)}`);
-            console.error(`Content type: ${typeof response.data.choices[0].message.content}`);
-            console.error(`Content length: ${response.data.choices[0].message.content?.length || 'N/A'}`);
-          }
-        }
-      }
-    }
-    console.error(`=== END RESPONSE EXTRACTION DEBUG ===\n`);
-    
-    // Try different response format patterns with detailed checking
+    // Try different response format patterns with comprehensive checking
     if (response.data?.choices?.[0]?.message?.content !== undefined) {
-      // Standard OpenAI format - check for empty string, null, etc
+      // Standard OpenAI format
       const content = response.data.choices[0].message.content;
-      if (content !== null && content !== undefined) {
+      if (content !== null && content !== undefined && content !== '') {
         responseText = String(content).trim();
-        console.error(`EXTRACTION SUCCESS: OpenAI format, length: ${responseText.length}`);
+        logger.debug({ extractionMethod: 'openai_format', contentLength: responseText.length }, 'Content extracted via OpenAI format');
       }
     } else if (response.data?.content !== undefined) {
-      // Some models return content directly
+      // Direct content field
       const content = response.data.content;
-      if (content !== null && content !== undefined) {
+      if (content !== null && content !== undefined && content !== '') {
         responseText = String(content).trim();
-        console.error(`EXTRACTION SUCCESS: Direct content, length: ${responseText.length}`);
+        logger.debug({ extractionMethod: 'direct_content', contentLength: responseText.length }, 'Content extracted via direct content field');
       }
     } else if (response.data?.text !== undefined) {
-      // Some models return text field
+      // Text field
       const content = response.data.text;
-      if (content !== null && content !== undefined) {
+      if (content !== null && content !== undefined && content !== '') {
         responseText = String(content).trim();
-        console.error(`EXTRACTION SUCCESS: Text field, length: ${responseText.length}`);
+        logger.debug({ extractionMethod: 'text_field', contentLength: responseText.length }, 'Content extracted via text field');
       }
     } else if (response.data?.response !== undefined) {
-      // Some models return response field
+      // Response field
       const content = response.data.response;
-      if (content !== null && content !== undefined) {
+      if (content !== null && content !== undefined && content !== '') {
         responseText = String(content).trim();
-        console.error(`EXTRACTION SUCCESS: Response field, length: ${responseText.length}`);
+        logger.debug({ extractionMethod: 'response_field', contentLength: responseText.length }, 'Content extracted via response field');
       }
-    } else if (typeof response.data === 'string') {
-      // Some models return string directly
+    } else if (typeof response.data === 'string' && response.data.trim() !== '') {
+      // Direct string response
       responseText = response.data.trim();
-      console.error(`EXTRACTION SUCCESS: Direct string, length: ${responseText.length}`);
+      logger.debug({ extractionMethod: 'direct_string', contentLength: responseText.length }, 'Content extracted as direct string');
     } else if (response.data?.outputs?.[0]?.text !== undefined) {
-      // Some models use outputs array format
+      // Outputs array format
       const content = response.data.outputs[0].text;
-      if (content !== null && content !== undefined) {
+      if (content !== null && content !== undefined && content !== '') {
         responseText = String(content).trim();
-        console.error(`EXTRACTION SUCCESS: Outputs array, length: ${responseText.length}`);
+        logger.debug({ extractionMethod: 'outputs_array', contentLength: responseText.length }, 'Content extracted via outputs array');
+      }
+    } else if (response.data?.data?.text !== undefined) {
+      // Nested data.text format (some OpenRouter models)
+      const content = response.data.data.text;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'nested_data_text', contentLength: responseText.length }, 'Content extracted via nested data.text');
+      }
+    } else if (response.data?.result !== undefined) {
+      // Result field (some API formats)
+      const content = response.data.result;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'result_field', contentLength: responseText.length }, 'Content extracted via result field');
+      }
+    } else if (response.data?.message !== undefined) {
+      // Direct message field (some formats)
+      const content = response.data.message;
+      if (content !== null && content !== undefined && content !== '') {
+        responseText = String(content).trim();
+        logger.debug({ extractionMethod: 'direct_message', contentLength: responseText.length }, 'Content extracted via direct message field');
       }
     }
-
-    // Additional debug for the final responseText value
-    console.error(`\n=== FINAL EXTRACTION RESULT ===`);
-    console.error(`responseText: ${JSON.stringify(responseText)}`);
-    console.error(`responseText type: ${typeof responseText}`);
-    console.error(`responseText is null: ${responseText === null}`);
-    console.error(`responseText is undefined: ${responseText === undefined}`);
-    console.error(`responseText is empty string: ${responseText === ''}`);
-    console.error(`responseText length: ${responseText?.length || 'N/A'}`);
-    console.error(`responseText truthiness: ${Boolean(responseText)}`);
-    console.error(`=== END FINAL EXTRACTION RESULT ===\n`);
 
     if (responseText && responseText.length > 0) {
       // Process Qwen3 thinking mode responses
@@ -337,22 +340,38 @@ export async function performDirectLlmCall(
       logger.debug({ modelUsed: modelToUse, responseLength: processedResponse.length, responseFormat: 'detected', hadThinkingBlocks: processedResponse !== responseText }, "Direct LLM call successful with flexible parsing");
       return processedResponse;
     } else {
-      console.error(`\n=== EXTRACTION FAILURE ===`);
-      console.error(`Failed to extract content. Dumping full response structure:`);
-      console.error(JSON.stringify(response.data, null, 2));
-      console.error(`=== END EXTRACTION FAILURE ===\n`);
-      
-      logger.warn({ 
+      // Detailed analysis of the actual API response for debugging
+      logger.error({ 
         responseData: response.data, 
         modelUsed: modelToUse,
         responseKeys: response.data ? Object.keys(response.data) : 'no data',
         responseType: typeof response.data,
-        extractedText: responseText,
-        extractedTextType: typeof responseText
-      }, "Received response but could not extract content with any known format");
+        responseStatus: response.status,
+        hasChoicesArray: Boolean(response.data?.choices),
+        choicesLength: response.data?.choices?.length || 0,
+        firstChoiceKeys: response.data?.choices?.[0] ? Object.keys(response.data.choices[0]) : 'no first choice',
+        hasMessage: Boolean(response.data?.choices?.[0]?.message),
+        messageKeys: response.data?.choices?.[0]?.message ? Object.keys(response.data.choices[0].message) : 'no message',
+        contentValue: response.data?.choices?.[0]?.message?.content,
+        contentType: typeof response.data?.choices?.[0]?.message?.content,
+        contentIsNull: response.data?.choices?.[0]?.message?.content === null,
+        contentIsEmpty: response.data?.choices?.[0]?.message?.content === '',
+        fullResponseDump: JSON.stringify(response.data, null, 2)
+      }, "CONTENT EXTRACTION FAILED - API response analysis");
+      
       throw new ParsingError(
-        "Invalid API response structure received from LLM - unable to extract content",
-        { responseData: response.data, modelUsed: modelToUse, logicalTaskName, extractedText: responseText }
+        `OpenRouter API returned response but content extraction failed. Response status: ${response.status}, Model: ${modelToUse}. ` +
+        `Response has choices array: ${Boolean(response.data?.choices)}, ` +
+        `First choice has message: ${Boolean(response.data?.choices?.[0]?.message)}, ` +
+        `Content value: ${JSON.stringify(response.data?.choices?.[0]?.message?.content)}, ` +
+        `Content type: ${typeof response.data?.choices?.[0]?.message?.content}`,
+        { 
+          responseData: response.data, 
+          modelUsed: modelToUse, 
+          logicalTaskName,
+          responseStatus: response.status,
+          actualIssue: 'content_extraction_failed'
+        }
       );
     }
   } catch (error) {

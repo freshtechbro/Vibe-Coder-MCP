@@ -345,7 +345,7 @@ async function initializeApp() {
         openRouterConfig = {
             baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
             apiKey: process.env.OPENROUTER_API_KEY || "",
-            geminiModel: process.env.GEMINI_MODEL || "google/gemini-2.5-flash-preview-05-20",
+            defaultModel: process.env.DEFAULT_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
             perplexityModel: process.env.PERPLEXITY_MODEL || "perplexity/sonar-deep-research",
             llm_mapping: JSON.parse(JSON.stringify(llmMapping))
         };
@@ -361,7 +361,7 @@ async function initializeApp() {
         openRouterConfig = {
             baseUrl: "https://openrouter.ai/api/v1",
             apiKey: "",
-            geminiModel: "google/gemini-2.5-flash-preview-05-20",
+            defaultModel: "deepseek/deepseek-r1-0528-qwen3-8b:free",
             perplexityModel: "perplexity/sonar-deep-research",
             llm_mapping: {}
         };
