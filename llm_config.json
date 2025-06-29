@@ -49,6 +49,7 @@
     "module_selection": "google/gemini-2.5-flash-preview-05-20",
     "yaml_generation": "google/gemini-2.5-flash-preview-05-20",
     "template_generation": "google/gemini-2.5-flash-preview-05-20",
+    "tag_suggestion": "google/gemini-2.5-flash-preview-05-20",
     "default_generation": "google/gemini-2.5-flash-preview-05-20"
   }
 }

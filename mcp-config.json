@@ -69,6 +69,11 @@
       "description": "Task completion and response handling system. Supports task completion status tracking (DONE, ERROR, PARTIAL), detailed completion metadata, automatic job status updates, and SSE notifications for real-time updates.",
       "use_cases": ["task completion", "response submission", "status tracking", "completion metadata", "agent response handling", "task workflow"],
       "input_patterns": ["submit response for task {taskId}", "complete task {taskId} with status {status}", "report task completion", "submit task result"]
+    },
+    "process-request": {
+      "description": "Processes natural language requests, determines the best tool using semantic matching and fallbacks, and either asks for confirmation or executes the tool directly.",
+      "use_cases": ["natural language processing", "tool routing", "semantic matching", "request interpretation", "automatic tool selection", "smart request handling"],
+      "input_patterns": ["process {natural_language_request}", "handle {user_query}", "route {request}", "interpret {user_input}", "what tool should I use for {request}"]
     }
   }
 }
