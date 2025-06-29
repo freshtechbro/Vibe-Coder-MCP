@@ -15,7 +15,7 @@ export interface WebSocketMessage {
   type: 'register' | 'task_assignment' | 'task_response' | 'heartbeat' | 'error';
   agentId?: string;
   sessionId?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   timestamp?: number;
 }
 
@@ -32,7 +32,7 @@ interface WebSocketConnection {
 class WebSocketServerManager {
   private static instance: WebSocketServerManager;
   private server?: WebSocketServer;
-  private httpServer?: any;
+  private httpServer?: import('http').Server;
   private connections = new Map<string, WebSocketConnection>(); // sessionId -> connection
   private agentConnections = new Map<string, string>(); // agentId -> sessionId
   private port: number = 8080;
@@ -45,9 +45,16 @@ class WebSocketServerManager {
     return WebSocketServerManager.instance;
   }
 
-  async start(port: number = 8080): Promise<void> {
+  async start(port: number): Promise<void> {
     try {
+      // Validate port parameter (should be pre-allocated by Transport Manager)
+      if (!port || port <= 0 || port > 65535) {
+        throw new Error(`Invalid port provided: ${port}. Port should be pre-allocated by Transport Manager.`);
+      }
+
       this.port = port;
+
+      logger.debug({ port }, 'Starting WebSocket server with pre-allocated port');
 
       // Create HTTP server for WebSocket upgrade
       this.httpServer = createServer();
@@ -62,11 +69,21 @@ class WebSocketServerManager {
       this.server.on('connection', this.handleConnection.bind(this));
       this.server.on('error', this.handleServerError.bind(this));
 
-      // Start HTTP server
+      // Start HTTP server with pre-allocated port
       await new Promise<void>((resolve, reject) => {
         this.httpServer!.listen(port, (err?: Error) => {
           if (err) {
-            reject(err);
+            // Enhanced error handling for port allocation failures
+            if (err.message.includes('EADDRINUSE')) {
+              const enhancedError = new Error(
+                `Port ${port} is already in use. This should not happen with pre-allocated ports. ` +
+                `Transport Manager port allocation may have failed.`
+              );
+              enhancedError.name = 'PortAllocationError';
+              reject(enhancedError);
+            } else {
+              reject(err);
+            }
           } else {
             resolve();
           }
@@ -76,10 +93,23 @@ class WebSocketServerManager {
       // Start heartbeat monitoring
       this.startHeartbeatMonitoring();
 
-      logger.info({ port, path: '/agent-ws' }, 'WebSocket server started');
+      logger.info({
+        port,
+        path: '/agent-ws',
+        note: 'Using pre-allocated port from Transport Manager'
+      }, 'WebSocket server started successfully');
 
     } catch (error) {
-      logger.error({ err: error, port }, 'Failed to start WebSocket server');
+      logger.error({
+        err: error,
+        port,
+        context: 'WebSocket server startup with pre-allocated port'
+      }, 'Failed to start WebSocket server');
+
+      // Re-throw with additional context for Transport Manager retry logic
+      if (error instanceof Error) {
+        error.message = `WebSocket server startup failed on pre-allocated port ${port}: ${error.message}`;
+      }
       throw error;
     }
   }
@@ -119,7 +149,7 @@ class WebSocketServerManager {
     }
   }
 
-  private handleConnection(ws: WebSocket, request: any): void {
+  private handleConnection(ws: WebSocket, request: import('http').IncomingMessage): void {
     const sessionId = this.generateSessionId();
     const connection: WebSocketConnection = {
       ws,
@@ -149,7 +179,7 @@ class WebSocketServerManager {
     });
   }
 
-  private async handleMessage(sessionId: string, data: any): Promise<void> {
+  private async handleMessage(sessionId: string, data: unknown): Promise<void> {
     try {
       const connection = this.connections.get(sessionId);
       if (!connection) {
@@ -295,7 +325,7 @@ class WebSocketServerManager {
     }
   }
 
-  private async handleHeartbeat(sessionId: string, message: WebSocketMessage): Promise<void> {
+  private async handleHeartbeat(sessionId: string, _message: WebSocketMessage): Promise<void> {
     const connection = this.connections.get(sessionId);
     if (connection) {
       connection.lastSeen = Date.now();
@@ -358,7 +388,7 @@ class WebSocketServerManager {
   }
 
   // Public methods for sending messages to agents
-  async sendTaskToAgent(agentId: string, taskPayload: any): Promise<boolean> {
+  async sendTaskToAgent(agentId: string, taskPayload: Record<string, unknown>): Promise<boolean> {
     try {
       const sessionId = this.agentConnections.get(agentId);
       if (!sessionId) {
