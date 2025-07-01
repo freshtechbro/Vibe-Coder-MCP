@@ -40,7 +40,7 @@ export interface TieredCacheOptions extends CacheOptions {
   /**
    * Function to calculate the size of a value in the memory cache.
    */
-  memorySizeCalculator?: (value: any) => number;
+  memorySizeCalculator?: (value: unknown) => number;
 }
 
 /**

@@ -1,10 +1,9 @@
 import { GraphNode, GraphEdge } from './graphBuilder.js';
-import { FunctionInfo, ClassInfo } from './codeMapModel.js';
 import logger from '../../logger.js';
 import path from 'path';
 import fs from 'fs/promises';
 import { CodeMapGeneratorConfig } from './types.js';
-import { writeFileSecure, readFileSecure } from './fsUtils.js';
+import { writeFileSecure } from './fsUtils.js';
 import { getOutputDirectory } from './directoryUtils.js';
 
 /**

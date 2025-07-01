@@ -62,7 +62,7 @@ export class VueHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle script elements
@@ -454,7 +454,7 @@ export class VueHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for JSDoc comments before the node
       const current = node;

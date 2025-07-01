@@ -26,7 +26,7 @@ interface SemgrepOptions extends ImportResolverOptions {
 
 interface SemgrepResult {
   results: SemgrepMatch[];
-  errors: any[];
+  errors: unknown[];
 }
 
 interface SemgrepMatch {

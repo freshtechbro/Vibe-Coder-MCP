@@ -20,7 +20,7 @@ declare module 'resolve' {
     /**
      * Transform the resolved file path.
      */
-    pathFilter?: (pkg: any, path: string, relativePath: string) => string;
+    pathFilter?: (pkg: unknown, path: string, relativePath: string) => string;
     
     /**
      * Array of directories to recursively look for modules in.
@@ -35,7 +35,7 @@ declare module 'resolve' {
     /**
      * Package.json data to use instead of reading from disk.
      */
-    packageFilter?: (pkg: any, pkgfile: string) => any;
+    packageFilter?: (pkg: unknown, pkgfile: string) => unknown;
     
     /**
      * Directory to start looking for modules in node_modules.

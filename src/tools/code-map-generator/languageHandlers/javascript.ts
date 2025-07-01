@@ -72,7 +72,7 @@ export class JavaScriptHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+_options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function declarations
@@ -338,7 +338,7 @@ export class JavaScriptHandler extends BaseLanguageHandler {
   /**
    * Checks if an import is a default import.
    */
-  protected isDefaultImport(node: SyntaxNode, sourceCode: string): boolean | undefined {
+  protected isDefaultImport(node: SyntaxNode, _sourceCode: string): boolean | undefined {
     try {
       if (node.type === 'import_statement') {
         const clauseNode = node.childForFieldName('import_clause');
@@ -396,7 +396,7 @@ export class JavaScriptHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for JSDoc comments
       let current = node;
@@ -412,9 +412,9 @@ export class JavaScriptHandler extends BaseLanguageHandler {
       }
 
       // Check for comments before the node
-      const startPosition = current.startPosition;
-      const lineStart = sourceCode.lastIndexOf('\n', current.startIndex) + 1;
-      const textBeforeNode = sourceCode.substring(0, lineStart).trim();
+      // const startPosition = current.startPosition; // Unused for now
+      const lineStart = _sourceCode.lastIndexOf('\n', current.startIndex) + 1;
+      const textBeforeNode = _sourceCode.substring(0, lineStart).trim();
 
       // Look for JSDoc comment
       const jsdocEnd = textBeforeNode.lastIndexOf('*/');
@@ -629,7 +629,7 @@ export class JavaScriptHandler extends BaseLanguageHandler {
   protected extractPropertyComment(node: SyntaxNode, sourceCode: string): string | undefined {
     try {
       // Check for comments before the node
-      const startPosition = node.startPosition;
+      // Unused for now
       const lineStart = sourceCode.lastIndexOf('\n', node.startIndex) + 1;
       const textBeforeNode = sourceCode.substring(0, lineStart).trim();
 
@@ -749,15 +749,15 @@ export class JavaScriptHandler extends BaseLanguageHandler {
   public async enhanceImportInfo(
     filePath: string,
     imports: ImportInfo[],
-    options: any
+    options: Record<string, unknown>
   ): Promise<ImportInfo[]> {
     try {
       // Create import resolver factory
       const factory = new ImportResolverFactory({
-        allowedDir: options.allowedDir,
-        outputDir: options.outputDir,
-        maxDepth: options.maxDepth || 3,
-        tsConfig: options.tsConfig
+        allowedDir: options.allowedDir as string,
+        outputDir: options.outputDir as string,
+        maxDepth: (options.maxDepth as number) || 3,
+        tsConfig: options.tsConfig as string | undefined
       });
 
       // Get resolver for JavaScript
@@ -836,7 +836,7 @@ export class JavaScriptHandler extends BaseLanguageHandler {
     }
 
     // Add any remaining original imports
-    for (const [_, remainingImport] of originalImportMap) {
+    for (const remainingImport of originalImportMap.values()) {
       result.push(remainingImport);
     }
 

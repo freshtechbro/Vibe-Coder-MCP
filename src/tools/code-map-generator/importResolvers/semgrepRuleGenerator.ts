@@ -3,7 +3,6 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
 import logger from '../../../logger.js';
 
 /**
@@ -15,7 +14,7 @@ export interface SemgrepRule {
   message: string;
   languages: string[];
   severity: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

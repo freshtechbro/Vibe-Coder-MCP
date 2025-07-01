@@ -8,8 +8,7 @@ import {
   resolveImport,
   clearImportCache,
   getImportCacheSize,
-  ImportResolverOptions,
-  ResolvedImportResult
+  ImportResolverOptions
 } from './importResolver.no-cache.js';
 
 /**

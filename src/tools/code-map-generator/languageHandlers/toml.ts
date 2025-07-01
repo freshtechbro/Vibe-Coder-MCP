@@ -57,7 +57,7 @@ export class TomlHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle key-value pairs

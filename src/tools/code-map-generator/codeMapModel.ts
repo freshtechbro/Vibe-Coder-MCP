@@ -92,12 +92,12 @@ export interface ImportedItem {
   staticImport?: {
     className?: string;
     memberName?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 
   // Additional metadata
   exceptItems?: string[];
-  options?: any;
+  options?: Record<string, unknown>;
   namespaceParts?: string[];
 }
 
@@ -124,7 +124,7 @@ export interface ImportInfo {
   isDynamic?: boolean; // Whether the import is a dynamic import
   isRelative?: boolean; // Whether the import is a relative path
   moduleSystem?: string; // The module system used (CommonJS, ESM, etc.)
-  metadata?: Record<string, any>; // Additional metadata from third-party resolvers
+  metadata?: Record<string, unknown>; // Additional metadata from third-party resolvers
 }
 
 export interface FileInfo {

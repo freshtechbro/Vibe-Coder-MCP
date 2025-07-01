@@ -306,19 +306,20 @@ async function generateSingleMarkdownOutput(
           } else {
             // Handle new ImportedItem format
             markdown += '\n  - Imported items:';
-            (imp.importedItems as any[]).forEach(item => {
+            (imp.importedItems as unknown[]).forEach(item => {
               if (typeof item === 'string') {
                 markdown += `\n    - ${item}`;
               } else {
                 // Handle ImportedItem object
-                if (item.isDefault) {
-                  markdown += `\n    - Default import: \`${item.name}\``;
-                } else if (item.isNamespace) {
-                  markdown += `\n    - Namespace import: \`* as ${item.name}\``;
+                const importedItem = item as { isDefault?: boolean; isNamespace?: boolean; name: string; alias?: string };
+                if (importedItem.isDefault) {
+                  markdown += `\n    - Default import: \`${importedItem.name}\``;
+                } else if (importedItem.isNamespace) {
+                  markdown += `\n    - Namespace import: \`* as ${importedItem.name}\``;
                 } else {
-                  markdown += `\n    - Named import: \`${item.name}\``;
-                  if (item.alias) {
-                    markdown += ` as \`${item.alias}\``;
+                  markdown += `\n    - Named import: \`${importedItem.name}\``;
+                  if (importedItem.alias) {
+                    markdown += ` as \`${importedItem.alias}\``;
                   }
                 }
               }
@@ -714,19 +715,20 @@ async function generateSplitMarkdownOutput(
             } else {
               // Handle new ImportedItem format
               batchMarkdown += '\n  - Imported items:';
-              (imp.importedItems as any[]).forEach(item => {
+              (imp.importedItems as unknown[]).forEach(item => {
                 if (typeof item === 'string') {
                   batchMarkdown += `\n    - ${item}`;
                 } else {
                   // Handle ImportedItem object
-                  if (item.isDefault) {
-                    batchMarkdown += `\n    - Default import: \`${item.name}\``;
-                  } else if (item.isNamespace) {
-                    batchMarkdown += `\n    - Namespace import: \`* as ${item.name}\``;
+                  const importedItem = item as { isDefault?: boolean; isNamespace?: boolean; name: string; alias?: string };
+                  if (importedItem.isDefault) {
+                    batchMarkdown += `\n    - Default import: \`${importedItem.name}\``;
+                  } else if (importedItem.isNamespace) {
+                    batchMarkdown += `\n    - Namespace import: \`* as ${importedItem.name}\``;
                   } else {
-                    batchMarkdown += `\n    - Named import: \`${item.name}\``;
-                    if (item.alias) {
-                      batchMarkdown += ` as \`${item.alias}\``;
+                    batchMarkdown += `\n    - Named import: \`${importedItem.name}\``;
+                    if (importedItem.alias) {
+                      batchMarkdown += ` as \`${importedItem.alias}\``;
                     }
                   }
                 }

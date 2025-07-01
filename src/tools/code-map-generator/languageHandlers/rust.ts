@@ -56,7 +56,7 @@ export class RustHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function items
@@ -472,7 +472,7 @@ export class RustHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for doc comments
       const attributesNode = node.childForFieldName('attributes');
@@ -496,7 +496,7 @@ export class RustHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for doc comments
       const attributesNode = node.childForFieldName('attributes');

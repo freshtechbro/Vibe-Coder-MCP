@@ -55,7 +55,7 @@ export class BashHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+_options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function definitions
@@ -132,7 +132,7 @@ export class BashHandler extends BaseLanguageHandler {
   /**
    * Extracts the class name from an AST node.
    */
-  protected extractClassName(node: SyntaxNode, sourceCode: string): string {
+  protected extractClassName(node: SyntaxNode, _sourceCode: string): string {
     try {
       // For shell scripts, use the filename as the "class" name
       if (node.type === 'program' && this.options?.filePath) {

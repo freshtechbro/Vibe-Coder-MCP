@@ -58,7 +58,7 @@ export class ElixirHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function definitions (def/defp)
@@ -152,7 +152,7 @@ export class ElixirHandler extends BaseLanguageHandler {
   /**
    * Checks if a function has a test macro.
    */
-  private hasTestMacro(node: SyntaxNode, sourceCode: string): boolean {
+  private hasTestMacro(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       // Look for @tag :unit or similar attributes
       let current = node.previousNamedSibling;
@@ -180,7 +180,7 @@ export class ElixirHandler extends BaseLanguageHandler {
   /**
    * Checks if a function has a callback attribute.
    */
-  private hasCallbackAttribute(node: SyntaxNode, sourceCode: string): boolean {
+  private hasCallbackAttribute(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       // Look for @callback attribute
       let current = node.previousNamedSibling;
@@ -351,7 +351,7 @@ export class ElixirHandler extends BaseLanguageHandler {
 
           // Check for 'only' option - import Module, only: [:function1, :function2]
           if (options && options.only) {
-            return options.only.map((item: string) => ({
+            return (options.only as string[]).map((item: string) => ({
               name: item.replace(/^:/, ''), // Remove leading colon from atom
               path: moduleName,
               isDefault: false,
@@ -373,7 +373,7 @@ export class ElixirHandler extends BaseLanguageHandler {
               nodeText: node.text,
               // Add Elixir-specific metadata
               importType: 'import',
-              exceptItems: options.except.map((item: string) => item.replace(/^:/, ''))
+              exceptItems: (options.except as string[]).map((item: string) => item.replace(/^:/, ''))
             }];
           }
 
@@ -402,9 +402,9 @@ export class ElixirHandler extends BaseLanguageHandler {
           // Check for 'as' option - alias Module.SubModule, as: NewName
           if (options && options.as) {
             return [{
-              name: options.as,
+              name: options.as as string,
               path: modulePath,
-              alias: options.as,
+              alias: options.as as string,
               isDefault: false,
               isNamespace: true,
               nodeText: node.text,
@@ -464,9 +464,9 @@ export class ElixirHandler extends BaseLanguageHandler {
           // Check for 'as' option - require Logger, as: Log
           if (options && options.as) {
             return [{
-              name: options.as,
+              name: options.as as string,
               path: moduleName,
-              alias: options.as,
+              alias: options.as as string,
               isDefault: false,
               isNamespace: true,
               nodeText: node.text,
@@ -520,7 +520,7 @@ export class ElixirHandler extends BaseLanguageHandler {
   /**
    * Extracts options from an import/alias/require/use statement.
    */
-  private extractImportOptions(argsNode: SyntaxNode, sourceCode: string): Record<string, any> | undefined {
+  private extractImportOptions(argsNode: SyntaxNode, sourceCode: string): Record<string, unknown> | undefined {
     try {
       // Skip the first child (module name)
       const optionsNode = argsNode.firstChild?.nextNamedSibling;
@@ -529,7 +529,7 @@ export class ElixirHandler extends BaseLanguageHandler {
         return undefined;
       }
 
-      const options: Record<string, any> = {};
+      const options: Record<string, unknown> = {};
 
       // Extract options from the node
       const optionsText = getNodeText(optionsNode, sourceCode);

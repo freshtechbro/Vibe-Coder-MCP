@@ -53,7 +53,7 @@ export class JavaHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+_options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle method declarations
@@ -283,7 +283,7 @@ export class JavaHandler extends BaseLanguageHandler {
   /**
    * Checks if an import is a static import.
    */
-  protected isDefaultImport(node: SyntaxNode, sourceCode: string): boolean | undefined {
+  protected isDefaultImport(node: SyntaxNode, _sourceCode: string): boolean | undefined {
     try {
       return node.type === 'static_import_declaration';
     } catch (error) {
@@ -365,7 +365,7 @@ export class JavaHandler extends BaseLanguageHandler {
   /**
    * Extracts class properties from an AST node.
    */
-  protected extractClassProperties(node: SyntaxNode, sourceCode: string): Array<{
+  protected extractClassProperties(node: SyntaxNode, _sourceCode: string): Array<{
     name: string;
     type?: string;
     comment?: string;
@@ -394,7 +394,7 @@ export class JavaHandler extends BaseLanguageHandler {
             const declaratorListNode = fieldNode.childForFieldName('declarator_list');
 
             if (typeNode && declaratorListNode) {
-              const type = getNodeText(typeNode, sourceCode);
+              const type = getNodeText(typeNode, _sourceCode);
               const nodeText = fieldNode.text;
 
               // Determine access modifier
@@ -417,14 +417,14 @@ export class JavaHandler extends BaseLanguageHandler {
               const isFinal = nodeText.includes('final ');
 
               // Extract comment
-              const comment = this.extractPropertyComment(fieldNode, sourceCode);
+              const comment = this.extractPropertyComment(fieldNode, _sourceCode);
 
               // Process each declarator in the list (Java can declare multiple fields in one statement)
               declaratorListNode.children.forEach(declarator => {
                 if (declarator.type === 'variable_declarator') {
                   const nameNode = declarator.childForFieldName('name');
                   if (nameNode) {
-                    const name = getNodeText(nameNode, sourceCode);
+                    const name = getNodeText(nameNode, _sourceCode);
 
                     // Add additional information to the comment if it's final
                     let finalComment = comment;
@@ -456,14 +456,14 @@ export class JavaHandler extends BaseLanguageHandler {
               enumBodyNode.descendantsOfType('enum_constant').forEach(constantNode => {
                 const nameNode = constantNode.childForFieldName('name');
                 if (nameNode) {
-                  const name = getNodeText(nameNode, sourceCode);
+                  const name = getNodeText(nameNode, _sourceCode);
 
                   // Extract comment
-                  const comment = this.extractPropertyComment(constantNode, sourceCode);
+                  const comment = this.extractPropertyComment(constantNode, _sourceCode);
 
                   properties.push({
                     name,
-                    type: this.extractClassName(node, sourceCode), // The enum type is the enum class name
+                    type: this.extractClassName(node, _sourceCode), // The enum type is the enum class name
                     accessModifier: 'public', // Enum constants are always public
                     isStatic: true, // Enum constants are implicitly static
                     comment,
@@ -482,17 +482,17 @@ export class JavaHandler extends BaseLanguageHandler {
               const declaratorListNode = fieldNode.childForFieldName('declarator_list');
 
               if (typeNode && declaratorListNode) {
-                const type = getNodeText(typeNode, sourceCode);
+                const type = getNodeText(typeNode, _sourceCode);
 
                 // Extract comment
-                const comment = this.extractPropertyComment(fieldNode, sourceCode);
+                const comment = this.extractPropertyComment(fieldNode, _sourceCode);
 
                 // Process each declarator
                 declaratorListNode.children.forEach(declarator => {
                   if (declarator.type === 'variable_declarator') {
                     const nameNode = declarator.childForFieldName('name');
                     if (nameNode) {
-                      const name = getNodeText(nameNode, sourceCode);
+                      const name = getNodeText(nameNode, _sourceCode);
 
                       properties.push({
                         name,
@@ -522,7 +522,7 @@ export class JavaHandler extends BaseLanguageHandler {
   /**
    * Extracts a comment for a property.
    */
-  private extractPropertyComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  private extractPropertyComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for Javadoc comments
       let prev = node.previousNamedSibling;
@@ -545,7 +545,7 @@ export class JavaHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for Javadoc comments
       let prev = node.previousNamedSibling;
@@ -568,7 +568,7 @@ export class JavaHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for Javadoc comments
       let prev = node.previousNamedSibling;

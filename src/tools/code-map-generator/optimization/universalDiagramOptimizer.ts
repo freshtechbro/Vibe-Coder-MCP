@@ -434,7 +434,7 @@ ${externalDeps.join(', ')}
   /**
    * Analyzes architectural patterns in the codebase.
    */
-  private analyzeArchitecturalPatterns(nodes: GraphNode[], edges: GraphEdge[]): any {
+  private analyzeArchitecturalPatterns(nodes: GraphNode[], _edges: GraphEdge[]): { hasLayeredStructure: boolean; hasMicroservicePattern: boolean; hasMVCPattern: boolean; hasModularStructure: boolean; hasComponentStructure: boolean } {
     const paths = nodes.map(n => n.id.toLowerCase());
 
     return {

@@ -5,7 +5,6 @@
 
 import logger from '../../logger.js';
 import { getMemoryStats } from './parser.js';
-import os from 'os';
 
 // Track memory usage over time
 const memoryUsageSamples: MemoryUsageSample[] = [];

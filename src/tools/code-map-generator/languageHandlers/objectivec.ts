@@ -54,7 +54,7 @@ export class ObjectiveCHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function definitions
@@ -332,7 +332,7 @@ export class ObjectiveCHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for comments before the function
       const current = node;
@@ -363,7 +363,7 @@ export class ObjectiveCHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for comments before the class
       const current = node;
@@ -409,7 +409,7 @@ export class ObjectiveCHandler extends BaseLanguageHandler {
         return lines.join(' ').trim();
       } else if (comment.startsWith('///') || comment.startsWith('//!')) {
         // Line Doxygen comment
-        return comment.replace(/^\/\/[\/!]\s*/mg, '').trim();
+        return comment.replace(/^\/\/[/!]\s*/mg, '').trim();
       }
 
       return comment;

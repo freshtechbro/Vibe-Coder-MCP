@@ -10,6 +10,7 @@ import * as path from 'path';
 import logger from '../../../logger.js';
 import { ImportInfo, ImportedItem } from '../codeMapModel.js';
 import { SecurityBoundaryValidator } from '../utils/securityBoundaryValidator.js';
+import { ImportResolverOptions } from './importResolver.js';
 
 const execAsync = promisify(exec);
 
@@ -25,7 +26,7 @@ interface DependencyCruiserOptions {
 interface DependencyCruiserResult {
   modules: DependencyCruiserModule[];
   summary: {
-    violations: any[];
+    violations: unknown[];
     error: number;
     warn: number;
     info: number;
@@ -68,11 +69,21 @@ export class DependencyCruiserAdapter {
    */
   public async analyzeImports(
     filePath: string,
-    options: DependencyCruiserOptions
+    options: ImportResolverOptions
   ): Promise<ImportInfo[]> {
     try {
+      // Convert ImportResolverOptions to DependencyCruiserOptions
+      const cruiserOptions: DependencyCruiserOptions = {
+        baseDir: (options.baseDir as string) || path.dirname(filePath),
+        includeOnly: options.includeOnly as string[] | undefined,
+        exclude: options.exclude as string[] | undefined,
+        maxDepth: options.maxDepth as number | undefined,
+        outputFormat: (options.outputFormat as 'json' | 'dot' | 'csv') || 'json',
+        tsConfig: options.tsConfig as string | undefined
+      };
+
       // Generate cache key
-      const cacheKey = `${filePath}:${JSON.stringify(options)}`;
+      const cacheKey = `${filePath}:${JSON.stringify(cruiserOptions)}`;
 
       // Check cache first
       if (this.cache.has(cacheKey)) {
@@ -98,7 +109,7 @@ export class DependencyCruiserAdapter {
       const command = this.buildDependencyCruiserCommand(
         filePath,
         tempOutputFile,
-        options
+        cruiserOptions
       );
 
       // Execute Dependency-Cruiser

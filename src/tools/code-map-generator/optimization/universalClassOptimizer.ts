@@ -7,7 +7,7 @@
  */
 
 import { ClassInfo, FunctionInfo, ClassPropertyInfo, FileInfo } from '../codeMapModel.js';
-import { UniversalOptimizationConfig, QualityThresholds } from '../types.js';
+import { UniversalOptimizationConfig } from '../types.js';
 import { EnhancementConfig } from '../config/enhancementConfig.js';
 import * as path from 'path';
 
@@ -40,7 +40,7 @@ export class UniversalClassOptimizer {
   /**
    * Optimizes class information based on importance and configuration.
    */
-  optimizeClassInfo(cls: ClassInfo, config: UniversalOptimizationConfig): string {
+  optimizeClassInfo(cls: ClassInfo, _config: UniversalOptimizationConfig): string {
     const importance = this.calculateClassImportance(cls);
     const publicInterface = this.extractPublicInterface(cls);
 
@@ -81,7 +81,7 @@ export class UniversalClassOptimizer {
   /**
    * Universal public member detection (works across all languages).
    */
-  isPublicMember(member: any): boolean {
+  isPublicMember(member: {accessModifier?: string; access?: string; name: string}): boolean {
     // Check explicit access modifiers
     if (member.accessModifier) {
       return member.accessModifier === 'public' || member.accessModifier === 'export';
@@ -98,7 +98,7 @@ export class UniversalClassOptimizer {
   /**
    * Universal getter/setter detection.
    */
-  isGetterSetter(method: any): boolean {
+  isGetterSetter(method: {name: string}): boolean {
     const name = method.name.toLowerCase();
     return name.startsWith('get') || name.startsWith('set') ||
            name.startsWith('is') || name.startsWith('has');
@@ -107,7 +107,7 @@ export class UniversalClassOptimizer {
   /**
    * Checks if a property has corresponding getter/setter methods.
    */
-  private isGetterSetterProperty(property: any, methods: FunctionInfo[]): boolean {
+  private isGetterSetterProperty(property: {name: string}, methods: FunctionInfo[]): boolean {
     const propName = property.name;
     const hasGetter = methods.some(m =>
       m.name.toLowerCase() === `get${propName.toLowerCase()}` ||

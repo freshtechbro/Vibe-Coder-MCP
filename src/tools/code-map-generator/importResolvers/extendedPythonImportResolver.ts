@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import Parser from 'web-tree-sitter';
 import logger from '../../../logger.js';
 import { ImportInfo, ImportedItem } from '../codeMapModel.js';
 import { SecurityBoundaryValidator } from '../utils/securityBoundaryValidator.js';
@@ -109,7 +110,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
           if (output && output.trim()) {
             return output.trim();
           }
-        } catch (e) {
+        } catch {
           // Continue to next command if this one fails
         }
       }
@@ -193,7 +194,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
    * Extracts imports from a Tree-sitter AST.
    */
   private extractImportsFromAST(
-    ast: any,
+    ast: Parser.SyntaxNode,
     sourceCode: string,
     filePath: string,
     options: PythonImportResolverOptions
@@ -203,7 +204,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
 
     try {
       // Find all import statements
-      const importNodes = ast.rootNode.descendantsOfType(['import_statement', 'import_from_statement']);
+      const importNodes = ast.descendantsOfType(['import_statement', 'import_from_statement']);
 
       for (const node of importNodes) {
         try {
@@ -233,7 +234,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
    * Processes a regular import statement (import x, import x.y, import x as y).
    */
   private processImportStatement(
-    node: any,
+    node: Parser.SyntaxNode,
     sourceCode: string,
     fileDir: string,
     imports: ImportInfo[],
@@ -291,7 +292,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
    * Processes a from import statement (from x import y, from x.y import z).
    */
   private processFromImportStatement(
-    node: any,
+    node: Parser.SyntaxNode,
     sourceCode: string,
     fileDir: string,
     imports: ImportInfo[],
@@ -325,7 +326,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
       });
     } else {
       // Handle specific imports (from x import y, z)
-      node.descendantsOfType(['dotted_name', 'identifier', 'aliased_import']).forEach((itemNode: any) => {
+      node.descendantsOfType(['dotted_name', 'identifier', 'aliased_import']).forEach((itemNode: Parser.SyntaxNode) => {
         if (itemNode.parent?.type === 'import_from_statement' &&
             itemNode.previousSibling?.text === 'import') {
           const name = this.getNodeText(itemNode, sourceCode);
@@ -389,7 +390,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
   private resolveImportPath(
     importPath: string,
     fileDir: string,
-    options: PythonImportResolverOptions
+    _options: PythonImportResolverOptions
   ): {
     resolvedPath: string | undefined;
     absolutePath: string | undefined;
@@ -530,7 +531,6 @@ export class ExtendedPythonImportResolver implements ImportResolver {
           }
 
           // If it's a submodule, try to resolve the full path
-          const submodulePath = modulePathParts.slice(1).join('.');
           const packageDir = path.dirname(possiblePath);
 
           const submodulePossiblePaths = [
@@ -639,7 +639,7 @@ export class ExtendedPythonImportResolver implements ImportResolver {
   /**
    * Gets the text of a node from the source code.
    */
-  private getNodeText(node: any, sourceCode: string): string {
+  private getNodeText(node: Parser.SyntaxNode, sourceCode: string): string {
     try {
       return sourceCode.substring(node.startIndex, node.endIndex);
     } catch (error) {

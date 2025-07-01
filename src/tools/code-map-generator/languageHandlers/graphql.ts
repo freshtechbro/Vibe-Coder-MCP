@@ -58,7 +58,7 @@ export class GraphQLHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+_options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle field definitions

@@ -186,7 +186,7 @@ export class OutputCleaner {
       // Check if the output directory exists
       try {
         await fs.access(outputDir);
-      } catch (error) {
+      } catch {
         // Output directory doesn't exist, nothing to clean up
         return;
       }
@@ -255,7 +255,7 @@ export class OutputCleaner {
       // Check if the cache directory exists
       try {
         await fs.access(cacheDir);
-      } catch (error) {
+      } catch {
         // Cache directory doesn't exist, nothing to clean up
         return;
       }
@@ -266,7 +266,7 @@ export class OutputCleaner {
       // Check if the temp directory exists
       try {
         await fs.access(tempDir);
-      } catch (error) {
+      } catch {
         // Temp directory doesn't exist, nothing to clean up
         return;
       }

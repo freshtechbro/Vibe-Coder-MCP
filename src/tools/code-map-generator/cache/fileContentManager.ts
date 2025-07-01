@@ -5,12 +5,10 @@
 
 import crypto from 'crypto';
 import path from 'path';
-import fs from 'fs/promises';
 import logger from '../../../logger.js';
 import { readFileSecure, statSecure } from '../fsUtils.js';
 import { FileCache } from './fileCache.js';
 import { LRUCache } from './lruCache.js';
-import { CodeMapGeneratorConfig } from '../types.js';
 
 /**
  * Interface for file metadata.

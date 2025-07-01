@@ -55,7 +55,7 @@ export class CSharpHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+_options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle method declarations
@@ -369,7 +369,7 @@ export class CSharpHandler extends BaseLanguageHandler {
   /**
    * Checks if a using directive is a static using.
    */
-  private isStaticUsing(node: SyntaxNode, sourceCode: string): boolean {
+  private isStaticUsing(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       // Look for the 'static' keyword in the using directive
       const staticNode = node.childForFieldName('static');
@@ -383,7 +383,7 @@ export class CSharpHandler extends BaseLanguageHandler {
   /**
    * Checks if a using directive is a global using (C# 10+).
    */
-  private isGlobalUsing(node: SyntaxNode, sourceCode: string): boolean {
+  private isGlobalUsing(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       // Look for the 'global' keyword in the using directive
       const globalNode = node.childForFieldName('global');
@@ -397,7 +397,7 @@ export class CSharpHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for XML documentation comments
       let prev = node.previousNamedSibling;
@@ -420,7 +420,7 @@ export class CSharpHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for XML documentation comments
       let prev = node.previousNamedSibling;

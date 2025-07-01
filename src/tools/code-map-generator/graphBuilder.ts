@@ -281,7 +281,6 @@ async function processClassInheritanceGraphWithStorage(
 
   // First pass: collect all classes and create nodes
   const classMapFile = path.join(tempDir, 'class-map.json');
-  const nodesFile = path.join(tempDir, 'class-nodes.json');
 
   // Process files in batches
   const batchSize = config.processing?.batchSize || 100;
@@ -298,7 +297,7 @@ async function processClassInheritanceGraphWithStorage(
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
     const batchNodes: GraphNode[] = [];
-    const batchClassMap: Record<string, { classInfo: any, filePath: string }> = {};
+    const batchClassMap: Record<string, { classInfo: ClassInfo, filePath: string }> = {};
 
     batch.forEach(fileInfo => {
       fileInfo.classes.forEach(classInfo => {
@@ -337,12 +336,16 @@ async function processClassInheritanceGraphWithStorage(
   // Save the class map to an intermediate file
   try {
     // Convert Map to object for serialization
-    const classMapObj: Record<string, { classInfo: any, filePath: string }> = {};
+    const classMapObj: Record<string, { classInfo: ClassInfo, filePath: string }> = {};
     classMap.forEach((value, key) => {
       classMapObj[key] = {
         classInfo: {
           name: value.classInfo.name,
-          parentClass: value.classInfo.parentClass
+          parentClass: value.classInfo.parentClass,
+          methods: value.classInfo.methods || [],
+          properties: value.classInfo.properties || [],
+          startLine: value.classInfo.startLine || 1,
+          endLine: value.classInfo.endLine || 1
         },
         filePath: value.filePath
       };

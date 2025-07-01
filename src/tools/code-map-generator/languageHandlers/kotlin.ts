@@ -55,7 +55,7 @@ export class KotlinHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function declarations
@@ -163,7 +163,7 @@ export class KotlinHandler extends BaseLanguageHandler {
   /**
    * Checks if a function is an extension function.
    */
-  private isExtensionFunction(node: SyntaxNode, sourceCode: string): boolean {
+  private isExtensionFunction(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       const receiverTypeNode = node.childForFieldName('receiver_type');
       return !!receiverTypeNode;
@@ -377,7 +377,7 @@ export class KotlinHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for KDoc comments
       const current = node;
@@ -401,7 +401,7 @@ export class KotlinHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for KDoc comments
       const current = node;

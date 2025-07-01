@@ -27,19 +27,17 @@ import { collectSourceFiles } from './fileScanner.js';
 import { FileInfo, CodeMap } from './codeMapModel.js';
 import { extractFunctions, extractClasses, extractImports, getNodeText, generateHeuristicComment } from './astAnalyzer.js';
 import { buildFileDependencyGraph, buildClassInheritanceGraph, buildFunctionCallGraph } from './graphBuilder.js';
-import { generateMermaidFileDependencyDiagram, generateMermaidClassDiagram, generateMermaidFunctionCallDiagram, generateMermaidSequenceDiagram } from './diagramGenerator.js';
+import { generateMermaidSequenceDiagram } from './diagramGenerator.js';
 import { formatCodeMapToMarkdown, optimizeMarkdownOutput } from './outputFormatter.js';
 import { CodeMapGeneratorConfig } from './types.js';
 import { extractCodeMapConfig } from './configValidator.js';
 import { getLanguageHandler } from './languageHandlers/registry.js';
 import { createDirectoryStructure } from './directoryUtils.js';
 import {
-  processBatches,
-  processBatchesWithMemoryCheck,
   processLanguageBasedBatches
 } from './batchProcessor.js';
 import { generateMarkdownOutput } from './outputGenerator.js';
-import { createIncrementalProcessor, IncrementalProcessor } from './incrementalProcessor.js';
+import { createIncrementalProcessor } from './incrementalProcessor.js';
 import { EnhancementConfigManager } from './config/enhancementConfig.js';
 import { UniversalClassOptimizer } from './optimization/universalClassOptimizer.js';
 import { UniversalDiagramOptimizer } from './optimization/universalDiagramOptimizer.js';
@@ -51,7 +49,7 @@ const sourceCodeCache = new Map<string, string>();
 /**
  * Filters out compiled/generated files when source equivalents exist
  */
-function filterDuplicateFiles(files: string[], projectRoot: string): string[] {
+function filterDuplicateFiles(files: string[], _projectRoot: string): string[] {
   const sourceFiles = new Set<string>();
   const compiledFiles = new Map<string, string[]>();
 
@@ -114,7 +112,7 @@ async function filterTrivialFiles(files: string[], projectRoot: string): Promise
       if (lines >= 10) {
         significantFiles.push(file);
       }
-    } catch (error) {
+    } catch {
       // Keep file if we can't read it (might be binary)
       significantFiles.push(file);
     }
@@ -562,20 +560,20 @@ try {
       50
     );
 
-    // Define cleanup function for import resolution
-    const cleanupImportResolution = async () => {
-      // Clear source code cache
-      sourceCodeCache.clear();
-
-      // Run garbage collection
-      if (global.gc) {
-        global.gc();
-      }
-
-      // Log memory usage
-      const memStats = getMemoryStats();
-      logger.info({ memoryUsage: memStats.formatted }, 'Memory usage after import resolution cleanup');
-    };
+    // Cleanup function for import resolution (defined but not used in current flow)
+    // const cleanupImportResolution = async () => {
+    //   // Clear source code cache
+    //   sourceCodeCache.clear();
+    //
+    //   // Run garbage collection
+    //   if (global.gc) {
+    //     global.gc();
+    //   }
+    //
+    //   // Log memory usage
+    //   const memStats = getMemoryStats();
+    //   logger.info({ memoryUsage: memStats.formatted }, 'Memory usage after import resolution cleanup');
+    // };
 
     // Process imports in batches with memory checks
     jobManager.updateJobStatus(jobId, JobStatus.RUNNING, 'Enhancing imports...');

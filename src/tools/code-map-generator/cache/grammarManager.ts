@@ -5,7 +5,6 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import os from 'os';
 import ParserFromPackage from 'web-tree-sitter';
 import logger from '../../../logger.js';
@@ -13,8 +12,6 @@ import { LanguageConfig } from '../parser.js';
 import { resolveProjectPath } from '../utils/pathUtils.enhanced.js';
 
 // Get the directory name of the current module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Path to the directory where .wasm grammar files are expected to be.
 // Grammar files are located in the 'grammars' directory relative to the source module.
@@ -634,7 +631,7 @@ export class GrammarManager {
       try {
         await fs.access(wasmPath, fs.constants.F_OK);
         logger.debug(`Grammar file found: ${wasmPath}`);
-      } catch (accessError) {
+      } catch {
         throw new Error(`Grammar file not found: ${wasmPath}`);
       }
 
@@ -693,11 +690,11 @@ export class GrammarManager {
    * Gets statistics about the grammar manager.
    * @returns The grammar manager statistics
    */
-  public getStats(): Record<string, any> {
+  public getStats(): Record<string, unknown> {
     const grammarStats: Record<string, unknown>[] = [];
 
     // Collect stats for each grammar
-    for (const [extension, _] of this.grammars.entries()) {
+    for (const [extension] of this.grammars.entries()) {
       const size = this.grammarSizes.get(extension) || 0;
       const lastUsed = this.lastUsedTimestamps.get(extension) || 0;
       const lruIndex = this.lruList.indexOf(extension);
@@ -755,7 +752,6 @@ export class GrammarManager {
       .map(([ext]) => ext);
 
     // Determine how many grammars we can load based on memory
-    const memoryStats = await this.getMemoryStats();
     const availableMemory = this.options.maxMemoryUsage - this.totalMemoryUsage;
     const estimatedSizes = new Map<string, number>();
 

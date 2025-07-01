@@ -27,7 +27,6 @@
  *   - Set allowed directory: CODE_MAP_ALLOWED_DIR=/path/to/project
  */
 
-import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import { program } from 'commander';
@@ -35,7 +34,6 @@ import { executeCodeMapGeneration } from './index.js';
 import { extractCodeMapConfig } from './configValidator.js';
 import { CodeMapGeneratorConfig } from './types.js';
 import { EnhancementConfigManager } from './config/enhancementConfig.js';
-import logger from '../../logger.js';
 
 // Configure the CLI
 program

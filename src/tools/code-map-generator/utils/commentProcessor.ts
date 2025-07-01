@@ -4,7 +4,7 @@
  * while preserving semantic meaning
  */
 
-import { EnhancementConfig } from '../config/enhancementConfig.js';
+import { EnhancementConfig, EnhancementConfigManager } from '../config/enhancementConfig.js';
 import { selectBestKeywords, CommentContext } from './semanticExtractor.js';
 
 
@@ -93,8 +93,8 @@ export class CommentProcessor {
   private cleanComment(comment: string): string {
     return comment
       .replace(/\s+/g, ' ') // Normalize whitespace
-      .replace(/^\s*[\/*#]*\s*/, '') // Remove comment markers at start
-      .replace(/\s*[\/*#]*\s*$/, '') // Remove comment markers at end
+      .replace(/^\s*[/*#]*\s*/, '') // Remove comment markers at start
+      .replace(/\s*[/*#]*\s*$/, '') // Remove comment markers at end
       .trim();
   }
 }
@@ -103,7 +103,6 @@ export class CommentProcessor {
  * Factory function to create CommentProcessor with current configuration
  */
 export function createCommentProcessor(): CommentProcessor {
-  const { EnhancementConfigManager } = require('../config/enhancementConfig.js');
   const config = EnhancementConfigManager.getInstance().getConfig();
   return new CommentProcessor(config);
 }

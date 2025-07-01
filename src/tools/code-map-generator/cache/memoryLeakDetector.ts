@@ -12,6 +12,30 @@ import logger from '../../../logger.js';
 import { getMemoryStats } from '../parser.js';
 
 /**
+ * Result of heap snapshot comparison
+ */
+export interface HeapSnapshotComparison {
+  snapshot1Path: string;
+  snapshot2Path: string;
+  snapshot1Size: number;
+  snapshot2Size: number;
+  sizeDiff: number;
+  percentChange: number;
+  memoryDifference: number;
+  objectCountDifference: number;
+  leakSuspects: Array<{
+    type: string;
+    count: number;
+    size: number;
+  }>;
+  analysis: {
+    hasLeak: boolean;
+    confidence: number;
+    recommendations: string[];
+  };
+}
+
+/**
  * Options for the MemoryLeakDetector.
  */
 export interface MemoryLeakDetectorOptions {
@@ -461,7 +485,7 @@ export class MemoryLeakDetector {
    * @param snapshot2Path The path to the second snapshot
    * @returns A promise that resolves to the comparison result
    */
-  public async compareHeapSnapshots(snapshot1Path: string, snapshot2Path: string): Promise<any> {
+  public async compareHeapSnapshots(snapshot1Path: string, snapshot2Path: string): Promise<HeapSnapshotComparison> {
     // This is a placeholder for heap snapshot comparison
     // In a real implementation, you would use a library like heapdump or v8-profiler
     // to analyze and compare heap snapshots
@@ -475,10 +499,20 @@ export class MemoryLeakDetector {
     const percentChange = (sizeDiff / stat1.size) * 100;
 
     return {
+      snapshot1Path,
+      snapshot2Path,
       snapshot1Size: stat1.size,
       snapshot2Size: stat2.size,
       sizeDiff,
-      percentChange
+      percentChange,
+      memoryDifference: sizeDiff,
+      objectCountDifference: 0, // Placeholder - would need actual heap analysis
+      leakSuspects: [], // Placeholder - would need actual heap analysis
+      analysis: {
+        hasLeak: sizeDiff > 0,
+        confidence: Math.min(Math.abs(percentChange) / 10, 1),
+        recommendations: sizeDiff > 0 ? ['Monitor memory usage', 'Check for memory leaks'] : ['Memory usage is stable']
+      }
     };
   }
 

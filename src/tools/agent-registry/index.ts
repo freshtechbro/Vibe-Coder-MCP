@@ -26,7 +26,7 @@ export interface AgentRegistration {
   lastSeen?: number;
   currentTasks?: string[];
   // WebSocket specific properties
-  websocketConnection?: any; // WebSocket connection reference
+  websocketConnection?: WebSocket; // WebSocket connection reference
   // HTTP specific properties
   httpEndpoint?: string; // Agent's HTTP callback endpoint
   httpAuthToken?: string; // Authentication token for HTTP callbacks
@@ -38,7 +38,7 @@ class AgentRegistry {
   private static isInitializing = false; // Initialization guard to prevent circular initialization
   private agents = new Map<string, AgentRegistration>();
   private sessionToAgent = new Map<string, string>(); // sessionId -> agentId mapping
-  private integrationBridge: any; // Lazy loaded to avoid circular dependencies
+  private integrationBridge: { registerAgent: (agent: Record<string, unknown>) => Promise<void> } | null = null; // Lazy loaded to avoid circular dependencies
   private isBridgeRegistration = false; // Flag to prevent circular registration
 
   static getInstance(): AgentRegistry {
@@ -106,7 +106,7 @@ class AgentRegistry {
    */
   private async initializeIntegrationBridge(): Promise<void> {
     if (!this.integrationBridge) {
-      this.integrationBridge = await dependencyContainer.getAgentIntegrationBridge();
+      this.integrationBridge = await dependencyContainer.getAgentIntegrationBridge() as { registerAgent: (agent: Record<string, unknown>) => Promise<void>; } | null;
       if (!this.integrationBridge) {
         console.warn('Integration bridge not available, using fallback');
       }
@@ -340,19 +340,22 @@ class AgentRegistry {
       case 'stdio':
         return `Poll for tasks using 'get-agent-tasks' every ${registration.pollingInterval}ms`;
 
-      case 'sse':
+      case 'sse': {
         const sseEndpoint = endpoints.sse || 'http://localhost:3000/events';
         return `Connect to SSE endpoint: ${sseEndpoint}/{sessionId} for real-time task notifications`;
+      }
 
-      case 'websocket':
+      case 'websocket': {
         const wsEndpoint = endpoints.websocket || 'ws://localhost:8080/agent-ws';
         return `Connect to WebSocket endpoint: ${wsEndpoint} for real-time task notifications`;
+      }
 
-      case 'http':
+      case 'http': {
         const httpEndpoint = endpoints.http || 'http://localhost:3001';
         return `Register with HTTP API: ${httpEndpoint}/agents/register. ` +
                `Tasks will be sent to your endpoint: ${registration.httpEndpoint}. ` +
                `Poll for additional tasks at: ${httpEndpoint}/agents/${registration.agentId}/tasks every ${registration.pollingInterval}ms`;
+      }
 
       default:
         return 'Transport-specific instructions not available';
@@ -426,20 +429,20 @@ export const registerAgentTool = {
 };
 
 // Tool Handler
-export async function handleRegisterAgent(args: any): Promise<CallToolResult> {
+export async function handleRegisterAgent(args: Record<string, unknown>): Promise<CallToolResult> {
   try {
     const registry = AgentRegistry.getInstance();
 
     // Prepare registration data
     const registration: AgentRegistration = {
-      agentId: args.agentId,
-      capabilities: args.capabilities,
-      transportType: args.transportType,
-      sessionId: args.sessionId,
-      maxConcurrentTasks: args.maxConcurrentTasks || 1,
-      pollingInterval: args.pollingInterval || 5000,
-      httpEndpoint: args.httpEndpoint,
-      httpAuthToken: args.httpAuthToken
+      agentId: args.agentId as string,
+      capabilities: args.capabilities as string[],
+      transportType: args.transportType as 'stdio' | 'sse' | 'websocket' | 'http',
+      sessionId: args.sessionId as string,
+      maxConcurrentTasks: (args.maxConcurrentTasks as number) || 1,
+      pollingInterval: (args.pollingInterval as number) || 5000,
+      httpEndpoint: args.httpEndpoint as string | undefined,
+      httpAuthToken: args.httpAuthToken as string | undefined
     };
 
     // Validate transport-specific requirements

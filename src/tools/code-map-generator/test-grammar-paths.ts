@@ -45,8 +45,9 @@ async function testGrammarLoading(extension: string, wasmFile: string): Promise<
       console.error(`❌ Failed to load grammar`);
       return false;
     }
-  } catch (error: any) {
-    console.error(`❌ Error accessing grammar file: ${error.message || error}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Error accessing grammar file: ${errorMessage}`);
     return false;
   }
 }

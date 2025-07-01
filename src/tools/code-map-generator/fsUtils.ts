@@ -7,7 +7,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import logger from '../../logger.js';
-import { createSecurePath, validatePathSecurity, isPathWithin, normalizePath } from './pathUtils.js';
+import { createSecurePath, isPathWithin, normalizePath } from './pathUtils.js';
 import { getBaseOutputDir } from './directoryUtils.js';
 
 /**

@@ -8,7 +8,7 @@ import { ImportInfo } from '../codeMapModel.js';
  * Interface for import resolver options.
  */
 export interface ImportResolverOptions {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

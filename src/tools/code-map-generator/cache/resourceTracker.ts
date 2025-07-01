@@ -4,8 +4,24 @@
  */
 
 import fs from 'fs/promises';
-import path from 'path';
 import logger from '../../../logger.js';
+
+/**
+ * Interface for cache objects with optional clear methods.
+ */
+export interface CacheObject {
+  clear?: () => void;
+  clearCache?: () => void;
+}
+
+/**
+ * Interface for disposable resources.
+ */
+export interface DisposableResource {
+  dispose?: () => Promise<void> | void;
+  close?: () => Promise<void> | void;
+  cleanup?: () => Promise<void> | void;
+}
 
 /**
  * Interface for job resources.
@@ -19,7 +35,7 @@ export interface JobResources {
   /**
    * Caches used by the job.
    */
-  caches: any[];
+  caches: CacheObject[];
 
   /**
    * Timers created for the job.
@@ -29,7 +45,7 @@ export interface JobResources {
   /**
    * Other resources mapped by key.
    */
-  otherResources: Map<string, any>;
+  otherResources: Map<string, DisposableResource>;
 }
 
 /**
@@ -76,7 +92,7 @@ export class ResourceTracker {
    * @param jobId The job ID
    * @param cache The cache object
    */
-  trackCache(jobId: string, cache: any): void {
+  trackCache(jobId: string, cache: CacheObject): void {
     const resources = this.jobResources.get(jobId);
     if (resources) {
       resources.caches.push(cache);
@@ -107,7 +123,7 @@ export class ResourceTracker {
    * @param key The resource key
    * @param resource The resource
    */
-  trackResource(jobId: string, key: string, resource: any): void {
+  trackResource(jobId: string, key: string, resource: DisposableResource): void {
     const resources = this.jobResources.get(jobId);
     if (resources) {
       resources.otherResources.set(key, resource);

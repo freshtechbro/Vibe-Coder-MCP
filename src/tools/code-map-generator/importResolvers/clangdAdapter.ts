@@ -263,7 +263,7 @@ export class ClangdAdapter {
    */
   private convertToImportInfo(
     includes: ClangdIncludeResult[],
-    filePath: string
+    _filePath: string
   ): ImportInfo[] {
     const imports: ImportInfo[] = [];
 

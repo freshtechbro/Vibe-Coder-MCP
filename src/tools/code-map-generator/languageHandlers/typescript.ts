@@ -158,7 +158,7 @@ export class TypeScriptHandler extends JavaScriptHandler {
         const current = node;
 
         // Check for comments before the node
-        const startPosition = current.startPosition;
+        // const startPosition = current.startPosition; // Unused for now
         const lineStart = sourceCode.lastIndexOf('\n', current.startIndex) + 1;
         const textBeforeNode = sourceCode.substring(0, lineStart).trim();
 

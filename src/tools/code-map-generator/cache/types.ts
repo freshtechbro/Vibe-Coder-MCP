@@ -359,12 +359,12 @@ export interface MemoryStats {
     /**
      * V8 heap statistics.
      */
-    heapStats: any;
+    heapStats: unknown;
 
     /**
      * V8 heap space statistics.
      */
-    heapSpaceStats: any;
+    heapSpaceStats: unknown;
   };
 
   /**
@@ -375,7 +375,7 @@ export interface MemoryStats {
   /**
    * Grammar statistics.
    */
-  grammarStats: any;
+  grammarStats: unknown;
 
   /**
    * Timestamp when the statistics were collected.

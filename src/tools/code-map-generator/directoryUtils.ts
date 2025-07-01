@@ -4,7 +4,6 @@
  */
 
 import fs from 'fs/promises';
-import fsSync from 'fs';
 import path from 'path';
 import logger from '../../logger.js';
 import { DirectoryStructure, CodeMapGeneratorConfig } from './types.js';
@@ -63,7 +62,7 @@ export async function validateDirectoryIsWritable(dirPath: string): Promise<void
  * @param config The Code-Map Generator configuration
  * @returns The output directory path
  */
-export function getOutputDirectory(config?: CodeMapGeneratorConfig): string {
+export function getOutputDirectory(_config?: CodeMapGeneratorConfig): string {
   // Always use the base output directory from environment variable
   const baseOutputDir = getBaseOutputDir();
 

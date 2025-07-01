@@ -323,7 +323,7 @@ function preserveSemanticCore(terms: { actions: string[], objects: string[], des
 /**
  * Enhance with context while preserving core meaning
  */
-function enhanceWithContext(core: string[], comment: string, context?: CommentContext): string[] {
+function enhanceWithContext(core: string[], comment: string, _context?: CommentContext): string[] {
   const enhanced = [...core];
 
   // Only add context terms if they provide additional value
@@ -474,92 +474,13 @@ function intelligentTruncation(text: string, maxLength: number): string {
   return truncated;
 }
 
-/**
- * Prioritize keywords based on detected context domains (LEGACY - keeping for compatibility)
- */
-function prioritizeKeywordsByContext(keywords: string[], domains: string[]): string[] {
-  const priorityMap: Record<string, string[]> = {
-    authentication: ['auth', 'login', 'token', 'session', 'credential', 'jwt', 'oauth', 'user'],
-    database: ['query', 'sql', 'table', 'record', 'entity', 'db', 'repository', 'data'],
-    api: ['http', 'request', 'response', 'endpoint', 'rest', 'post', 'get', 'route'],
-    cache: ['cache', 'redis', 'memory', 'expire', 'ttl', 'store', 'key'],
-    service: ['service', 'manager', 'handler', 'processor', 'worker', 'job'],
-    validation: ['validate', 'verify', 'check', 'sanitize', 'format', 'clean'],
-    file: ['file', 'path', 'read', 'write', 'upload', 'download', 'stream']
-  };
+// Removed unused function prioritizeKeywordsByContext
 
-  return keywords.sort((a, b) => {
-    const scoreA = calculateKeywordContextScore(a, domains, priorityMap);
-    const scoreB = calculateKeywordContextScore(b, domains, priorityMap);
-    return scoreB - scoreA;
-  });
-}
+// Removed unused function calculateKeywordContextScore
 
-/**
- * Calculate context relevance score for a keyword
- */
-function calculateKeywordContextScore(keyword: string, domains: string[], priorityMap: Record<string, string[]>): number {
-  let score = 0;
+// Removed unused function applyContextAbbreviations
 
-  for (const domain of domains) {
-    const domainKeywords = priorityMap[domain] || [];
-    if (domainKeywords.includes(keyword.toLowerCase())) {
-      score += 2; // High priority for domain-specific terms
-    }
-  }
-
-  // Base score for action verbs
-  if (/^(creates?|handles?|manages?|processes?|validates?|generates?|gets?|sets?)$/i.test(keyword)) {
-    score += 1;
-  }
-
-  return score;
-}
-
-/**
- * Apply context-specific abbreviations
- */
-function applyContextAbbreviations(keywords: string[], domains: string[]): string[] {
-  const abbreviations: Record<string, string> = {
-    authentication: 'auth',
-    configuration: 'config',
-    database: 'db',
-    repository: 'repo',
-    validation: 'valid',
-    management: 'mgmt',
-    processing: 'proc',
-    generation: 'gen',
-    initialization: 'init'
-  };
-
-  return keywords.map(keyword => {
-    const lower = keyword.toLowerCase();
-    return abbreviations[lower] || keyword;
-  });
-}
-
-/**
- * Select keywords that fit within the character limit
- */
-function selectKeywordsWithinLimit(keywords: string[], maxLength: number): string {
-  if (keywords.length === 0) return '';
-
-  const selected: string[] = [];
-  let currentLength = 0;
-
-  for (const keyword of keywords) {
-    const newLength = currentLength + (selected.length > 0 ? 1 : 0) + keyword.length; // +1 for space
-
-    if (newLength <= maxLength) {
-      selected.push(keyword);
-      currentLength = newLength;
-    } else {
-      break;
-    }
-  }
-
-  return selected.join(' ');
-}
+// Removed unused function selectKeywordsWithinLimit
 
 /**
  * Extract domain-specific terms based on context

@@ -66,7 +66,7 @@ export interface LanguageHandler {
   enhanceImportInfo?(
     filePath: string,
     imports: ImportInfo[],
-    options: any
+    options: Record<string, unknown>
   ): Promise<ImportInfo[]>;
 }
 

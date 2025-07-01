@@ -3,12 +3,9 @@
  * This file contains the FileChangeDetector class for detecting changes in files.
  */
 
-import fs from 'fs/promises';
-import path from 'path';
 import crypto from 'crypto';
 import logger from '../../../logger.js';
 import { FileContentManager, FileMetadata } from './fileContentManager.js';
-import { CodeMapGeneratorConfig } from '../types.js';
 
 /**
  * Interface for file change detection options.

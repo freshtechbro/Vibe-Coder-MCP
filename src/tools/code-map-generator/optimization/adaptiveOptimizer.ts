@@ -6,8 +6,8 @@
  * preserving essential architectural information.
  */
 
-import { CodeMap, FileInfo } from '../codeMapModel.js';
-import { UniversalOptimizationConfig, QualityThresholds } from '../types.js';
+import { CodeMap } from '../codeMapModel.js';
+import { UniversalOptimizationConfig } from '../types.js';
 import { UniversalClassOptimizer } from './universalClassOptimizer.js';
 import { UniversalDiagramOptimizer } from './universalDiagramOptimizer.js';
 
@@ -215,7 +215,7 @@ export class AdaptiveOptimizationEngine {
   /**
    * Calculates maximum inheritance depth.
    */
-  private calculateInheritanceDepth(classes: any[]): number {
+  private calculateInheritanceDepth(classes: Array<{extends?: string; parentClass?: string}>): number {
     let maxDepth = 0;
     classes.forEach(cls => {
       if (cls.extends || cls.parentClass) maxDepth = Math.max(maxDepth, 1);
@@ -510,7 +510,7 @@ export class AdaptiveOptimizationEngine {
    */
   private determineOptimizationStrategy(
     analysis: CodebaseAnalysis,
-    config: UniversalOptimizationConfig
+    _config: UniversalOptimizationConfig
   ): OptimizationStrategy {
 
     // Maximum aggressive strategy by default

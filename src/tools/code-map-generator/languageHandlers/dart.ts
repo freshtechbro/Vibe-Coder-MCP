@@ -57,7 +57,7 @@ export class DartHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function declarations
@@ -232,7 +232,7 @@ export class DartHandler extends BaseLanguageHandler {
   /**
    * Checks if a method is a getter.
    */
-  private isGetter(node: SyntaxNode, sourceCode: string): boolean {
+  private isGetter(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       return node.text.includes('get ');
     } catch (error) {
@@ -244,7 +244,7 @@ export class DartHandler extends BaseLanguageHandler {
   /**
    * Checks if a method is a setter.
    */
-  private isSetter(node: SyntaxNode, sourceCode: string): boolean {
+  private isSetter(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       return node.text.includes('set ');
     } catch (error) {
@@ -605,7 +605,7 @@ export class DartHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for documentation comments
       const current = node;
@@ -629,7 +629,7 @@ export class DartHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for documentation comments
       const current = node;

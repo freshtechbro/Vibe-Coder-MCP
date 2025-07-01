@@ -543,7 +543,7 @@ export abstract class BaseLanguageHandler implements LanguageHandler {
    * @param sourceCode The source code containing the class
    * @returns An array of class property information
    */
-  protected extractClassProperties(node: SyntaxNode, sourceCode: string): Array<{
+  protected extractClassProperties(_node: SyntaxNode, _sourceCode: string): Array<{
     name: string;
     type?: string;
     comment?: string;
@@ -567,28 +567,29 @@ export abstract class BaseLanguageHandler implements LanguageHandler {
   public async enhanceImportInfo(
     filePath: string,
     imports: ImportInfo[],
-    options: any
+    options: unknown
   ): Promise<ImportInfo[]> {
     try {
       // Import the factory dynamically to avoid circular dependencies
       const { ImportResolverFactory } = await import('../importResolvers/importResolverFactory.js');
 
       // Create import resolver factory
+      const opts = options as Record<string, unknown>;
       const factory = new ImportResolverFactory({
-        allowedDir: options.allowedDir,
-        outputDir: options.outputDir,
-        maxDepth: options.maxDepth || 3,
-        tsConfig: options.tsConfig,
-        pythonPath: options.pythonPath,
-        pythonVersion: options.pythonVersion,
-        venvPath: options.venvPath,
-        clangdPath: options.clangdPath,
-        compileFlags: options.compileFlags,
-        includePaths: options.includePaths,
-        semgrepPatterns: options.semgrepPatterns,
-        semgrepTimeout: options.semgrepTimeout,
-        semgrepMaxMemory: options.semgrepMaxMemory,
-        disableSemgrepFallback: options.disableSemgrepFallback
+        allowedDir: opts.allowedDir as string,
+        outputDir: opts.outputDir as string,
+        maxDepth: (opts.maxDepth as number) || 3,
+        tsConfig: opts.tsConfig as string,
+        pythonPath: opts.pythonPath as string,
+        pythonVersion: opts.pythonVersion as string,
+        venvPath: opts.venvPath as string,
+        clangdPath: opts.clangdPath as string,
+        compileFlags: opts.compileFlags as string[],
+        includePaths: opts.includePaths as string[],
+        semgrepPatterns: opts.semgrepPatterns as string[],
+        semgrepTimeout: opts.semgrepTimeout as number,
+        semgrepMaxMemory: opts.semgrepMaxMemory as string,
+        disableSemgrepFallback: opts.disableSemgrepFallback as boolean
       });
 
       // Get resolver for the file
@@ -598,7 +599,7 @@ export abstract class BaseLanguageHandler implements LanguageHandler {
       }
 
       // Analyze imports with the resolver
-      const enhancedImports = await resolver.analyzeImports(filePath, options);
+      const enhancedImports = await resolver.analyzeImports(filePath, opts);
 
       // Merge original and enhanced imports
       return this.mergeImportInfo(imports, enhancedImports);

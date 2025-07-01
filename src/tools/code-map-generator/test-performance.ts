@@ -15,12 +15,10 @@
 
 import { performance } from 'perf_hooks';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { executeCodeMapGeneration } from './index.js';
-import { CodeMapGeneratorConfig } from './types.js';
 import { OpenRouterConfig } from '../../types/workflow.js';
 import { ToolExecutionContext } from '../../services/routing/toolRegistry.js';
 
@@ -45,41 +43,6 @@ const context: ToolExecutionContext = {
 };
 const jobId = uuidv4();
 
-// Create a configuration object
-const config: CodeMapGeneratorConfig = {
-  allowedMappingDirectory: path.resolve(targetDir),
-  output: {
-    outputDir: path.join(process.cwd(), 'vibecoderoutput', 'code-map-generator'),
-    format: options.outputFormat as 'markdown' | 'json',
-    splitOutput: options.splitOutput
-  },
-  cache: {
-    enabled: true,
-    useFileBasedAccess: true,
-    useFileHashes: true,
-    maxCachedFiles: 0 // Disable in-memory caching
-  },
-  processing: {
-    incremental: options.incremental && !options.noIncremental,
-    incrementalConfig: {
-      useFileHashes: true,
-      useFileMetadata: true,
-      saveProcessedFilesList: true
-    }
-  },
-  importResolver: {
-    enabled: true,
-    expandSecurityBoundary: true
-  },
-  featureFlags: {
-    enhancedFunctionDetection: true,
-    contextAnalysis: true,
-    frameworkDetection: true,
-    roleIdentification: true,
-    heuristicNaming: true,
-    memoryOptimization: true
-  }
-};
 
 // Create parameters object
 const params = {

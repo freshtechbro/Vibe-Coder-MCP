@@ -8,7 +8,7 @@ import logger from '../../logger.js';
 import { FileCache } from './cache/fileCache.js';
 import { CodeMapGeneratorConfig } from './types.js';
 import { readFileSecure } from './fsUtils.js';
-import { getOutputDirectory, ensureDirectoryExists, validateDirectoryIsWritable, getCacheDirectory } from './directoryUtils.js';
+import { ensureDirectoryExists, validateDirectoryIsWritable, getCacheDirectory } from './directoryUtils.js';
 import { GrammarManager } from './cache/grammarManager.js';
 import { MemoryCache } from './cache/memoryCache.js';
 import { TieredCache } from './cache/tieredCache.js';
@@ -18,7 +18,7 @@ import { ProcessLifecycleManager } from './cache/processLifecycleManager.js';
 import { ResourceTracker } from './cache/resourceTracker.js';
 import { getProjectRoot, resolveProjectPath } from './utils/pathUtils.enhanced.js';
 import { FileContentManager } from './cache/fileContentManager.js';
-import { MetadataCache, SourceCodeMetadata, ASTMetadata } from './cache/metadataCache.js';
+import { MetadataCache, SourceCodeMetadata, ASTMetadata, ASTNode } from './cache/metadataCache.js';
 
 // Export SyntaxNode type for use in other modules
 export type SyntaxNode = ParserFromPackage.SyntaxNode;
@@ -250,16 +250,16 @@ export async function initializeCaches(config: CodeMapGeneratorConfig): Promise<
       cacheDir: parseTreeCacheDir,
       maxEntries: config.cache?.maxEntries,
       maxAge: config.cache?.maxAge,
-      serialize: (tree: any) => {
+      serialize: ((tree: ParserFromPackage.Tree) => {
         // Tree-sitter trees can't be directly serialized, so we need to use a custom approach
         // For now, we'll just store a placeholder and re-parse when needed
         return JSON.stringify({ rootNodeType: tree.rootNode?.type || 'unknown' });
-      },
-      deserialize: (serialized) => {
+      }) as <T>(value: T) => string,
+      deserialize: ((serialized: string) => {
         // This is a placeholder - we can't actually deserialize a tree from JSON
         // We'll handle this in the parseCode function
-        return JSON.parse(serialized) as any;
-      }
+        return JSON.parse(serialized) as SerializedTreeData;
+      }) as <T>(serialized: string) => T
     });
 
     // Initialize source code cache
@@ -282,16 +282,16 @@ export async function initializeCaches(config: CodeMapGeneratorConfig): Promise<
         memoryMaxEntries: config.cache?.memoryMaxEntries,
         memoryMaxAge: config.cache?.memoryMaxAge,
         memoryThreshold: config.cache?.memoryThreshold,
-        serialize: (tree: any) => {
+        serialize: ((tree: ParserFromPackage.Tree) => {
           // Tree-sitter trees can't be directly serialized, so we need to use a custom approach
           // For now, we'll just store a placeholder and re-parse when needed
           return JSON.stringify({ rootNodeType: tree.rootNode?.type || 'unknown' });
-        },
-        deserialize: (serialized) => {
+        }) as <T>(value: T) => string,
+        deserialize: ((serialized: string) => {
           // This is a placeholder - we can't actually deserialize a tree from JSON
           // We'll handle this in the parseCode function
-          return JSON.parse(serialized) as any;
-        }
+          return JSON.parse(serialized) as SerializedTreeData;
+        }) as <T>(serialized: string) => T
       });
 
       // Initialize source code tiered cache
@@ -728,7 +728,7 @@ export async function parseCode(
           const astMetadata = MetadataCache.createASTMetadata(
             filePath,
             sourceHash,
-            tree.rootNode
+            tree.rootNode as unknown as ASTNode
           );
 
           // Cache AST metadata
@@ -758,16 +758,15 @@ export async function parseCode(
     return tree;
   } catch (error) {
     // Enhanced error logging with parser state diagnostics
-    const errorInfo: any = { err: error, fileExtension };
+    const errorInfo: ParseErrorInfo = { err: error, fileExtension, parserState: 'null' };
     
     if (parser) {
+      const language = parser.getLanguage && parser.getLanguage();
       errorInfo.parserState = {
         hasParseMethod: typeof parser.parse === 'function',
-        hasLanguage: !!(parser.getLanguage && parser.getLanguage()),
-        languageName: parser.getLanguage ? (parser.getLanguage() as any)?.name || 'unknown' : 'unknown'
+        hasLanguage: !!language,
+        languageName: language ? (language as unknown as { name?: string })?.name || 'unknown' : 'unknown'
       };
-    } else {
-      errorInfo.parserState = 'null';
     }
 
     logger.error(errorInfo, `Error parsing code for extension ${fileExtension}.`);
@@ -921,7 +920,6 @@ export async function getSourceCodeFromCache(filePath: string, allowedDir?: stri
       }
 
       // Otherwise, try to get from in-memory cache only
-      const cacheKey = crypto.createHash('md5').update(filePath).digest('hex');
       const metadata = await fileContentManager.getMetadata(filePath);
       if (metadata) {
         logger.debug(`Found metadata for ${filePath} in FileContentManager`);
@@ -1008,9 +1006,6 @@ async function parseCodeIncrementally(parser: ParserFromPackage, sourceCode: str
   const totalChunks = Math.ceil((sourceCode.length - initialChunkSize) / chunkSize);
 
   for (let i = 0; i < totalChunks; i++) {
-    const start = initialChunkSize + (i * chunkSize);
-    const end = Math.min(start + chunkSize, sourceCode.length);
-
     // Parse the chunk and update the tree
     tree = parser.parse(sourceCode, tree);
 
@@ -1171,6 +1166,25 @@ export function getMemoryStats(): {
 }
 
 // Export types
+// Create interface for serialized tree data
+interface SerializedTreeData {
+  rootNodeType: string;
+}
+
+// Create interface for parser state diagnostics
+interface ParserStateDiagnostics {
+  hasParseMethod: boolean;
+  hasLanguage: boolean;
+  languageName: string;
+}
+
+// Create interface for error information
+interface ParseErrorInfo {
+  err: unknown;
+  fileExtension: string;
+  parserState: ParserStateDiagnostics | 'null';
+}
+
 export type Tree = ParserFromPackage.Tree;
 export type Language = ParserFromPackage.Language;
 export type Point = ParserFromPackage.Point;

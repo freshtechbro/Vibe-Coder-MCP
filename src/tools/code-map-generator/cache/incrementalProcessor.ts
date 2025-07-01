@@ -172,7 +172,7 @@ export class IncrementalProcessor {
       // Check if the file exists
       try {
         await fs.access(this.previousFilesListPath);
-      } catch (error) {
+      } catch {
         // File doesn't exist
         return [];
       }

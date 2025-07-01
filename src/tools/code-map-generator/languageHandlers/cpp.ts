@@ -59,7 +59,7 @@ export class CppHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+_options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function definitions
@@ -433,7 +433,7 @@ export class CppHandler extends BaseLanguageHandler {
   /**
    * Extracts the function comment from an AST node.
    */
-  protected extractFunctionComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractFunctionComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for comments before the function
       const current = node;
@@ -464,7 +464,7 @@ export class CppHandler extends BaseLanguageHandler {
   /**
    * Extracts the class comment from an AST node.
    */
-  protected extractClassComment(node: SyntaxNode, sourceCode: string): string | undefined {
+  protected extractClassComment(node: SyntaxNode, _sourceCode: string): string | undefined {
     try {
       // Look for comments before the class
       const current = node;
@@ -510,7 +510,7 @@ export class CppHandler extends BaseLanguageHandler {
         return lines.join(' ').trim();
       } else if (comment.startsWith('///') || comment.startsWith('//!')) {
         // Line Doxygen comment
-        return comment.replace(/^\/\/[\/!]\s*/mg, '').trim();
+        return comment.replace(/^\/\/[/!]\s*/mg, '').trim();
       }
 
       return comment;
@@ -570,7 +570,7 @@ export class CppHandler extends BaseLanguageHandler {
   public async enhanceImportInfo(
     filePath: string,
     imports: ImportInfo[],
-    options: any
+    options: unknown
   ): Promise<ImportInfo[]> {
     try {
       // Extract include paths from the source directory
@@ -612,11 +612,12 @@ export class CppHandler extends BaseLanguageHandler {
       ];
 
       // Create import resolver factory
+      const opts = options as Record<string, unknown>;
       const factory = new ImportResolverFactory({
-        allowedDir: options.allowedDir,
-        outputDir: options.outputDir,
-        maxDepth: options.maxDepth || 3,
-        clangdPath: options.clangdPath,
+        allowedDir: opts.allowedDir as string,
+        outputDir: opts.outputDir as string,
+        maxDepth: (opts.maxDepth as number) || 3,
+        clangdPath: opts.clangdPath as string,
         compileFlags: ['-std=c++17'],
         includePaths: [...includePaths, ...systemIncludePaths]
       });
@@ -629,10 +630,10 @@ export class CppHandler extends BaseLanguageHandler {
 
       // Analyze imports with Clangd
       const enhancedImports = await resolver.analyzeImports(filePath, {
-        clangdPath: options.clangdPath,
+        clangdPath: opts.clangdPath as string,
         compileFlags: ['-std=c++17'],
         includePaths: [...includePaths, ...systemIncludePaths],
-        maxDepth: options.maxDepth || 3
+        maxDepth: (opts.maxDepth as number) || 3
       });
 
       // Merge original and enhanced imports
@@ -709,7 +710,7 @@ export class CppHandler extends BaseLanguageHandler {
     }
 
     // Add any remaining original imports
-    for (const [_, remainingImport] of originalImportMap) {
+    for (const [, remainingImport] of originalImportMap) {
       result.push(remainingImport);
     }
 

@@ -7,7 +7,7 @@ import os from 'os';
 import v8 from 'v8';
 import logger from '../../../logger.js';
 import { RecursionGuard } from '../../../utils/recursion-guard.js';
-import { InitializationMonitor } from '../../../utils/initialization-monitor.js';
+// import { InitializationMonitor } from '../../../utils/initialization-monitor.js'; // Currently unused
 import { MemoryCache, MemoryCacheStats } from './memoryCache.js';
 import { GrammarManager } from './grammarManager.js';
 import { Tree, SyntaxNode } from '../parser.js';
@@ -232,7 +232,7 @@ export interface MemoryStats {
  */
 export class MemoryManager {
   private options: Required<MemoryManagerOptions>;
-  private caches: Map<string, MemoryCache<any, any>> = new Map();
+  private caches: Map<string, MemoryCache<unknown, unknown>> = new Map();
   private grammarManager: GrammarManager | null = null;
   private monitorTimer: NodeJS.Timeout | null = null;
   private gcTimer: NodeJS.Timeout | null = null;
@@ -278,7 +278,7 @@ export class MemoryManager {
    */
   public registerCache<K, V>(cache: MemoryCache<K, V>): void {
     const stats = cache.getStats();
-    this.caches.set(stats.name, cache);
+    this.caches.set(stats.name, cache as MemoryCache<unknown, unknown>);
     logger.debug(`Registered cache "${stats.name}" with MemoryManager`);
   }
 
@@ -769,7 +769,7 @@ export class MemoryManager {
       // 2. Clear grammar manager caches if available
       if (this.grammarManager) {
         try {
-          (this.grammarManager as any).clearAllCaches?.();
+          await this.grammarManager.unloadUnusedGrammars();
           actions.push('Cleared grammar manager caches');
         } catch (error) {
           logger.warn({ err: error }, 'Failed to clear grammar manager caches');

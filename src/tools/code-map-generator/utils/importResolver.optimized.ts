@@ -5,7 +5,6 @@
 
 import resolve from 'resolve';
 import * as path from 'path';
-import * as fs from 'fs';
 import logger from '../../../logger.js';
 
 /**
@@ -113,10 +112,6 @@ class LRUCache {
  */
 const importCache = new LRUCache(1000);
 
-/**
- * Maximum size of the import cache.
- */
-const CACHE_MAX_SIZE = 1000;
 
 /**
  * Options for resolving imports.

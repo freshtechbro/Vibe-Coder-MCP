@@ -13,6 +13,33 @@ import { registerTool, ToolDefinition } from '../../services/routing/toolRegistr
 import { dependencyContainer } from '../../services/dependency-container.js';
 import { z } from 'zod';
 
+// Interfaces for cached objects
+interface AgentLike {
+  agentId?: string;
+  lastSeen?: number;
+  currentTasks?: string[];
+  maxConcurrentTasks?: number;
+  status?: string;
+  transportType?: string;
+  sessionId?: string;
+}
+
+interface TaskLike {
+  agentId?: string;
+  [key: string]: unknown;
+}
+
+interface AgentRegistryLike {
+  getAgent(agentId: string): Promise<AgentLike | null>;
+  updateAgentStatus(agentId: string, status: string): Promise<void>;
+}
+
+interface TaskQueueLike {
+  getTask(taskId: string): Promise<TaskLike | null>;
+  removeTask(taskId: string): Promise<void>;
+  getQueueLength(agentId: string): Promise<number>;
+}
+
 // Agent response interface
 export interface AgentResponse {
   agentId: string;
@@ -28,7 +55,7 @@ export interface AgentResponse {
     partialProgress?: number;
   };
   receivedAt?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Response processor singleton
@@ -36,8 +63,8 @@ class AgentResponseProcessor {
   private static instance: AgentResponseProcessor;
   private static isInitializing = false; // Initialization guard to prevent circular initialization
   private responseHistory = new Map<string, AgentResponse>(); // taskId -> response
-  private agentRegistryCache: any = null; // Cache for safe agent registry access
-  private agentTaskQueueCache: any = null; // Cache for safe agent task queue access
+  private agentRegistryCache: AgentRegistryLike | null = null; // Cache for safe agent registry access
+  private agentTaskQueueCache: TaskQueueLike | null = null; // Cache for safe agent task queue access
 
   static getInstance(): AgentResponseProcessor {
     if (AgentResponseProcessor.isInitializing) {
@@ -84,9 +111,9 @@ class AgentResponseProcessor {
   /**
    * Get AgentRegistry instance using dependency container
    */
-  private async getAgentRegistry(): Promise<any | null> {
+  private async getAgentRegistry(): Promise<AgentRegistryLike | null> {
     if (!this.agentRegistryCache) {
-      this.agentRegistryCache = await dependencyContainer.getAgentRegistry();
+      this.agentRegistryCache = await dependencyContainer.getAgentRegistry() as AgentRegistryLike;
     }
     return this.agentRegistryCache;
   }
@@ -94,9 +121,9 @@ class AgentResponseProcessor {
   /**
    * Get AgentTaskQueue instance using dependency container
    */
-  private async getAgentTaskQueue(): Promise<any | null> {
+  private async getAgentTaskQueue(): Promise<TaskQueueLike | null> {
     if (!this.agentTaskQueueCache) {
-      this.agentTaskQueueCache = await dependencyContainer.getAgentTaskQueue();
+      this.agentTaskQueueCache = await dependencyContainer.getAgentTaskQueue() as TaskQueueLike;
     }
     return this.agentTaskQueueCache;
   }
@@ -395,14 +422,21 @@ export const submitTaskResponseTool = {
 };
 
 // Tool Handler
-export async function handleSubmitTaskResponse(args: any): Promise<CallToolResult> {
+export async function handleSubmitTaskResponse(args: Record<string, unknown>): Promise<CallToolResult> {
   try {
     const response: AgentResponse = {
-      agentId: args.agentId,
-      taskId: args.taskId,
-      status: args.status,
-      response: args.response,
-      completionDetails: args.completionDetails
+      agentId: args.agentId as string,
+      taskId: args.taskId as string,
+      status: args.status as 'DONE' | 'ERROR' | 'PARTIAL',
+      response: args.response as string,
+      completionDetails: args.completionDetails as {
+        filesModified?: string[];
+        testsPass?: boolean;
+        buildSuccessful?: boolean;
+        executionTime?: number;
+        errorDetails?: string;
+        partialProgress?: number;
+      } | undefined
     };
 
     // Process the response

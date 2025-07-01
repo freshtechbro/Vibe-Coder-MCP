@@ -11,6 +11,26 @@ import { registerTool, ToolDefinition } from '../../services/routing/toolRegistr
 import { dependencyContainer } from '../../services/dependency-container.js';
 import { z } from 'zod';
 
+// Interface for agent objects
+interface AgentLike {
+  agentId?: string;
+  transportType?: string;
+  lastSeen?: number;
+  currentTasks?: string[];
+  maxConcurrentTasks?: number;
+  status?: string;
+  sessionId?: string;
+  capabilities?: string[];
+  [key: string]: unknown;
+}
+
+// Interface for agent registry
+interface AgentRegistryLike {
+  getAgent(agentId: string): Promise<AgentLike | null>;
+  updateAgentStatus(agentId: string, status: string): Promise<void>;
+  getOnlineAgents(): Promise<AgentLike[]>;
+}
+
 // Unified task assignment interface (compatible with agent-orchestrator)
 export interface TaskAssignment {
   /** Assignment ID */
@@ -38,7 +58,7 @@ export interface TaskAssignment {
   deadline?: number;
 
   /** Assignment metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Task queue manager singleton
@@ -48,7 +68,7 @@ class AgentTaskQueue {
   private queues = new Map<string, TaskAssignment[]>(); // agentId -> tasks
   private taskHistory = new Map<string, TaskAssignment>(); // taskId -> task
   private assignmentCounter = 0;
-  private agentRegistryCache: any = null; // Cache for safe agent registry access
+  private agentRegistryCache: AgentRegistryLike | null = null; // Cache for safe agent registry access
 
   static getInstance(): AgentTaskQueue {
     if (AgentTaskQueue.isInitializing) {
@@ -98,9 +118,9 @@ class AgentTaskQueue {
   /**
    * Get AgentRegistry instance using dependency container
    */
-  private async getAgentRegistry(): Promise<any | null> {
+  private async getAgentRegistry(): Promise<AgentRegistryLike | null> {
     if (!this.agentRegistryCache) {
-      this.agentRegistryCache = await dependencyContainer.getAgentRegistry();
+      this.agentRegistryCache = await dependencyContainer.getAgentRegistry() as AgentRegistryLike;
     }
     return this.agentRegistryCache;
   }
@@ -253,8 +273,8 @@ class AgentTaskQueue {
     const onlineAgents = agentRegistry ? await agentRegistry.getOnlineAgents() : [];
 
     // Filter agents by capabilities
-    const capableAgents = onlineAgents.filter((agent: any) =>
-      requiredCapabilities.every(cap => agent.capabilities.includes(cap))
+    const capableAgents = (onlineAgents as AgentLike[]).filter((agent: AgentLike) =>
+      requiredCapabilities.every(cap => agent.capabilities?.includes(cap))
     );
 
     if (capableAgents.length === 0) {
@@ -263,23 +283,23 @@ class AgentTaskQueue {
 
     // Sort by current task load (ascending)
     const agentsWithLoad = await Promise.all(
-      capableAgents.map(async (agent: any) => ({
+      capableAgents.map(async (agent: AgentLike) => ({
         agent,
-        queueLength: await this.getQueueLength(agent.agentId)
+        queueLength: await this.getQueueLength(agent.agentId!)
       }))
     );
 
-    agentsWithLoad.sort((a, b) => a.queueLength - b.queueLength);
+    agentsWithLoad.sort((a: { queueLength: number }, b: { queueLength: number }) => a.queueLength - b.queueLength);
 
     // Return agent with lowest load that's not at capacity
     for (const { agent, queueLength } of agentsWithLoad) {
       if (queueLength < (agent.maxConcurrentTasks || 1)) {
-        return agent.agentId;
+        return agent.agentId || null;
       }
     }
 
     // If all agents are at capacity, return the one with the smallest queue
-    return agentsWithLoad[0].agent.agentId;
+    return agentsWithLoad[0].agent.agentId || null;
   }
 
   // Clear all tasks for an agent (e.g., when agent disconnects)
@@ -325,13 +345,13 @@ export const getAgentTasksTool = {
 };
 
 // Tool Handler
-export async function handleGetAgentTasks(args: any): Promise<CallToolResult> {
+export async function handleGetAgentTasks(args: Record<string, unknown>): Promise<CallToolResult> {
   try {
     const { agentId, maxTasks = 1 } = args;
 
     // Verify agent exists and is registered
     const agentRegistry = await dependencyContainer.getAgentRegistry();
-    const agent = agentRegistry ? await (agentRegistry as any).getAgent(agentId) : null;
+    const agent = agentRegistry ? await (agentRegistry as AgentRegistryLike).getAgent(agentId as string) : null;
 
     if (!agent) {
       return {
@@ -346,7 +366,7 @@ export async function handleGetAgentTasks(args: any): Promise<CallToolResult> {
 
     // Get tasks from queue
     const taskQueue = AgentTaskQueue.getInstance();
-    const tasks = await taskQueue.getTasks(agentId, maxTasks);
+    const tasks = await taskQueue.getTasks(agentId as string, maxTasks as number);
 
     if (tasks.length === 0) {
       return {
@@ -371,7 +391,7 @@ export async function handleGetAgentTasks(args: any): Promise<CallToolResult> {
       `\n--- Sentinel Protocol Payload ---\n${task.sentinelPayload}\n--- End Payload ---`
     ).join('\n\n');
 
-    const remainingTasks = await taskQueue.getQueueLength(agentId);
+    const remainingTasks = await taskQueue.getQueueLength(agentId as string);
 
     return {
       content: [{

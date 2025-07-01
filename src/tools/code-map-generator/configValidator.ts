@@ -8,7 +8,6 @@ import fsSync from 'fs';
 import path from 'path';
 import logger from '../../logger.js';
 import { CodeMapGeneratorConfig, CacheConfig, ProcessingConfig, OutputConfig, FeatureFlagsConfig, ImportResolverConfig, DebugConfig } from './types.js';
-import { getFeatureFlags } from './config/featureFlags.js';
 import { OpenRouterConfig } from '../../types/workflow.js';
 
 /**
@@ -141,7 +140,7 @@ export async function validateAllowedMappingDirectory(dirPath: string): Promise<
   // Check if the directory is readable
   try {
     await fs.access(normalizedPath, fsSync.constants.R_OK);
-  } catch (error) {
+  } catch {
     throw new Error(`allowedMappingDirectory is not readable: ${normalizedPath}`);
   }
 

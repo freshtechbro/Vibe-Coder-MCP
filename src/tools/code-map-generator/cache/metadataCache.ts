@@ -83,7 +83,29 @@ export interface ASTMetadata {
   /**
    * A simplified representation of the AST structure.
    */
-  structure?: any;
+  structure?: MinimalASTStructure;
+}
+
+/**
+ * Interface for AST node structure.
+ */
+export interface ASTNode {
+  type: string;
+  startByte: number;
+  endByte: number;
+  children?: ASTNode[];
+  [key: string]: unknown;
+}
+
+/**
+ * Interface for minimal AST structure representation.
+ */
+export interface MinimalASTStructure {
+  type: string;
+  startByte: number;
+  endByte: number;
+  children?: MinimalASTStructure[];
+  childrenCount?: number;
 }
 
 /**
@@ -125,11 +147,12 @@ export class MetadataCache<T extends SourceCodeMetadata | ASTMetadata> {
       memoryMaxEntries: options.memoryMaxEntries || 5000, // Can cache more entries since they're lightweight
       memoryMaxAge: options.memoryMaxAge || 60 * 60 * 1000, // 1 hour
       memoryThreshold: options.memoryThreshold || 0.5, // More aggressive threshold
-      serialize: (metadata: any) => {
+      serialize: (metadata: unknown) => {
         // For source code metadata, don't include content in serialized form
-        if (metadata && typeof metadata === 'object' && 'content' in metadata && metadata.content) {
+        if (metadata && typeof metadata === 'object' && 'content' in metadata && (metadata as { content?: unknown }).content) {
           // Use type assertion after checking that it's an object with content property
-          const { content, ...rest } = metadata;
+          const { content: _content, ...rest } = metadata as { content?: unknown; [key: string]: unknown };
+          void _content; // Explicitly void to acknowledge we're discarding it
           return JSON.stringify(rest);
         }
         return JSON.stringify(metadata);
@@ -198,7 +221,7 @@ export class MetadataCache<T extends SourceCodeMetadata | ASTMetadata> {
    * Gets cache statistics.
    * @returns Cache statistics
    */
-  getStats(): any {
+  getStats(): unknown {
     return this.cache.getStats();
   }
 
@@ -258,7 +281,7 @@ export class MetadataCache<T extends SourceCodeMetadata | ASTMetadata> {
   static createASTMetadata(
     filePath: string,
     sourceHash: string,
-    rootNode: any
+    rootNode: ASTNode
   ): ASTMetadata {
     return {
       filePath,
@@ -266,7 +289,7 @@ export class MetadataCache<T extends SourceCodeMetadata | ASTMetadata> {
       rootType: rootNode.type,
       rootStartByte: rootNode.startByte,
       rootEndByte: rootNode.endByte,
-      structure: MetadataCache.extractMinimalStructure(rootNode)
+      structure: MetadataCache.extractMinimalStructure(rootNode) || undefined
     };
   }
 
@@ -277,18 +300,18 @@ export class MetadataCache<T extends SourceCodeMetadata | ASTMetadata> {
    * @returns A minimal structure representation
    */
   static extractMinimalStructure(
-    node: any,
+    node: ASTNode,
     options: { maxDepth?: number; maxChildren?: number } = {}
-  ): any {
+  ): MinimalASTStructure | null {
     const maxDepth = options.maxDepth || 3;
     const maxChildren = options.maxChildren || 10;
 
-    function extract(node: any, depth: number): any {
+    function extract(node: ASTNode, depth: number): MinimalASTStructure | null {
       if (!node || depth > maxDepth) {
         return null;
       }
 
-      const result: any = {
+      const result: MinimalASTStructure = {
         type: node.type,
         startByte: node.startByte,
         endByte: node.endByte
@@ -297,8 +320,8 @@ export class MetadataCache<T extends SourceCodeMetadata | ASTMetadata> {
       if (node.children && node.children.length > 0) {
         result.children = node.children
           .slice(0, maxChildren)
-          .map((child: any) => extract(child, depth + 1))
-          .filter(Boolean);
+          .map((child: ASTNode) => extract(child, depth + 1))
+          .filter((child): child is MinimalASTStructure => child !== null);
 
         if (node.children.length > maxChildren) {
           result.childrenCount = node.children.length;

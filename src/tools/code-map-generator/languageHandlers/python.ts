@@ -10,7 +10,6 @@ import { getNodeText } from '../astAnalyzer.js';
 import logger from '../../../logger.js';
 import { ImportedItem, ImportInfo } from '../codeMapModel.js';
 import { ImportResolverFactory } from '../importResolvers/importResolverFactory.js';
-import * as path from 'path';
 
 /**
  * Language handler for Python.
@@ -52,7 +51,7 @@ export class PythonHandler extends BaseLanguageHandler {
   protected extractFunctionName(
     node: SyntaxNode,
     sourceCode: string,
-    options?: FunctionExtractionOptions
+    _options?: FunctionExtractionOptions
   ): string {
     try {
       // Handle function definitions
@@ -603,7 +602,6 @@ export class PythonHandler extends BaseLanguageHandler {
   private extractPropertyComment(node: SyntaxNode, sourceCode: string): string | undefined {
     try {
       // Check for comments before the node
-      const startPosition = node.startPosition;
       const lineStart = sourceCode.lastIndexOf('\n', node.startIndex) + 1;
       const textBeforeNode = sourceCode.substring(0, lineStart).trim();
 
@@ -694,7 +692,7 @@ export class PythonHandler extends BaseLanguageHandler {
   /**
    * Checks if a function is a generator.
    */
-  protected isGeneratorFunction(node: SyntaxNode, sourceCode: string): boolean {
+  protected isGeneratorFunction(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       if (node.type === 'function_definition') {
         const bodyNode = node.childForFieldName('body');
@@ -713,7 +711,7 @@ export class PythonHandler extends BaseLanguageHandler {
   /**
    * Override the isAsyncFunction method to detect async functions.
    */
-  protected isAsyncFunction(node: SyntaxNode, sourceCode: string): boolean {
+  protected isAsyncFunction(node: SyntaxNode, _sourceCode: string): boolean {
     try {
       if (node.type === 'function_definition') {
         // Check for async keyword
@@ -776,17 +774,17 @@ export class PythonHandler extends BaseLanguageHandler {
   public async enhanceImportInfo(
     filePath: string,
     imports: ImportInfo[],
-    options: any
+    options: Record<string, unknown>
   ): Promise<ImportInfo[]> {
     try {
       // Create import resolver factory
       const factory = new ImportResolverFactory({
-        allowedDir: options.allowedDir,
-        outputDir: options.outputDir,
-        maxDepth: options.maxDepth || 3,
-        pythonPath: options.pythonPath,
-        pythonVersion: options.pythonVersion,
-        venvPath: options.venvPath
+        allowedDir: options.allowedDir as string,
+        outputDir: options.outputDir as string,
+        maxDepth: (options.maxDepth as number) || 3,
+        pythonPath: options.pythonPath as string | undefined,
+        pythonVersion: options.pythonVersion as string | undefined,
+        venvPath: options.venvPath as string | undefined
       });
 
       // Get resolver for Python
@@ -865,7 +863,7 @@ export class PythonHandler extends BaseLanguageHandler {
     }
 
     // Add any remaining original imports
-    for (const [_, remainingImport] of originalImportMap) {
+    for (const [, remainingImport] of originalImportMap) {
       result.push(remainingImport);
     }
 

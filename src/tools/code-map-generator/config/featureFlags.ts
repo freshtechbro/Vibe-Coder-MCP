@@ -63,7 +63,7 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
  * @param config Optional configuration object.
  * @returns The feature flags.
  */
-export function getFeatureFlags(config?: Record<string, any>): FeatureFlags {
+export function getFeatureFlags(config?: Record<string, unknown>): FeatureFlags {
   const flags: FeatureFlags = { ...DEFAULT_FEATURE_FLAGS };
   
   try {
@@ -94,28 +94,29 @@ export function getFeatureFlags(config?: Record<string, any>): FeatureFlags {
     
     // Check configuration
     if (config?.featureFlags) {
-      if (config.featureFlags.enhancedFunctionDetection !== undefined) {
-        flags.enhancedFunctionDetection = !!config.featureFlags.enhancedFunctionDetection;
+      const featureFlags = config.featureFlags as Record<string, unknown>;
+      if (featureFlags.enhancedFunctionDetection !== undefined) {
+        flags.enhancedFunctionDetection = !!featureFlags.enhancedFunctionDetection;
       }
-      
-      if (config.featureFlags.contextAnalysis !== undefined) {
-        flags.contextAnalysis = !!config.featureFlags.contextAnalysis;
+
+      if (featureFlags.contextAnalysis !== undefined) {
+        flags.contextAnalysis = !!featureFlags.contextAnalysis;
       }
-      
-      if (config.featureFlags.frameworkDetection !== undefined) {
-        flags.frameworkDetection = !!config.featureFlags.frameworkDetection;
+
+      if (featureFlags.frameworkDetection !== undefined) {
+        flags.frameworkDetection = !!featureFlags.frameworkDetection;
       }
-      
-      if (config.featureFlags.roleIdentification !== undefined) {
-        flags.roleIdentification = !!config.featureFlags.roleIdentification;
+
+      if (featureFlags.roleIdentification !== undefined) {
+        flags.roleIdentification = !!featureFlags.roleIdentification;
       }
-      
-      if (config.featureFlags.heuristicNaming !== undefined) {
-        flags.heuristicNaming = !!config.featureFlags.heuristicNaming;
+
+      if (featureFlags.heuristicNaming !== undefined) {
+        flags.heuristicNaming = !!featureFlags.heuristicNaming;
       }
-      
-      if (config.featureFlags.memoryOptimization !== undefined) {
-        flags.memoryOptimization = !!config.featureFlags.memoryOptimization;
+
+      if (featureFlags.memoryOptimization !== undefined) {
+        flags.memoryOptimization = !!featureFlags.memoryOptimization;
       }
     }
     
