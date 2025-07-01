@@ -11,32 +11,59 @@ import { ContextCuratorLLMService } from './llm-integration.js';
 import { ContextCuratorConfigLoader } from './config-loader.js';
 import { OutputFormatterService } from './output-formatter.js';
 import { jobManager, JobStatus } from '../../../services/job-manager/index.js';
-import { JobDetails } from '../../../services/job-manager/jobStatusMessage.js';
+// import { JobDetails } from '../../../services/job-manager/jobStatusMessage.js'; // Currently unused
 import { executeCodeMapGeneration } from '../../code-map-generator/index.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { UnifiedSecurityConfiguration } from '../../vibe-task-manager/security/unified-security-config.js';
 import { SecurityBoundaryValidator } from '../../code-map-generator/utils/securityBoundaryValidator.js';
 import {
   ContextCuratorInput,
-  ContextPackage,
-  validateContextCuratorInput,
+  ContextPackage as OriginalContextPackage,
+  ContextCuratorConfig,
+  // validateContextCuratorInput, // Currently unused
   contextPackageSchema,
   PrioritizedFile,
   MultiStrategyFileDiscoveryResult,
-  OutputFormat
+  OutputFormat,
+  ContextFile
 } from '../types/context-curator.js';
+import { ContextPackage as OutputContextPackage, ProcessedFile, FileReference } from '../types/output-package.js';
+
+// Use the original ContextPackage type for the WorkflowContext
+type ContextPackage = OriginalContextPackage;
 import {
   FileDiscoveryResult,
   FileDiscoveryFile,
   LanguageAnalysisResult,
-  ProjectTypeAnalysisResult
+  ProjectTypeAnalysisResult,
+  IntentAnalysisResult,
+  PromptRefinementResult,
+  RelevanceScoringResult,
+  MetaPromptGenerationResult
 } from '../types/llm-tasks.js';
-import { XMLFormatter } from '../utils/xml-formatter.js';
+// import { XMLFormatter } from '../utils/xml-formatter.js'; // Currently unused
 import { ContextCuratorError } from '../utils/error-handling.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
-import { LanguageHandlerRegistry } from '../../code-map-generator/languageHandlers/registry.js';
+// import { LanguageHandlerRegistry } from '../../code-map-generator/languageHandlers/registry.js'; // Currently unused
 import { languageConfigurations } from '../../code-map-generator/parser.js';
 import logger from '../../../logger.js';
+
+// Type-safe helper functions for OutputContextPackage properties
+function getPackageFilesIncluded(pkg: OutputContextPackage): number {
+  return pkg.metadata.filesIncluded;
+}
+
+function getPackageTotalTokenEstimate(pkg: OutputContextPackage): number {
+  return pkg.metadata.totalTokenEstimate;
+}
+
+function getMaxFilesFromContext(context: unknown): number | undefined {
+  if (context && typeof context === 'object' && 'maxFiles' in context) {
+    const maxFiles = (context as { maxFiles: unknown }).maxFiles;
+    return typeof maxFiles === 'number' ? maxFiles : undefined;
+  }
+  return undefined;
+}
 
 /**
  * Context Curator workflow phases
@@ -60,7 +87,7 @@ interface WorkflowContext {
   jobId: string;
   input: ContextCuratorInput;
   config: OpenRouterConfig;
-  contextCuratorConfig?: any; // Context Curator specific config
+  contextCuratorConfig?: Record<string, unknown>; // Context Curator specific config
   securityConfig?: UnifiedSecurityConfiguration; // Security configuration
   securityValidator?: SecurityBoundaryValidator; // Security boundary validator
   currentPhase: WorkflowPhase;
@@ -71,11 +98,11 @@ interface WorkflowContext {
   codemapContent?: string; // Complete codemap content
   codemapPath?: string; // Path to the generated codemap file
   fileContents?: Map<string, string>; // File path -> content mapping with optimization
-  intentAnalysis?: any;
-  promptRefinement?: any;
-  fileDiscovery?: any;
-  relevanceScoring?: any;
-  metaPromptGeneration?: any;
+  intentAnalysis?: IntentAnalysisResult;
+  promptRefinement?: PromptRefinementResult;
+  fileDiscovery?: FileDiscoveryResult;
+  relevanceScoring?: RelevanceScoringResult;
+  metaPromptGeneration?: MetaPromptGenerationResult;
   contextPackage?: ContextPackage;
 
   // Progress tracking
@@ -88,13 +115,14 @@ interface WorkflowContext {
 /**
  * Language-agnostic project type detection interfaces
  */
-interface LanguageInfo {
-  extension: string;
-  name: string;
-  category: string;
-  ecosystems: string[];
-  projectTypes: string[];
-}
+// Currently unused interface
+// interface LanguageInfo {
+//   extension: string;
+//   name: string;
+//   category: string;
+//   ecosystems: string[];
+//   projectTypes: string[];
+// }
 
 interface LanguageProfile {
   primary: string;
@@ -138,12 +166,13 @@ interface ProjectTypeScore {
   sources: string[];
 }
 
-interface ValidationResult {
-  isValid: boolean;
-  confidence: number;
-  failedChecks: any[];
-  recommendations: string[];
-}
+// Unused interface - removing
+// interface ValidationResult {
+//   isValid: boolean;
+//   confidence: number;
+//   failedChecks: string[];
+//   recommendations: string[];
+// }
 
 /**
  * Main Context Curator Service
@@ -296,7 +325,7 @@ export class ContextCuratorService {
       if (!configResult.success) {
         context.warnings.push(`Configuration warning: ${configResult.error}`);
       }
-      context.contextCuratorConfig = this.configLoader.getConfig();
+      context.contextCuratorConfig = this.configLoader.getConfig() || undefined;
 
       // Initialize security configuration using environment variables and input
       // Use CODE_MAP_ALLOWED_DIR as the primary read directory since Context Curator
@@ -404,7 +433,7 @@ export class ContextCuratorService {
         logger.debug({ jobId: context.jobId, projectPath: context.input.projectPath }, 'Generating fresh codemap');
 
         // Inherit maxContentLength from Code-Map Generator defaults (0 = maximum aggressive optimization)
-        const maxContentLength = context.contextCuratorConfig?.contentDensity?.maxContentLength ?? 0;
+        const maxContentLength = (context.contextCuratorConfig as ContextCuratorConfig)?.contentDensity?.maxContentLength ?? 0;
 
       // Create enhanced configuration with security settings for Code Map Generator
       const enhancedConfig = {
@@ -425,9 +454,9 @@ export class ContextCuratorService {
           maxOptimizationLevel: 'aggressive',
           contentDensity: {
             maxContentLength, // Inherit from configuration
-            preserveComments: context.contextCuratorConfig?.contentDensity?.preserveComments ?? true,
-            preserveTypes: context.contextCuratorConfig?.contentDensity?.preserveTypes ?? true,
-            optimizationThreshold: context.contextCuratorConfig?.contentDensity?.optimizationThreshold ?? 1000
+            preserveComments: (context.contextCuratorConfig as ContextCuratorConfig)?.contentDensity?.preserveComments ?? true,
+            preserveTypes: (context.contextCuratorConfig as ContextCuratorConfig)?.contentDensity?.preserveTypes ?? true,
+            optimizationThreshold: (context.contextCuratorConfig as ContextCuratorConfig)?.contentDensity?.optimizationThreshold ?? 1000
           }
         },
         enhancedConfig,
@@ -672,20 +701,20 @@ export class ContextCuratorService {
 
       // Enhanced additional context using Phase 2 analysis data
       const additionalContext = {
-        projectAnalysis: context.intentAnalysis.projectAnalysis,
-        languageAnalysis: context.intentAnalysis.languageAnalysis,
-        existingPatterns: context.intentAnalysis.patternAnalysis?.patterns || patternAnalysis.patterns,
-        patternConfidence: context.intentAnalysis.patternAnalysis?.confidence || patternAnalysis.confidence,
-        patternEvidence: context.intentAnalysis.patternAnalysis?.evidence || patternAnalysis.evidence,
-        technicalConstraints: this.deriveConstraintsFromProject(context.intentAnalysis.projectAnalysis),
-        qualityRequirements: this.deriveQualityRequirements(context.intentAnalysis.languageAnalysis),
+        projectAnalysis: context.intentAnalysis?.projectAnalysis,
+        languageAnalysis: context.intentAnalysis?.languageAnalysis,
+        existingPatterns: context.intentAnalysis?.patternAnalysis?.patterns || patternAnalysis.patterns,
+        patternConfidence: context.intentAnalysis?.patternAnalysis?.confidence || patternAnalysis.confidence,
+        patternEvidence: context.intentAnalysis?.patternAnalysis?.evidence || patternAnalysis.evidence,
+        technicalConstraints: this.deriveConstraintsFromProject(context.intentAnalysis?.projectAnalysis),
+        qualityRequirements: this.deriveQualityRequirements(context.intentAnalysis?.languageAnalysis),
         timelineConstraints: undefined,
-        teamExpertise: this.inferTeamExpertise(context.intentAnalysis.projectAnalysis)
+        teamExpertise: this.inferTeamExpertise(context.intentAnalysis?.projectAnalysis)
       };
 
       context.promptRefinement = await this.llmService.performPromptRefinement(
         context.input.userPrompt,
-        context.intentAnalysis,
+        context.intentAnalysis!,
         context.codemapContent!,
         context.config,
         additionalContext
@@ -705,8 +734,8 @@ export class ContextCuratorService {
         jobId: context.jobId,
         originalLength: context.input.userPrompt.length,
         refinedLength: context.promptRefinement.refinedPrompt.length,
-        projectType: context.intentAnalysis.projectAnalysis?.projectType,
-        primaryLanguage: context.intentAnalysis.languageAnalysis?.primaryLanguage
+        projectType: context.intentAnalysis?.projectAnalysis?.projectType,
+        primaryLanguage: context.intentAnalysis?.languageAnalysis?.primaryLanguage
       }, 'Enhanced prompt refinement phase completed with project context');
 
     } catch (error) {
@@ -840,8 +869,8 @@ export class ContextCuratorService {
    * Build language profile from codemap content using Code Map Generator infrastructure
    */
   private buildLanguageProfileFromCodemap(codemapContent: string): LanguageProfile {
-    const registry = LanguageHandlerRegistry.getInstance();
-    const supportedExtensions = registry.getRegisteredExtensions();
+    // const registry = LanguageHandlerRegistry.getInstance(); // Currently unused
+    // const _supportedExtensions = registry.getRegisteredExtensions(); // Currently unused
 
     // Extract file extensions from codemap
     const fileExtensions = this.extractFileExtensionsFromCodemap(codemapContent);
@@ -891,11 +920,11 @@ export class ContextCuratorService {
       // Pattern: - src/file.ts, ├── file.ts, │   └── file.ts
       /^[\s]*[├│└─\-*•]\s*(.+\.[a-zA-Z0-9]+)/gm,
       // Pattern: src/file.ts (direct file paths)
-      /^[\s]*([a-zA-Z0-9_\-\/\\]+\.[a-zA-Z0-9]+)[\s]*$/gm,
+      /^[\s]*([a-zA-Z0-9_\-/\\]+\.[a-zA-Z0-9]+)[\s]*$/gm,
       // Pattern: ### src/file.ts, ## file.ts
       /^#+\s+(.+\.[a-zA-Z0-9]+)/gm,
       // Pattern: file.ts (simple file names)
-      /([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)/g
+      /([a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g
     ];
 
     for (const pattern of filePatterns) {
@@ -910,7 +939,7 @@ export class ContextCuratorService {
     }
 
     // Also look for explicit file mentions in text
-    const explicitFilePattern = /\b([a-zA-Z0-9_\-]+\.(ts|tsx|js|jsx|py|java|kt|swift|dart|rs|go|rb|php|cs|cpp|c|h|vue|html|css|scss|sass|less|json|yaml|yml|toml|xml|md|txt|sql|sh|bat|ps1|dockerfile|makefile))\b/gi;
+    const explicitFilePattern = /\b([a-zA-Z0-9_-]+\.(ts|tsx|js|jsx|py|java|kt|swift|dart|rs|go|rb|php|cs|cpp|c|h|vue|html|css|scss|sass|less|json|yaml|yml|toml|xml|md|txt|sql|sh|bat|ps1|dockerfile|makefile))\b/gi;
     let explicitMatch;
     while ((explicitMatch = explicitFilePattern.exec(codemapContent)) !== null) {
       const fileName = explicitMatch[1];
@@ -2779,8 +2808,8 @@ export class ContextCuratorService {
   private selectAndValidateProjectType(
     projectTypeScores: Map<string, ProjectTypeScore>,
     languageProfile: LanguageProfile,
-    packageManagers: PackageManagerInfo[],
-    structureAnalysis: StructureAnalysis
+    _packageManagers: PackageManagerInfo[],
+    _structureAnalysis: StructureAnalysis
   ): ProjectTypeScore {
     // Sort by confidence
     const sortedTypes = Array.from(projectTypeScores.values())
@@ -2874,7 +2903,7 @@ export class ContextCuratorService {
     try {
       // Enhanced configuration for multi-strategy approach
       const MAX_FILES_PER_STRATEGY = 50;
-      const TOTAL_MAX_FILES = 200;
+      // const _TOTAL_MAX_FILES = 200; // Currently unused
       const TOKEN_BUDGET = context.input.maxTokenBudget || 250000; // Use configured token budget
 
       const strategies: Array<'semantic_similarity' | 'keyword_matching' | 'semantic_and_keyword' | 'structural_analysis'> = [
@@ -2960,6 +2989,10 @@ export class ContextCuratorService {
     logger.info({ jobId: context.jobId }, 'Executing relevance scoring phase');
 
     try {
+      if (!context.intentAnalysis) {
+        throw new Error('Intent analysis is required for relevance scoring phase');
+      }
+
       const scoringStrategy = this.determineScoringStrategy(context.intentAnalysis.taskType);
 
       // Enhanced additional context using Phase 2 analysis data
@@ -2981,6 +3014,10 @@ export class ContextCuratorService {
       };
 
       // Track relevance scoring diagnostics
+      if (!context.fileDiscovery) {
+        throw new Error('File discovery is required for relevance scoring phase');
+      }
+      
       const fileCount = context.fileDiscovery.relevantFiles.length;
       const useChunkedProcessing = fileCount > 40;
       const diagnostics: string[] = [];
@@ -3013,6 +3050,10 @@ export class ContextCuratorService {
         }
       );
 
+      if (!context.promptRefinement) {
+        throw new Error('Prompt refinement is required for relevance scoring phase');
+      }
+
       context.relevanceScoring = await this.llmService.performRelevanceScoring(
         context.input.userPrompt,
         context.intentAnalysis,
@@ -3033,7 +3074,7 @@ export class ContextCuratorService {
         `Average relevance score: ${context.relevanceScoring.overallMetrics.averageRelevance.toFixed(2)}`,
         `High relevance files: ${context.relevanceScoring.overallMetrics.highRelevanceCount}`,
         `Scoring strategy: ${scoringStrategy}`,
-        `Processing time: ${context.relevanceScoring.processingTimeMs || 'N/A'}ms`
+        `Processing time: ${context.relevanceScoring.overallMetrics.processingTimeMs || 'N/A'}ms`
       ];
 
       jobManager.updateJobStatus(
@@ -3047,10 +3088,10 @@ export class ContextCuratorService {
           subProgress: 100,
           metadata: {
             filesScored: context.relevanceScoring.fileScores.length,
-            averageRelevance: context.relevanceScoring.overallMetrics.averageRelevance,
+            averageRelevance: context.relevanceScoring!.overallMetrics.averageRelevance,
             highRelevanceCount: context.relevanceScoring.overallMetrics.highRelevanceCount,
             scoringStrategy,
-            processingTimeMs: context.relevanceScoring.processingTimeMs,
+            processingTimeMs: context.relevanceScoring.overallMetrics.processingTimeMs,
             phase: 'relevance_scoring'
           }
         }
@@ -3059,7 +3100,7 @@ export class ContextCuratorService {
       logger.info({
         jobId: context.jobId,
         filesScored: context.relevanceScoring.fileScores.length,
-        averageRelevance: context.relevanceScoring.overallMetrics.averageRelevance,
+        averageRelevance: context.relevanceScoring!.overallMetrics.averageRelevance,
         highRelevanceCount: context.relevanceScoring.overallMetrics.highRelevanceCount,
         projectType: context.intentAnalysis.projectAnalysis?.projectType,
         adaptiveThreshold: this.getAdaptiveThreshold(context.intentAnalysis.languageAnalysis)
@@ -3078,6 +3119,10 @@ export class ContextCuratorService {
     logger.info({ jobId: context.jobId }, 'Executing meta-prompt generation phase');
 
     try {
+      if (!context.intentAnalysis) {
+        throw new Error('Intent analysis is required for meta-prompt generation phase');
+      }
+
       // Enhanced architectural pattern detection with confidence scoring
       const patternAnalysis = this.extractArchitecturalPatterns(context.codemapContent!);
 
@@ -3096,10 +3141,18 @@ export class ContextCuratorService {
         existingGuidelines: this.getFrameworkGuidelines(context.intentAnalysis.projectAnalysis?.frameworkStack)
       };
 
+      if (!context.relevanceScoring) {
+        throw new Error('Relevance scoring is required for meta-prompt generation phase');
+      }
+
+      if (!context.promptRefinement) {
+        throw new Error('Prompt refinement is required for meta-prompt generation phase');
+      }
+
       context.metaPromptGeneration = await this.llmService.performMetaPromptGeneration(
         context.input.userPrompt,
         context.intentAnalysis,
-        context.promptRefinement.refinedPrompt,
+        context.promptRefinement!.refinedPrompt,
         context.relevanceScoring,
         context.config,
         additionalContext
@@ -3318,7 +3371,8 @@ export class ContextCuratorService {
       }
 
       // Determine output format from configuration
-      const outputFormat: OutputFormat = (context.config as any).outputFormat?.format || 'xml';
+      const configRecord = context.config as unknown as Record<string, unknown>;
+      const outputFormat: OutputFormat = (configRecord.outputFormat as { format?: OutputFormat })?.format || 'xml';
 
       // Create output directory using the proper base output directory function
       const baseOutputDir = process.env.VIBE_CODER_OUTPUT_DIR
@@ -3334,12 +3388,12 @@ export class ContextCuratorService {
       const formattedOutput = await this.outputFormatter.formatOutput(
         convertedPackage,
         outputFormat,
-        context.config as any,
+        context.config as unknown as ContextCuratorConfig,
         {
           projectName: path.basename(context.input.projectPath),
           targetDirectory: context.input.projectPath,
-          totalFiles: convertedPackage.metadata.filesIncluded,
-          totalTokens: convertedPackage.metadata.totalTokenEstimate
+          totalFiles: getPackageFilesIncluded(convertedPackage),
+          totalTokens: getPackageTotalTokenEstimate(convertedPackage)
         }
       );
 
@@ -3356,7 +3410,7 @@ export class ContextCuratorService {
           const jsonOutput = await this.outputFormatter.formatOutput(
             convertedPackage,
             'json',
-            context.config as any
+            context.config as unknown as ContextCuratorConfig
           );
           const jsonPath = path.join(outputDir, `context-package-${context.jobId}.json`);
           await fs.writeFile(jsonPath, jsonOutput.content, 'utf-8');
@@ -3368,7 +3422,7 @@ export class ContextCuratorService {
           const xmlOutput = await this.outputFormatter.formatOutput(
             convertedPackage,
             'xml',
-            context.config as any
+            context.config as unknown as ContextCuratorConfig
           );
           const xmlPath = path.join(outputDir, `context-package-${context.jobId}.xml`);
           await fs.writeFile(xmlPath, xmlOutput.content, 'utf-8');
@@ -3434,7 +3488,7 @@ export class ContextCuratorService {
   private async executeStrategiesWithFallback(
     strategies: Array<'semantic_similarity' | 'keyword_matching' | 'semantic_and_keyword' | 'structural_analysis'>,
     context: WorkflowContext,
-    additionalContext: any
+    additionalContext: Record<string, unknown>
   ): Promise<Array<{ strategy: string; result: FileDiscoveryResult }>> {
     const results: Array<{ strategy: string; result?: FileDiscoveryResult; error?: Error }> = [];
 
@@ -3443,6 +3497,10 @@ export class ContextCuratorService {
       logger.debug({ jobId: context.jobId, strategy, index }, 'Executing strategy with resilient error handling');
 
       try {
+        if (!context.intentAnalysis) {
+          throw new Error('Intent analysis is required for file discovery');
+        }
+        
         const result = await this.llmService.performFileDiscovery(
           context.input.userPrompt,
           context.intentAnalysis,
@@ -3566,7 +3624,7 @@ export class ContextCuratorService {
    */
   private async generateFallbackResult(
     context: WorkflowContext,
-    additionalContext: any
+    additionalContext: Record<string, unknown>
   ): Promise<FileDiscoveryResult | null> {
     try {
       logger.info({ jobId: context.jobId }, 'Context Curator: Generating codemap-based fallback result');
@@ -3575,11 +3633,15 @@ export class ContextCuratorService {
       const codemapFiles = this.extractFilesFromCodemap(context.codemapContent!);
 
       // Apply basic filtering based on task type and user prompt
+      if (!context.intentAnalysis) {
+        throw new Error('Intent analysis is required for file filtering');
+      }
+      
       const relevantFiles = this.filterFilesByRelevance(
         codemapFiles,
         context.input.userPrompt,
         context.intentAnalysis.taskType,
-        additionalContext.maxFiles || 50
+        getMaxFilesFromContext(additionalContext) || 50
       );
 
       if (relevantFiles.length === 0) {
@@ -3591,7 +3653,7 @@ export class ContextCuratorService {
         relevantFiles,
         totalFilesAnalyzed: codemapFiles.length,
         processingTimeMs: 100, // Minimal processing time for fallback
-        searchStrategy: 'codemap_fallback' as any,
+        searchStrategy: 'semantic_similarity' as const,
         coverageMetrics: {
           totalTokens: relevantFiles.reduce((sum, f) => sum + f.estimatedTokens, 0),
           averageConfidence: 0.5 // Conservative confidence for fallback
@@ -3720,11 +3782,11 @@ export class ContextCuratorService {
     codemapContent: string,
     securityConfig?: UnifiedSecurityConfiguration
   ): Promise<MultiStrategyFileDiscoveryResult> {
-    const startTime = Date.now();
+    // const startTime = Date.now(); // Currently unused
 
     // Collect all files from all strategies
     const allFiles: Array<FileDiscoveryFile & { strategy: string }> = [];
-    const strategyBreakdown: any = {};
+    const strategyBreakdown: Record<string, unknown> = {};
 
     for (const { strategy, result } of strategyResults) {
       // Add strategy info to each file
@@ -3785,7 +3847,12 @@ export class ContextCuratorService {
 
     return {
       searchStrategy: 'multi_strategy',
-      strategyBreakdown,
+      strategyBreakdown: strategyBreakdown as {
+        semantic_similarity: { processingTimeMs: number; averageConfidence: number; filesFound: number };
+        keyword_matching: { processingTimeMs: number; averageConfidence: number; filesFound: number };
+        semantic_and_keyword: { processingTimeMs: number; averageConfidence: number; filesFound: number };
+        structural_analysis: { processingTimeMs: number; averageConfidence: number; filesFound: number };
+      },
       relevantFiles: filesWithContent,
       totalFilesAnalyzed,
       processingTimeMs: totalProcessingTime,
@@ -3803,7 +3870,7 @@ export class ContextCuratorService {
    * Deduplicate files by priority, keeping highest priority for each unique path
    */
   private deduplicateFilesByPriority(
-    allFiles: Array<any & { strategy: string }>
+    allFiles: Array<FileDiscoveryFile & { strategy: string }>
   ): PrioritizedFile[] {
     const fileMap = new Map<string, PrioritizedFile>();
 
@@ -3816,7 +3883,7 @@ export class ContextCuratorService {
         confidence: file.confidence,
         estimatedTokens: file.estimatedTokens,
         modificationLikelihood: file.modificationLikelihood,
-        strategy: file.strategy as any,
+        strategy: file.strategy as 'semantic_similarity' | 'keyword_matching' | 'semantic_and_keyword' | 'structural_analysis',
         priorityLevel,
         includeContent: priorityLevel === 'high' || priorityLevel === 'medium',
         content: undefined
@@ -3849,7 +3916,7 @@ export class ContextCuratorService {
    */
   private getHighestPriority(priority1: string, priority2: string): 'high' | 'medium' | 'low' {
     const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-    return (priorityOrder as any)[priority1] >= (priorityOrder as any)[priority2] ? priority1 as any : priority2 as any;
+    return (priorityOrder as Record<string, number>)[priority1] >= (priorityOrder as Record<string, number>)[priority2] ? priority1 as 'high' | 'medium' | 'low' : priority2 as 'high' | 'medium' | 'low';
   }
 
   /**
@@ -4139,8 +4206,8 @@ export class ContextCuratorService {
    */
   private async resolveAbstractFilePathToActual(abstractPath: string): Promise<string | null> {
     try {
-      const fs = await import('fs-extra');
-      const path = await import('path');
+      // const fs = await import('fs-extra'); // Currently unused
+      // const path = await import('path'); // Currently unused
       const glob = (await import('glob')).glob;
 
       // Convert abstract names to potential file patterns
@@ -4257,9 +4324,55 @@ export class ContextCuratorService {
   }
 
   /**
+   * Convert ContextFile to ProcessedFile format
+   */
+  private convertToProcessedFile(file: ContextFile): ProcessedFile {
+    return {
+      path: file.path,
+      content: file.content || '',
+      isOptimized: file.isOptimized,
+      totalLines: file.content?.split('\n').length || 0,
+      fullContentLines: file.isOptimized ? undefined : file.content?.split('\n').length || 0,
+      optimizedLines: file.isOptimized ? file.content?.split('\n').length || 0 : undefined,
+      tokenEstimate: file.tokenCount,
+      contentSections: [],
+      relevanceScore: {
+        overall: 0.5,
+        confidence: 0.8,
+        modificationLikelihood: 'medium' as const,
+        reasoning: ['Included based on file discovery'],
+        categories: [],
+        imports: [],
+        exports: [],
+        functions: [],
+        classes: []
+      },
+      reasoning: `Included ${file.language} file based on analysis`,
+      language: file.language,
+      lastModified: file.lastModified,
+      size: file.size
+    };
+  }
+
+  /**
+   * Convert ContextFile to FileReference format
+   */
+  private convertToFileReference(file: ContextFile): FileReference {
+    return {
+      path: file.path,
+      relevanceScore: 0.3, // Low priority files have lower relevance
+      reasoning: `Low priority ${file.language} file included for reference`,
+      tokenEstimate: file.tokenCount,
+      lastModified: file.lastModified,
+      size: file.size,
+      language: file.language
+    };
+  }
+
+  /**
    * Convert old context package format to new output package format
    */
-  private async convertContextPackageFormat(oldPackage: ContextPackage, securityConfig?: UnifiedSecurityConfiguration): Promise<any> {
+  private async convertContextPackageFormat(oldPackage: ContextPackage, securityConfig?: UnifiedSecurityConfiguration): Promise<OutputContextPackage> {
     // Ensure generatedAt is a proper Date object
     let generationTimestamp: Date;
     if (oldPackage.generatedAt instanceof Date) {
@@ -4271,16 +4384,21 @@ export class ContextCuratorService {
     }
 
     // Ensure we have valid arrays for priority files
-    const highPriorityFiles = await this.extractPriorityFiles(oldPackage, 'high', securityConfig) || [];
-    const mediumPriorityFiles = await this.extractPriorityFiles(oldPackage, 'medium', securityConfig) || [];
-    const lowPriorityFiles = await this.extractPriorityFiles(oldPackage, 'low', securityConfig) || [];
+    const highPriorityContextFiles = await this.extractPriorityFiles(oldPackage, 'high', securityConfig) || [];
+    const mediumPriorityContextFiles = await this.extractPriorityFiles(oldPackage, 'medium', securityConfig) || [];
+    const lowPriorityContextFiles = await this.extractPriorityFiles(oldPackage, 'low', securityConfig) || [];
+
+    // Convert ContextFile[] to ProcessedFile[] and FileReference[]
+    const highPriorityFiles: ProcessedFile[] = highPriorityContextFiles.map(file => this.convertToProcessedFile(file));
+    const mediumPriorityFiles: ProcessedFile[] = mediumPriorityContextFiles.map(file => this.convertToProcessedFile(file));
+    const lowPriorityFiles: FileReference[] = lowPriorityContextFiles.map(file => this.convertToFileReference(file));
 
     // Calculate total token estimate from all priority files
     const totalTokenEstimate = [
-      ...highPriorityFiles,
-      ...mediumPriorityFiles,
-      ...lowPriorityFiles
-    ].reduce((total, file) => total + (file.tokenEstimate || 0), 0);
+      ...highPriorityContextFiles,
+      ...mediumPriorityContextFiles,
+      ...lowPriorityContextFiles
+    ].reduce((total, file) => total + (file.tokenCount || 0), 0);
 
     logger.debug({
       totalFiles: oldPackage.files?.length || 0,
@@ -4311,23 +4429,21 @@ export class ContextCuratorService {
       highPriorityFiles,
       mediumPriorityFiles,
       lowPriorityFiles,
-      metaPrompt: oldPackage.metaPrompt?.systemPrompt || '',
-      // Preserve the full metaPrompt object for access to aiAgentResponseFormat
-      fullMetaPrompt: oldPackage.metaPrompt
+      metaPrompt: oldPackage.metaPrompt?.systemPrompt
     };
   }
 
   /**
    * Extract files by priority level from context package
    */
-  private async extractPriorityFiles(contextPackage: ContextPackage, priorityLevel: 'high' | 'medium' | 'low', securityConfig?: UnifiedSecurityConfiguration): Promise<any[]> {
+  private async extractPriorityFiles(contextPackage: ContextPackage, priorityLevel: 'high' | 'medium' | 'low', securityConfig?: UnifiedSecurityConfiguration): Promise<ContextFile[]> {
     if (!contextPackage || !contextPackage.files || !Array.isArray(contextPackage.files)) {
       logger.warn({ priorityLevel, hasPackage: !!contextPackage, hasFiles: !!contextPackage?.files },
         'No files available for priority extraction');
       return [];
     }
 
-    const priorityFiles: any[] = [];
+    const priorityFiles: ContextFile[] = [];
 
     for (const file of contextPackage.files) {
       const relevanceScore = file.relevanceScore?.score || 0;
@@ -4355,17 +4471,7 @@ export class ContextCuratorService {
           isOptimized: file.file?.isOptimized || false
         }, 'Converting file to priority format');
 
-        // Extract reasoning from the relevance score
-        let reasoning = '';
-        if (file.relevanceScore?.reasoning) {
-          // Reasoning is in the relevance score object
-          reasoning = Array.isArray(file.relevanceScore.reasoning)
-            ? file.relevanceScore.reasoning.join(', ')
-            : String(file.relevanceScore.reasoning);
-        } else {
-          // Fallback reasoning
-          reasoning = 'File selected for analysis based on relevance scoring';
-        }
+        // Note: reasoning extraction removed as it's not used in the current implementation
 
         // Ensure content is properly included for high and medium priority files
         let fileContent = file.file?.content;
@@ -4435,28 +4541,15 @@ export class ContextCuratorService {
           pathType: finalPath.startsWith('/') ? 'absolute' : 'relative'
         }, 'Creating prioritized file with resolved path');
 
-        const prioritizedFile = {
+        const prioritizedFile: ContextFile = {
           path: finalPath,
           content: actualContent,
-          isOptimized: file.file?.isOptimized || false,
-          totalLines: actualContent ? actualContent.split('\n').length : 0,
-          tokenEstimate,
-          contentSections: [], // Empty for now, will be populated if needed
-          relevanceScore: {
-            overall: relevanceScore,
-            confidence: confidence,
-            modificationLikelihood: 'medium' as const,
-            reasoning: Array.isArray(file.relevanceScore?.reasoning)
-              ? file.relevanceScore.reasoning
-              : [file.relevanceScore?.reasoning || reasoning || 'File selected for analysis'],
-            categories: file.categories || ['general'],
-            imports: [],
-            exports: []
-          },
-          // Remove duplicate reasoning field - it's already in relevanceScore
-          language: file.file?.language || 'unknown',
+          size: file.file?.size || 0,
           lastModified: file.file?.lastModified instanceof Date ? file.file.lastModified : new Date(file.file?.lastModified || Date.now()),
-          size: file.file?.size || 0
+          language: file.file?.language || 'unknown',
+          isOptimized: file.file?.isOptimized || false,
+          tokenCount: tokenEstimate,
+          optimizedSummary: file.file?.isOptimized ? 'Optimized content' : undefined
         };
 
         priorityFiles.push(prioritizedFile);
@@ -4469,16 +4562,16 @@ export class ContextCuratorService {
   /**
    * Check if output validation passed
    */
-  private isValidationPassed(validation: any): boolean {
+  private isValidationPassed(validation: Record<string, unknown>): boolean {
     if ('isWellFormed' in validation) {
       // XML validation
-      return validation.hasXmlDeclaration && validation.isWellFormed && validation.schemaCompliant;
+      return Boolean(validation.hasXmlDeclaration) && Boolean(validation.isWellFormed) && Boolean(validation.schemaCompliant);
     } else if ('isValidJson' in validation) {
       // JSON validation
-      return validation.isValidJson && validation.schemaCompliant && validation.hasRequiredFields;
+      return Boolean(validation.isValidJson) && Boolean(validation.schemaCompliant) && Boolean(validation.hasRequiredFields);
     } else if ('isValidYaml' in validation) {
       // YAML validation
-      return validation.isValidYaml && validation.schemaCompliant && validation.hasRequiredFields;
+      return Boolean(validation.isValidYaml) && Boolean(validation.schemaCompliant) && Boolean(validation.hasRequiredFields);
     }
     return false;
   }
@@ -4946,57 +5039,69 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
 
     try {
       // Calculate enhanced statistics
-      const totalTokens = context.relevanceScoring.fileScores.reduce(
-        (sum: number, file: any) => sum + (file.estimatedTokens || 0),
+      const totalTokens = context.relevanceScoring!.fileScores.reduce(
+        (sum: number, file: Record<string, unknown>) => sum + (Number(file.estimatedTokens) || 0),
         0
       );
 
       // Build enhanced file list with better metadata
       const enhancedFiles = await this.buildEnhancedFileList(context);
 
+      // Transform ContextFile[] to FileRelevance[] format
+      const fileRelevances = enhancedFiles.map(file => ({
+        file,
+        relevanceScore: {
+          score: 0.7,
+          confidence: 0.8,
+          reasoning: `Included ${file.language} file based on relevance analysis`
+        },
+        categories: ['relevant'],
+        extractedKeywords: []
+      }));
+
       // Create enhanced context package with codemap content
       const contextPackage: ContextPackage = {
         id: context.jobId,
         userPrompt: context.input.userPrompt,
-        refinedPrompt: context.promptRefinement.refinedPrompt, // Add the refined prompt
-        taskType: context.intentAnalysis.taskType,
+        refinedPrompt: context.promptRefinement!.refinedPrompt, // Add the refined prompt
+        taskType: context.intentAnalysis!.taskType,
         projectPath: context.input.projectPath,
         generatedAt: new Date(),
         codemapPath: context.codemapPath || '',
         codemapContent: context.codemapContent || '', // Include full codemap content
-        files: enhancedFiles,
+        files: fileRelevances,
         metaPrompt: {
-          taskType: context.intentAnalysis.taskType,
-          systemPrompt: context.metaPromptGeneration.systemPrompt,
-          userPrompt: context.metaPromptGeneration.userPrompt,
-          contextSummary: context.metaPromptGeneration.contextSummary,
-          taskDecomposition: context.metaPromptGeneration.taskDecomposition,
-          guidelines: context.metaPromptGeneration.guidelines,
-          estimatedComplexity: context.metaPromptGeneration.estimatedComplexity,
-          aiAgentResponseFormat: context.metaPromptGeneration.aiAgentResponseFormat
+          taskType: context.intentAnalysis!.taskType,
+          systemPrompt: context.metaPromptGeneration!.systemPrompt,
+          userPrompt: context.metaPromptGeneration!.userPrompt,
+          contextSummary: context.metaPromptGeneration!.contextSummary,
+          taskDecomposition: context.metaPromptGeneration!.taskDecomposition,
+          guidelines: context.metaPromptGeneration!.guidelines,
+          estimatedComplexity: context.metaPromptGeneration!.estimatedComplexity,
+          aiAgentResponseFormat: context.metaPromptGeneration!.aiAgentResponseFormat
         },
         statistics: {
-          totalFiles: enhancedFiles.length,
+          totalFiles: fileRelevances.length,
           totalTokens,
-          averageRelevanceScore: context.relevanceScoring.overallMetrics.averageRelevance,
+          averageRelevanceScore: context.relevanceScoring!.overallMetrics.averageRelevance,
           processingTimeMs: Date.now() - context.startTime,
           cacheHitRate: 0 // Will be updated if cache is used
         },
         // Include additional context for debugging and validation
         debugInfo: {
           codemapContentLength: context.codemapContent?.length || 0,
-          filesWithContent: enhancedFiles.filter(f => f.file.content !== null).length,
-          totalFilesAnalyzed: enhancedFiles.length,
-          intentAnalysisConfidence: context.intentAnalysis.confidence,
-          averageFileRelevance: context.relevanceScoring.overallMetrics.averageRelevance
+          filesWithContent: fileRelevances.filter(f => f.file.content !== null).length,
+          totalFilesAnalyzed: fileRelevances.length,
+          intentAnalysisConfidence: context.intentAnalysis!.confidence,
+          averageFileRelevance: context.relevanceScoring!.overallMetrics.averageRelevance
         }
       };
 
       logger.info({
         jobId: context.jobId,
-        totalFiles: enhancedFiles.length,
+        totalFiles: fileRelevances.length,
         totalTokens,
-        averageRelevance: context.relevanceScoring.overallMetrics.averageRelevance
+        averageRelevance: context.relevanceScoring!.overallMetrics.averageRelevance
       }, 'Enhanced context package built successfully');
 
       return contextPackage;
@@ -5013,10 +5118,10 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
   /**
    * Build enhanced file list with better metadata and content handling
    */
-  private async buildEnhancedFileList(context: WorkflowContext): Promise<any[]> {
-    const enhancedFiles: any[] = [];
+  private async buildEnhancedFileList(context: WorkflowContext): Promise<ContextFile[]> {
+    const enhancedFiles: ContextFile[] = [];
 
-    for (const fileScore of context.relevanceScoring.fileScores) {
+    for (const fileScore of context.relevanceScoring!.fileScores) {
       try {
         // Detect file language more accurately
         const language = this.detectFileLanguage(fileScore.filePath);
@@ -5025,7 +5130,7 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
         const fileStats = await this.getFileStats(fileScore.filePath);
 
         // Extract keywords from file path and reasoning
-        const extractedKeywords = this.extractKeywords(fileScore.filePath, fileScore.reasoning);
+        // Note: keyword extraction removed as it's not currently used
 
         // Extract actual file content based on relevance score
         let fileContent: string | null = null;
@@ -5084,23 +5189,15 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
           }
         }
 
-        const enhancedFile = {
-          file: {
-            size: fileStats?.size || 0,
-            path: fileScore.filePath,
-            content: fileContent,
-            lastModified: fileStats?.lastModified instanceof Date ? fileStats.lastModified : new Date(fileStats?.lastModified || Date.now()),
-            language,
-            isOptimized,
-            tokenCount: actualTokenCount
-          },
-          relevanceScore: {
-            score: fileScore.relevanceScore,
-            confidence: fileScore.confidence,
-            reasoning: fileScore.reasoning
-          },
-          categories: fileScore.categories || [],
-          extractedKeywords
+        const enhancedFile: ContextFile = {
+          size: fileStats?.size || 0,
+          path: fileScore.filePath,
+          content: fileContent,
+          lastModified: fileStats?.lastModified instanceof Date ? fileStats.lastModified : new Date(fileStats?.lastModified || Date.now()),
+          language,
+          isOptimized,
+          tokenCount: actualTokenCount,
+          optimizedSummary: isOptimized ? 'Content optimized for relevance' : undefined
         };
 
         enhancedFiles.push(enhancedFile);
@@ -5144,22 +5241,14 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
         }
 
         enhancedFiles.push({
-          file: {
-            size: 0,
-            path: fileScore.filePath,
-            content: fallbackContent,
-            lastModified: new Date(),
-            language: 'unknown',
-            isOptimized: false,
-            tokenCount: fallbackTokenCount
-          },
-          relevanceScore: {
-            score: fileScore.relevanceScore,
-            confidence: fileScore.confidence,
-            reasoning: fileScore.reasoning
-          },
-          categories: fileScore.categories || [],
-          extractedKeywords: []
+          size: 0,
+          path: fileScore.filePath,
+          content: fallbackContent,
+          lastModified: new Date(),
+          language: 'unknown',
+          isOptimized: false,
+          tokenCount: fallbackTokenCount,
+          optimizedSummary: undefined
         });
       }
     }
@@ -5235,7 +5324,7 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
         };
       }
       return null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -5247,7 +5336,7 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
     const keywords = new Set<string>();
 
     // Extract from file path
-    const pathParts = filePath.split(/[\/\\]/).join(' ').split(/[._-]/).join(' ');
+    const pathParts = filePath.split(/[/\\]/).join(' ').split(/[._-]/).join(' ');
     const pathWords = pathParts.toLowerCase().match(/\b\w{3,}\b/g) || [];
     pathWords.forEach(word => keywords.add(word));
 

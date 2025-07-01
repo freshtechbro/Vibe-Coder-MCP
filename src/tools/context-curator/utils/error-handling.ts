@@ -483,6 +483,17 @@ export class ErrorHandler {
   }
 
   /**
+   * Validate and return a safe file operation type
+   */
+  private static validateFileOperation(operation: unknown): 'read' | 'write' | 'access' | 'stat' | 'glob' {
+    const validOperations: ReadonlyArray<'read' | 'write' | 'access' | 'stat' | 'glob'> = ['read', 'write', 'access', 'stat', 'glob'];
+    if (typeof operation === 'string' && validOperations.includes(operation as 'read' | 'write' | 'access' | 'stat' | 'glob')) {
+      return operation as 'read' | 'write' | 'access' | 'stat' | 'glob';
+    }
+    return 'read'; // Safe default
+  }
+
+  /**
    * Create appropriate error type based on operation and cause
    */
   static createError(
@@ -514,7 +525,7 @@ export class ErrorHandler {
       case 'file_discovery':
         return new ContextCuratorFileError(message, {
           filePath: context?.filePath as string || 'unknown',
-          fileOperation: context?.fileOperation as any || 'read',
+          fileOperation: this.validateFileOperation(context?.fileOperation),
           cause,
           ...context
         });

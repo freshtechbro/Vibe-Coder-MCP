@@ -7,7 +7,7 @@
  */
 
 import { ContextCuratorLLMTask } from '../types/llm-tasks.js';
-import { promptRefinementResultSchema, IntentAnalysisResult } from '../types/llm-tasks.js';
+import { IntentAnalysisResult } from '../types/llm-tasks.js';
 
 /**
  * System prompt for prompt refinement operations

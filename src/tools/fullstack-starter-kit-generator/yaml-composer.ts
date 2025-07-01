@@ -628,7 +628,7 @@ Requirements:
   /**
    * Recursively fixes directory structure items to ensure schema compliance
    */
-  private fixDirectoryStructureItems(items: any[], modulePathSegment: string): void {
+  private fixDirectoryStructureItems(items: Record<string, unknown>[], modulePathSegment: string): void {
     for (const item of items) {
       if (typeof item === 'object' && item !== null) {
         // Handle content vs generationPrompt mutual exclusivity for files
@@ -677,7 +677,7 @@ Requirements:
    * Fixes setupCommands format issues by converting strings to objects
    * Handles common LLM format mistakes while preserving valid objects
    */
-  private fixSetupCommandsFormat(setupCommands: any[], modulePathSegment: string): void {
+  private fixSetupCommandsFormat(setupCommands: (string | Record<string, unknown>)[], modulePathSegment: string): void {
     for (let i = 0; i < setupCommands.length; i++) {
       const cmd = setupCommands[i];
 
@@ -742,7 +742,7 @@ Requirements:
   /**
    * Tracks preprocessing statistics for monitoring and debugging
    */
-  private trackSetupCommandsPreprocessing(modulePathSegment: string, originalCommands: any[], processedCommands: any[]): void {
+  private trackSetupCommandsPreprocessing(modulePathSegment: string, originalCommands: unknown[], processedCommands: unknown[]): void {
     const metrics = {
       modulePathSegment,
       originalCount: originalCommands.length,
@@ -766,7 +766,8 @@ Requirements:
     // Count fixes (objects that were modified)
     originalCommands.forEach(original => {
       if (typeof original === 'object' && original !== null) {
-        if (!original.command && original.cmd) {
+        const obj = original as Record<string, unknown>;
+        if (!obj.command && obj.cmd) {
           metrics.fixes++;
         }
       }

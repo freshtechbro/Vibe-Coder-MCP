@@ -6,7 +6,7 @@
  */
 
 import { ContextCuratorLLMTask } from '../types/llm-tasks.js';
-import { intentAnalysisResultSchema } from '../types/llm-tasks.js';
+import { intentAnalysisResultSchema, ProjectTypeAnalysisResult, LanguageAnalysisResult } from '../types/llm-tasks.js';
 
 /**
  * System prompt for intent analysis operations
@@ -124,8 +124,8 @@ export function buildIntentAnalysisPrompt(
   codemapContent: string,
   additionalContext?: {
     projectType?: string;
-    projectAnalysis?: any;
-    languageAnalysis?: any;
+    projectAnalysis?: ProjectTypeAnalysisResult;
+    languageAnalysis?: LanguageAnalysisResult;
     existingPatterns?: string[];
     patternConfidence?: { [pattern: string]: number };
     patternEvidence?: { [pattern: string]: string[] };

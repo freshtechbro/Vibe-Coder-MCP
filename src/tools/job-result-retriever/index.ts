@@ -92,7 +92,10 @@ export const getJobResult: ToolExecutor = async (
         }
 
         // Add estimated completion time if available
-        if (job.details?.metadata?.estimatedCompletion) {
+        if (job.details?.metadata?.estimatedCompletion &&
+            (typeof job.details.metadata.estimatedCompletion === 'string' ||
+             typeof job.details.metadata.estimatedCompletion === 'number' ||
+             job.details.metadata.estimatedCompletion instanceof Date)) {
           responseText += `\n🕒 **Estimated Completion**: ${new Date(job.details.metadata.estimatedCompletion).toISOString()}`;
         }
 
@@ -110,7 +113,7 @@ export const getJobResult: ToolExecutor = async (
                 if (finalResult.taskData && Array.isArray(finalResult.taskData) && finalResult.taskData.length > 0) {
                   const taskSummary = `\n\n📊 **Task Summary:**\n` +
                     `• Total Tasks: ${finalResult.taskData.length}\n` +
-                    `• Total Hours: ${finalResult.taskData.reduce((sum: number, task: any) => sum + (task.estimatedHours || 0), 0)}h\n` +
+                    `• Total Hours: ${finalResult.taskData.reduce((sum: number, task: Record<string, unknown>) => sum + (typeof task.estimatedHours === 'number' ? task.estimatedHours : 0), 0)}h\n` +
                     `• Files Created: ${Array.isArray(finalResult.fileReferences) ? finalResult.fileReferences.length : 0}\n`;
 
                   const completionNote: TextContent = {

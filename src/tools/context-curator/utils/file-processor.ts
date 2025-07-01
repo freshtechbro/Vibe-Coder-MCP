@@ -14,7 +14,6 @@
 
 import { TokenEstimator } from './token-estimator.js';
 import { readFileSecure } from '../../code-map-generator/fsUtils.js';
-import { UniversalClassOptimizer } from '../../code-map-generator/optimization/universalClassOptimizer.js';
 
 export interface ProcessedFileContent {
   content: string;

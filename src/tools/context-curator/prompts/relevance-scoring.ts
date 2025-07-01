@@ -7,7 +7,7 @@
  */
 
 import { ContextCuratorLLMTask } from '../types/llm-tasks.js';
-import { relevanceScoringResultSchema, IntentAnalysisResult, FileDiscoveryResult } from '../types/llm-tasks.js';
+import { IntentAnalysisResult, FileDiscoveryResult } from '../types/llm-tasks.js';
 
 /**
  * System prompt for relevance scoring operations
@@ -605,8 +605,8 @@ export function enhanceRelevanceScoringResponse(
 
     // NEW: If we have expected files and the response is incomplete, add missing files with default scores
     if (expectedFiles && expectedFiles.length > 0 && Array.isArray(enhanced.fileScores)) {
-      const fileScoresArray = enhanced.fileScores as any[];
-      const scoredPaths = new Set(fileScoresArray.map(f => f.filePath));
+      const fileScoresArray = enhanced.fileScores as Array<Record<string, unknown>>;
+      const scoredPaths = new Set(fileScoresArray.map(f => f.filePath as string));
       const missingFiles = expectedFiles.filter(f => !scoredPaths.has(f.path));
 
       if (missingFiles.length > 0) {
@@ -641,7 +641,7 @@ export function enhanceRelevanceScoringResponse(
     }
 
     return enhanced;
-  } catch (error) {
+  } catch {
     // If enhancement fails, return original response
     return response;
   }

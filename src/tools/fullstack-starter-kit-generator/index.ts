@@ -14,13 +14,12 @@ import { performResearchQuery } from '../../utils/researchHelper.js';
 import logger from '../../logger.js';
 import fs from 'fs-extra';
 import path from 'path';
-import yaml from 'js-yaml';
-import { starterKitDefinitionSchema, StarterKitDefinition, fileStructureItemSchema, FileStructureItem } from './schema.js';
+import { starterKitDefinitionSchema, StarterKitDefinition } from './schema.js';
 import { generateSetupScripts, ScriptOutput } from './scripts.js';
 import { registerTool, ToolDefinition, ToolExecutor, ToolExecutionContext } from '../../services/routing/toolRegistry.js';
 import { jobManager, JobStatus } from '../../services/job-manager/index.js';
 import { sseNotifier } from '../../services/sse-notifier/index.js';
-import { AppError, ValidationError, ParsingError, ToolExecutionError, ConfigurationError } from '../../utils/errors.js';
+import { AppError, ValidationError, ParsingError, ToolExecutionError } from '../../utils/errors.js';
 import { formatBackgroundJobInitiationResponse } from '../../services/job-response-formatter/index.js';
 import { YAMLComposer } from './yaml-composer.js';
 
@@ -296,7 +295,7 @@ RESPOND WITH ONLY THE JSON OBJECT - NO OTHER TEXT OR FORMATTING.`;
 
       // Try new schema-aware approach first, fallback to existing method
       let llmModuleSelections: ModuleSelectionResponse;
-      let usedSchemaAware = false;
+      // const _usedSchemaAware = false; // Removed unused variable
 
       try {
         logger.debug({ jobId, schemaType }, 'Attempting schema-aware module selection...');
@@ -309,7 +308,7 @@ RESPOND WITH ONLY THE JSON OBJECT - NO OTHER TEXT OR FORMATTING.`;
         );
 
         llmModuleSelections = schemaAwareResult.data;
-        usedSchemaAware = true;
+        // Successfully used schema-aware call
 
         logger.info({
           jobId,

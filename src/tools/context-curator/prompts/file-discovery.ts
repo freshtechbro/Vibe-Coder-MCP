@@ -7,7 +7,7 @@
  */
 
 import { ContextCuratorLLMTask } from '../types/llm-tasks.js';
-import { fileDiscoveryResultSchema, IntentAnalysisResult } from '../types/llm-tasks.js';
+import { IntentAnalysisResult } from '../types/llm-tasks.js';
 
 /**
  * System prompt for file discovery operations
@@ -193,7 +193,7 @@ MANDATORY FILE PATH VALIDATION:
 - For nested files, use full relative path: "src/tools/vibe-task-manager/handlers/create-project-handler.ts"
 - Every "path" field MUST contain a file extension (.ts, .js, .json, .md, etc.)
 - Every "path" field MUST be extractable from the codebase context provided above
-- Use forward slashes (/) for directory separators, never backslashes (\)
+- Use forward slashes (/) for directory separators, never backslashes
 - If you cannot find actual file paths, return an empty relevantFiles array
 
 EXAMPLE CORRECT RESPONSES:

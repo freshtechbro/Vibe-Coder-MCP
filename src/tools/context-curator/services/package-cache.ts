@@ -271,7 +271,7 @@ export class PackageCache {
           if (!newestEntry || cachedAt > newestEntry) {
             newestEntry = cachedAt;
           }
-        } catch (error) {
+        } catch {
           logger.warn({ metadataFile }, 'Failed to read metadata file');
         }
       }
@@ -326,7 +326,7 @@ export class PackageCache {
             cachedAt: new Date(metadata.cachedAt),
             sizeBytes: metadata.sizeBytes
           });
-        } catch (error) {
+        } catch {
           logger.warn({ metadataFile }, 'Failed to read metadata for cleanup');
         }
       }

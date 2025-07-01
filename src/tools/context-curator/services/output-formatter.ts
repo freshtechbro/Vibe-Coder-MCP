@@ -146,7 +146,7 @@ export class OutputFormatterService {
   private async formatAsXML(
     contextPackage: ContextPackage,
     variables: TemplateVariables,
-    config: ContextCuratorConfig
+    _config: ContextCuratorConfig
   ): Promise<string> {
     // Load task-specific template
     const template = await this.loadTemplate(variables.taskType, 'xml');
@@ -191,7 +191,7 @@ export class OutputFormatterService {
   private async formatAsJSON(
     contextPackage: ContextPackage,
     variables: TemplateVariables,
-    config: ContextCuratorConfig
+    _config: ContextCuratorConfig
   ): Promise<string> {
     // Convert context package to JSON-friendly structure
     const jsonData = {
@@ -208,7 +208,7 @@ export class OutputFormatterService {
         mediumPriority: contextPackage.mediumPriorityFiles || [],
         lowPriority: contextPackage.lowPriorityFiles || []
       },
-      metaPrompt: contextPackage.metaPrompt || (contextPackage as any).fullMetaPrompt,
+      metaPrompt: contextPackage.metaPrompt || (contextPackage as Record<string, unknown>).fullMetaPrompt,
       templateVariables: {
         ...variables,
         // Include AI agent response format from the original context package
@@ -225,7 +225,7 @@ export class OutputFormatterService {
   private async formatAsYAML(
     contextPackage: ContextPackage,
     variables: TemplateVariables,
-    config: ContextCuratorConfig
+    _config: ContextCuratorConfig
   ): Promise<string> {
     // Convert context package to YAML-friendly structure
     const yamlData = {
@@ -242,7 +242,7 @@ export class OutputFormatterService {
         mediumPriority: contextPackage.mediumPriorityFiles || [],
         lowPriority: contextPackage.lowPriorityFiles || []
       },
-      metaPrompt: contextPackage.metaPrompt || (contextPackage as any).fullMetaPrompt,
+      metaPrompt: contextPackage.metaPrompt || (contextPackage as Record<string, unknown>).fullMetaPrompt,
       templateVariables: {
         ...variables,
         // Include AI agent response format from the original context package
@@ -375,7 +375,7 @@ export class OutputFormatterService {
    */
   private validateYAMLOutput(content: string): YamlOutputValidation {
     try {
-      const parsed = yaml.load(content);
+      const parsed = yaml.load(content) as Record<string, unknown>;
       return {
         isValidYaml: true,
         schemaCompliant: this.isYAMLSchemaCompliant(parsed),
@@ -429,26 +429,28 @@ export class OutputFormatterService {
   /**
    * Extract AI agent response format from context package
    */
-  private extractAiAgentResponseFormat(contextPackage: any): any {
+  private extractAiAgentResponseFormat(contextPackage: Record<string, unknown>): Record<string, unknown> | undefined {
     // Try to get from the original context package structure
     if (contextPackage && typeof contextPackage === 'object') {
       // Check if it's in the fullMetaPrompt object (preserved from conversion)
       if (contextPackage.fullMetaPrompt && typeof contextPackage.fullMetaPrompt === 'object') {
-        if (contextPackage.fullMetaPrompt.aiAgentResponseFormat) {
-          return contextPackage.fullMetaPrompt.aiAgentResponseFormat;
+        const fullMeta = contextPackage.fullMetaPrompt as Record<string, unknown>;
+        if (fullMeta.aiAgentResponseFormat) {
+          return fullMeta.aiAgentResponseFormat as Record<string, unknown>;
         }
       }
 
       // Check if it's in the metaPrompt object (legacy structure)
       if (contextPackage.metaPrompt && typeof contextPackage.metaPrompt === 'object') {
-        if (contextPackage.metaPrompt.aiAgentResponseFormat) {
-          return contextPackage.metaPrompt.aiAgentResponseFormat;
+        const meta = contextPackage.metaPrompt as Record<string, unknown>;
+        if (meta.aiAgentResponseFormat) {
+          return meta.aiAgentResponseFormat as Record<string, unknown>;
         }
       }
 
       // Check if it's directly on the context package (fallback)
       if (contextPackage.aiAgentResponseFormat) {
-        return contextPackage.aiAgentResponseFormat;
+        return contextPackage.aiAgentResponseFormat as Record<string, unknown>;
       }
     }
 
@@ -460,31 +462,33 @@ export class OutputFormatterService {
     return content.includes('encoding="UTF-8"') || !content.includes('encoding=');
   }
 
-  private isJSONSchemaCompliant(data: any): boolean {
+  private isJSONSchemaCompliant(data: Record<string, unknown>): boolean {
     return !!(data &&
            typeof data === 'object' &&
            data.metadata &&
            data.files);
   }
 
-  private hasRequiredJSONFields(data: any): boolean {
-    return !!(data.metadata?.taskType &&
-           data.metadata?.generationTimestamp &&
-           data.metadata?.refinedPrompt &&
+  private hasRequiredJSONFields(data: Record<string, unknown>): boolean {
+    const metadata = data.metadata as Record<string, unknown> | undefined;
+    return !!(metadata?.taskType &&
+           metadata?.generationTimestamp &&
+           metadata?.refinedPrompt &&
            data.files);
   }
 
-  private isYAMLSchemaCompliant(data: any): boolean {
+  private isYAMLSchemaCompliant(data: Record<string, unknown>): boolean {
     return !!(data &&
            typeof data === 'object' &&
            data.metadata &&
            data.files);
   }
 
-  private hasRequiredYAMLFields(data: any): boolean {
-    return !!(data.metadata?.taskType &&
-           data.metadata?.generationTimestamp &&
-           data.metadata?.refinedPrompt &&
+  private hasRequiredYAMLFields(data: Record<string, unknown>): boolean {
+    const metadata = data.metadata as Record<string, unknown> | undefined;
+    return !!(metadata?.taskType &&
+           metadata?.generationTimestamp &&
+           metadata?.refinedPrompt &&
            data.files);
   }
 }

@@ -172,7 +172,6 @@ export class PackageCompressor {
   static estimateCompressionRatio(contextPackage: ContextPackage): number {
     try {
       const jsonString = JSON.stringify(contextPackage);
-      const originalSize = Buffer.byteLength(jsonString, 'utf8');
 
       // Estimate based on content characteristics
       let estimatedRatio = 0.3; // Base estimate for JSON compression
@@ -296,15 +295,20 @@ export class PackageCompressor {
   /**
    * Remove null and undefined values from object
    */
-  private static removeNullValues(obj: any): void {
+  private static removeNullValues(obj: Record<string, unknown> | unknown[]): void {
     if (Array.isArray(obj)) {
-      obj.forEach(item => this.removeNullValues(item));
+      obj.forEach(item => {
+        if (typeof item === 'object' && item !== null) {
+          this.removeNullValues(item as Record<string, unknown>);
+        }
+      });
     } else if (obj && typeof obj === 'object') {
-      Object.keys(obj).forEach(key => {
-        if (obj[key] === null || obj[key] === undefined) {
-          delete obj[key];
-        } else {
-          this.removeNullValues(obj[key]);
+      const objRecord = obj as Record<string, unknown>;
+      Object.keys(objRecord).forEach(key => {
+        if (objRecord[key] === null || objRecord[key] === undefined) {
+          delete objRecord[key];
+        } else if (typeof objRecord[key] === 'object' && objRecord[key] !== null) {
+          this.removeNullValues(objRecord[key] as Record<string, unknown>);
         }
       });
     }
@@ -313,23 +317,24 @@ export class PackageCompressor {
   /**
    * Deduplicate similar content in the package
    */
-  private static deduplicateContent(contextPackage: any): void {
+  private static deduplicateContent(contextPackage: Record<string, unknown>): void {
     // Deduplicate similar file contents
     if (contextPackage.files && Array.isArray(contextPackage.files)) {
       const contentMap = new Map<string, string>();
       
-      contextPackage.files.forEach((file: any) => {
-        if (file.file && file.file.content) {
+      contextPackage.files.forEach((file: Record<string, unknown>) => {
+        const fileRecord = file as { file?: { content?: string; contentRef?: string } };
+        if (fileRecord.file && typeof fileRecord.file.content === 'string') {
           const contentHash = createHash('md5')
-            .update(file.file.content)
+            .update(fileRecord.file.content)
             .digest('hex');
 
           if (contentMap.has(contentHash)) {
             // Replace with reference to avoid duplication
-            file.file.contentRef = contentHash;
-            delete file.file.content;
+            fileRecord.file.contentRef = contentHash;
+            delete fileRecord.file.content;
           } else {
-            contentMap.set(contentHash, file.file.content);
+            contentMap.set(contentHash, fileRecord.file.content);
           }
         }
       });
@@ -339,7 +344,7 @@ export class PackageCompressor {
   /**
    * Compress repetitive strings in the package
    */
-  private static compressRepetitiveStrings(obj: any): void {
+  private static compressRepetitiveStrings(obj: Record<string, unknown> | unknown[] | string): void {
     // This is a placeholder for more sophisticated string compression
     // In a real implementation, you might use techniques like:
     // - Dictionary compression for common terms
@@ -350,9 +355,17 @@ export class PackageCompressor {
       // Simple example: compress repeated whitespace
       obj = obj.replace(/\s+/g, ' ');
     } else if (Array.isArray(obj)) {
-      obj.forEach(item => this.compressRepetitiveStrings(item));
+      obj.forEach(item => {
+        if (typeof item === 'string' || Array.isArray(item) || (item && typeof item === 'object')) {
+          this.compressRepetitiveStrings(item as Record<string, unknown> | unknown[] | string);
+        }
+      });
     } else if (obj && typeof obj === 'object') {
-      Object.values(obj).forEach(value => this.compressRepetitiveStrings(value));
+      Object.values(obj).forEach(value => {
+        if (typeof value === 'string' || Array.isArray(value) || (value && typeof value === 'object')) {
+          this.compressRepetitiveStrings(value as Record<string, unknown> | unknown[] | string);
+        }
+      });
     }
   }
 }

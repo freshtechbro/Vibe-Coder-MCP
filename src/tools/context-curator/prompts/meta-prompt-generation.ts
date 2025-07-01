@@ -7,7 +7,7 @@
  */
 
 import { ContextCuratorLLMTask } from '../types/llm-tasks.js';
-import { metaPromptGenerationResultSchema, IntentAnalysisResult, RelevanceScoringResult } from '../types/llm-tasks.js';
+import { IntentAnalysisResult, RelevanceScoringResult } from '../types/llm-tasks.js';
 
 /**
  * System prompt for meta-prompt generation operations

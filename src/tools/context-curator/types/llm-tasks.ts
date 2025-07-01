@@ -74,7 +74,7 @@ export const fileDiscoveryResultSchema = z.object({
   /** Processing time in milliseconds */
   processingTimeMs: z.number().min(0),
   /** Strategy used for file discovery */
-  searchStrategy: z.enum(['semantic_similarity', 'keyword_matching', 'semantic_and_keyword', 'structural_analysis']),
+  searchStrategy: z.enum(['semantic_similarity', 'keyword_matching', 'semantic_and_keyword', 'structural_analysis', 'multi_strategy']),
   /** Coverage metrics */
   coverageMetrics: z.object({
     totalTokens: z.number().min(0),

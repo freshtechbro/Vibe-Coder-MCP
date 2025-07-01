@@ -207,7 +207,7 @@ export class XMLFormatter {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // Remove control characters
+      .split("").filter(char => char.charCodeAt(0) >= 32 || [9, 10, 13].includes(char.charCodeAt(0))).join(""); // Remove control characters
   }
 
   /**
@@ -245,7 +245,7 @@ export class XMLFormatter {
   ${this.formatFiles(mediumPriorityFiles, 'medium_priority_files')}
   ${this.formatLowPriorityFiles(lowPriorityFiles)}
 
-  ${this.formatEnhancedMetaPrompt((contextPackage as any).fullMetaPrompt || contextPackage.metaPrompt, contextPackage.metadata.taskType)}
+  ${this.formatEnhancedMetaPrompt(this.getMetaPrompt(contextPackage), contextPackage.metadata.taskType)}
 </context_package>`;
 
     return xml;
@@ -331,7 +331,8 @@ ${filesXml}
         relevanceScore = String(file.relevanceScore);
       } else if (typeof file.relevanceScore === 'object' && file.relevanceScore !== null) {
         // If it's an object, try to extract the score
-        relevanceScore = String((file.relevanceScore as any).overall || (file.relevanceScore as any).score || 0);
+        const scoreObj = file.relevanceScore as Record<string, unknown>;
+        relevanceScore = String(scoreObj.overall || scoreObj.score || 0);
       } else {
         relevanceScore = '0';
       }
@@ -353,9 +354,22 @@ ${filesXml}
   }
 
   /**
+   * Safely extract meta-prompt from context package
+   */
+  private static getMetaPrompt(contextPackage: ContextPackage): string | Record<string, unknown> {
+    // ContextPackage might have metaPrompt property, check if it exists
+    const pkg = contextPackage as ContextPackage & { 
+      fullMetaPrompt?: string | Record<string, unknown>; 
+      metaPrompt?: string | Record<string, unknown>; 
+    };
+    
+    return pkg.fullMetaPrompt || pkg.metaPrompt || contextPackage.metaPrompt || '';
+  }
+
+  /**
    * Format enhanced meta-prompt (uses the actual enhanced meta prompt from context package)
    */
-  static formatEnhancedMetaPrompt(metaPrompt: string | any, taskType: 'refactoring' | 'feature_addition' | 'bug_fix' | 'performance_optimization' | 'general'): string {
+  static formatEnhancedMetaPrompt(metaPrompt: string | Record<string, unknown>, taskType: 'refactoring' | 'feature_addition' | 'bug_fix' | 'performance_optimization' | 'general'): string {
     // Handle undefined or null meta-prompt
     if (metaPrompt === undefined || metaPrompt === null) {
       return `<meta_prompt task_type="${this.escapeXML(taskType)}">
@@ -381,7 +395,7 @@ No meta-prompt available for this context package.
         // If it's an object, serialize it properly
         try {
           taskDecompositionStr = JSON.stringify(taskDecomposition, null, 2);
-        } catch (error) {
+        } catch {
           taskDecompositionStr = String(taskDecomposition);
         }
       } else {
@@ -397,7 +411,7 @@ No meta-prompt available for this context package.
       } else if (guidelines && typeof guidelines === 'object') {
         try {
           guidelinesStr = JSON.stringify(guidelines, null, 2);
-        } catch (error) {
+        } catch {
           guidelinesStr = String(guidelines);
         }
       } else {
@@ -406,9 +420,9 @@ No meta-prompt available for this context package.
 
       // Format as structured XML
       return `<meta_prompt task_type="${this.escapeXML(taskType)}">
-  <system_prompt>${this.escapeXML(systemPrompt)}</system_prompt>
-  <user_prompt>${this.escapeXML(userPrompt)}</user_prompt>
-  <context_summary>${this.escapeXML(contextSummary)}</context_summary>
+  <system_prompt>${this.escapeXML(String(systemPrompt))}</system_prompt>
+  <user_prompt>${this.escapeXML(String(userPrompt))}</user_prompt>
+  <context_summary>${this.escapeXML(String(contextSummary))}</context_summary>
   <task_decomposition>${this.escapeXML(taskDecompositionStr)}</task_decomposition>
   <guidelines>${this.escapeXML(guidelinesStr)}</guidelines>
   <ai_agent_response_format>${this.escapeXML(typeof aiAgentResponseFormat === 'string' ? aiAgentResponseFormat : JSON.stringify(aiAgentResponseFormat))}</ai_agent_response_format>

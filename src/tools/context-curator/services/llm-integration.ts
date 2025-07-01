@@ -21,7 +21,6 @@ import {
 import {
   buildPromptRefinementPrompt,
   PROMPT_REFINEMENT_SYSTEM_PROMPT,
-  validatePromptRefinementResponse,
   getPromptRefinementTaskId
 } from '../prompts/prompt-refinement.js';
 
@@ -54,8 +53,11 @@ import type {
   IntentAnalysisResult,
   PromptRefinementResult,
   FileDiscoveryResult,
+  FileDiscoveryFile,
   RelevanceScoringResult,
-  MetaPromptGenerationResult
+  MetaPromptGenerationResult,
+  ProjectTypeAnalysisResult,
+  LanguageAnalysisResult
 } from '../types/llm-tasks.js';
 
 /**
@@ -226,8 +228,8 @@ export class ContextCuratorLLMService {
     config: OpenRouterConfig,
     additionalContext?: {
       projectType?: string;
-      projectAnalysis?: any;
-      languageAnalysis?: any;
+      projectAnalysis?: ProjectTypeAnalysisResult;
+      languageAnalysis?: LanguageAnalysisResult;
       existingPatterns?: string[];
       patternConfidence?: { [pattern: string]: number };
       patternEvidence?: { [pattern: string]: string[] };
@@ -258,7 +260,8 @@ export class ContextCuratorLLMService {
         throw new Error('Invalid intent analysis response format');
       }
 
-      logger.info({ taskId, taskType: response.taskType, confidence: response.confidence }, 'Intent analysis completed successfully');
+      const typedResponse = response as IntentAnalysisResult;
+      logger.info({ taskId, taskType: typedResponse.taskType, confidence: typedResponse.confidence }, 'Intent analysis completed successfully');
       return response as IntentAnalysisResult;
 
     } catch (error) {
@@ -276,8 +279,8 @@ export class ContextCuratorLLMService {
     codemapContent: string,
     config: OpenRouterConfig,
     additionalContext?: {
-      projectAnalysis?: any;
-      languageAnalysis?: any;
+      projectAnalysis?: ProjectTypeAnalysisResult;
+      languageAnalysis?: LanguageAnalysisResult;
       existingPatterns?: string[];
       patternConfidence?: { [pattern: string]: number };
       patternEvidence?: { [pattern: string]: string[] };
@@ -396,8 +399,6 @@ export class ContextCuratorLLMService {
       // addedContext can be empty, so we don't throw an error for it
 
       // Calculate missing metrics if not provided
-      const originalLength = originalPrompt.length;
-      const refinedLength = obj.refinedPrompt.length;
       const enhancementCount = enhancementReasoning.length;
 
       // Import the helper functions
@@ -518,8 +519,8 @@ export class ContextCuratorLLMService {
         if (fixedResponse && validateFileDiscoveryResponse(fixedResponse)) {
           logger.info({
             taskId,
-            originalFiles: response && typeof response === 'object' && 'relevantFiles' in response && Array.isArray(response.relevantFiles) ? response.relevantFiles.map((f: any) => f.path) : [],
-            fixedFiles: fixedResponse.relevantFiles.map((f: any) => f.path)
+            originalFiles: response && typeof response === 'object' && 'relevantFiles' in response && Array.isArray(response.relevantFiles) ? response.relevantFiles.map((f: FileDiscoveryFile) => f.path) : [],
+            fixedFiles: fixedResponse.relevantFiles.map((f: FileDiscoveryFile) => f.path)
           }, 'Successfully fixed abstract file names');
           return fixedResponse;
         }
@@ -527,11 +528,12 @@ export class ContextCuratorLLMService {
         throw new Error('Invalid file discovery response format');
       }
 
+      const typedResponse = response as FileDiscoveryResult;
       logger.info({
         taskId,
-        filesFound: response.relevantFiles.length,
-        totalAnalyzed: response.totalFilesAnalyzed,
-        strategy: response.searchStrategy
+        filesFound: typedResponse.relevantFiles.length,
+        totalAnalyzed: typedResponse.totalFilesAnalyzed,
+        strategy: typedResponse.searchStrategy
       }, 'File discovery completed successfully');
 
       return response as FileDiscoveryResult;
@@ -551,9 +553,9 @@ export class ContextCuratorLLMService {
   /**
    * Fix abstract file names by mapping them to actual file paths from the codemap
    */
-  private fixAbstractFileNames(response: any, codemapContent: string, taskId: string): any {
+  private fixAbstractFileNames(response: unknown, codemapContent: string, taskId: string): FileDiscoveryResult | null {
     try {
-      if (!response || typeof response !== 'object' || !Array.isArray(response.relevantFiles)) {
+      if (!response || typeof response !== 'object' || !Array.isArray((response as Record<string, unknown>).relevantFiles)) {
         return null;
       }
 
@@ -579,7 +581,7 @@ export class ContextCuratorLLMService {
       }, 'Extracted actual file paths from codemap');
 
       // Fix each file in the response
-      const fixedFiles = response.relevantFiles.map((file: any) => {
+      const fixedFiles = (response as FileDiscoveryResult).relevantFiles.map((file: FileDiscoveryFile) => {
         if (!file || typeof file !== 'object' || typeof file.path !== 'string') {
           return file;
         }
@@ -612,7 +614,7 @@ export class ContextCuratorLLMService {
       });
 
       return {
-        ...response,
+        ...(response as FileDiscoveryResult),
         relevantFiles: fixedFiles
       };
     } catch (error) {
@@ -734,7 +736,19 @@ CRITICAL RETRY INSTRUCTIONS:
     fileDiscoveryResult: FileDiscoveryResult,
     config: OpenRouterConfig,
     scoringStrategy: 'semantic_similarity' | 'keyword_density' | 'structural_importance' | 'hybrid',
-    additionalContext: any,
+    additionalContext: {
+      codemapContent?: string;
+      projectAnalysis?: ProjectTypeAnalysisResult;
+      languageAnalysis?: LanguageAnalysisResult;
+      architecturalPatterns?: Record<string, unknown>;
+      priorityWeights?: {
+        semantic: number;
+        keyword: number;
+        structural: number;
+      };
+      categoryFilters?: string[];
+      minRelevanceThreshold?: number;
+    } | undefined,
     chunkSize: number = 20
   ): Promise<RelevanceScoringResult> {
     const files = fileDiscoveryResult.relevantFiles;
@@ -750,7 +764,15 @@ CRITICAL RETRY INSTRUCTIONS:
       scoringStrategy
     }, `Context Curator: Processing ${files.length} files in ${chunks.length} chunks of ${chunkSize} files each`);
 
-    const allFileScores: any[] = [];
+    const allFileScores: Array<{
+      filePath: string;
+      relevanceScore: number;
+      confidence: number;
+      reasoning: string;
+      categories: string[];
+      modificationLikelihood: 'very_high' | 'high' | 'medium' | 'low' | 'very_low';
+      estimatedTokens: number;
+    }> = [];
     let totalProcessingTime = 0;
 
     for (let i = 0; i < chunks.length; i++) {
@@ -812,7 +834,15 @@ Return the same JSON format but only for these ${chunk.length} files.`;
           const obj = chunkResponse as Record<string, unknown>;
 
           if (Array.isArray(obj.fileScores)) {
-            allFileScores.push(...obj.fileScores);
+            allFileScores.push(...obj.fileScores.map(score => ({
+              filePath: String(score.filePath || ''),
+              relevanceScore: Number(score.relevanceScore || 0),
+              confidence: Number(score.confidence || 0),
+              reasoning: String(score.reasoning || ''),
+              categories: Array.isArray(score.categories) ? score.categories.map(String) : [],
+              modificationLikelihood: (['very_high', 'high', 'medium', 'low', 'very_low'].includes(String(score.modificationLikelihood || 'low')) ? String(score.modificationLikelihood || 'low') : 'low') as 'very_high' | 'high' | 'medium' | 'low' | 'very_low',
+              estimatedTokens: Number(score.estimatedTokens || 0)
+            })));
             logger.info({
               chunkIndex: i + 1,
               scoresAdded: obj.fileScores.length,
@@ -820,7 +850,15 @@ Return the same JSON format but only for these ${chunk.length} files.`;
             }, `Context Curator: Added ${obj.fileScores.length} scores from chunk ${i + 1}`);
           } else if ('filePath' in obj && 'relevanceScore' in obj) {
             // Handle single file response in chunk
-            allFileScores.push(obj);
+            allFileScores.push({
+              filePath: String(obj.filePath || ''),
+              relevanceScore: Number(obj.relevanceScore || 0),
+              confidence: Number(obj.confidence || 0),
+              reasoning: String(obj.reasoning || ''),
+              categories: Array.isArray(obj.categories) ? obj.categories.map(String) : [],
+              modificationLikelihood: (['very_high', 'high', 'medium', 'low', 'very_low'].includes(String(obj.modificationLikelihood || 'low')) ? String(obj.modificationLikelihood || 'low') : 'low') as 'very_high' | 'high' | 'medium' | 'low' | 'very_low',
+              estimatedTokens: Number(obj.estimatedTokens || 0)
+            });
             logger.info({
               chunkIndex: i + 1,
               scoresAdded: 1,
@@ -891,9 +929,9 @@ Return the same JSON format but only for these ${chunk.length} files.`;
     scoringStrategy: 'semantic_similarity' | 'keyword_density' | 'structural_importance' | 'hybrid' = 'semantic_similarity',
     additionalContext?: {
       codemapContent?: string;
-      projectAnalysis?: any;
-      languageAnalysis?: any;
-      architecturalPatterns?: any;
+      projectAnalysis?: ProjectTypeAnalysisResult;
+      languageAnalysis?: LanguageAnalysisResult;
+      architecturalPatterns?: Record<string, unknown>;
       priorityWeights?: {
         semantic: number;
         keyword: number;
@@ -1161,8 +1199,8 @@ Return the same JSON format but only for these ${chunk.length} files.`;
     config: OpenRouterConfig,
     additionalContext?: {
       codemapContent?: string;
-      projectAnalysis?: any;
-      languageAnalysis?: any;
+      projectAnalysis?: ProjectTypeAnalysisResult;
+      languageAnalysis?: LanguageAnalysisResult;
       architecturalPatterns?: string[];
       patternConfidence?: { [pattern: string]: number };
       patternEvidence?: { [pattern: string]: string[] };
@@ -1225,10 +1263,10 @@ Return the same JSON format but only for these ${chunk.length} files.`;
         hasEstimatedComplexity: 'estimatedComplexity' in response,
         hasQualityScore: 'qualityScore' in response,
         hasAiAgentResponseFormat: 'aiAgentResponseFormat' in response,
-        hasEpicsArray: response.taskDecomposition && typeof response.taskDecomposition === 'object' && 'epics' in response.taskDecomposition ? Array.isArray((response.taskDecomposition as any).epics) : false,
+        hasEpicsArray: response && typeof response === 'object' && 'taskDecomposition' in response && response.taskDecomposition && typeof response.taskDecomposition === 'object' && 'epics' in response.taskDecomposition ? Array.isArray((response.taskDecomposition as Record<string, unknown>).epics) : false,
         isSingleEpic: 'id' in response && 'title' in response && 'tasks' in response,
         topLevelKeys: Object.keys(response),
-        taskDecompositionKeys: response.taskDecomposition && typeof response.taskDecomposition === 'object' ? Object.keys(response.taskDecomposition) : []
+        taskDecompositionKeys: response && typeof response === 'object' && 'taskDecomposition' in response && response.taskDecomposition && typeof response.taskDecomposition === 'object' ? Object.keys(response.taskDecomposition) : []
       } : null;
 
       logger.info({
@@ -1276,12 +1314,13 @@ Return the same JSON format but only for these ${chunk.length} files.`;
         }
       }
 
+      const finalResponse = response as MetaPromptGenerationResult;
       logger.info({
         taskId,
-        qualityScore: response.qualityScore,
-        complexity: response.estimatedComplexity,
-        epicsCount: response.taskDecomposition.epics.length,
-        guidelinesCount: response.guidelines.length
+        qualityScore: finalResponse.qualityScore,
+        complexity: finalResponse.estimatedComplexity,
+        epicsCount: finalResponse.taskDecomposition.epics.length,
+        guidelinesCount: finalResponse.guidelines.length
       }, 'Meta-prompt generation completed successfully');
 
       return response as MetaPromptGenerationResult;

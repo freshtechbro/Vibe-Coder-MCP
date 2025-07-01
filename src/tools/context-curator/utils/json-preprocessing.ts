@@ -114,7 +114,7 @@ function findAllValidJsonObjects(content: string): string[] {
 /**
  * Check if a parsed object looks like a relevance scoring response
  */
-function isRelevanceScoringResponse(parsed: any): boolean {
+function isRelevanceScoringResponse(parsed: Record<string, unknown>): boolean {
   if (!parsed || typeof parsed !== 'object') {
     return false;
   }

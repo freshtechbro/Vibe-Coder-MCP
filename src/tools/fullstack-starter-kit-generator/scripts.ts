@@ -1,6 +1,4 @@
-import { StarterKitDefinition, FileStructureItem } from './schema.js';
-import path from 'path';
-import fs from 'fs-extra';
+import { StarterKitDefinition } from './schema.js';
 
 /**
  * Output interface for generated scripts
