@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TaskStorage } from '../../../core/storage/task-storage.js';
-import { AtomicTask, TaskStatus, TaskPriority, TaskType } from '../../../types/task.js';
+import { AtomicTask } from '../../../types/task.js';
 
 // Mock FileUtils module
 vi.mock('../../../utils/file-utils.js', () => ({
@@ -31,7 +31,7 @@ vi.mock('../../../../../logger.js', () => ({
 
 describe('TaskStorage', () => {
   let taskStorage: TaskStorage;
-  let mockFileUtils: any;
+  let mockFileUtils: unknown;
   const testDataDir = '/test/data';
 
   // Test task data

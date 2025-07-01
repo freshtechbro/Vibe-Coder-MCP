@@ -16,8 +16,6 @@ vi.mock('../../../../../code-map-generator/optimization/universalClassOptimizer.
 // Import after mocking
 import {
   FileContentProcessor,
-  ProcessedFileContent,
-  ContentSection,
   FileProcessingOptions
 } from '../../../utils/file-processor.js';
 

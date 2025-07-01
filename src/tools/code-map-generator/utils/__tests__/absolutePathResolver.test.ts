@@ -3,7 +3,6 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import * as path from 'path';
 import { resolveImport, ResolvedImportResult, ImportResolverOptions } from '../importResolver.no-cache.js';
 import { ImportResolverManager } from '../ImportResolverManager.js';
 

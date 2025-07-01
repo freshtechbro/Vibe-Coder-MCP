@@ -5,7 +5,7 @@
  * compression, and caching capabilities.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PackageCache } from '../../../services/package-cache.js';
 import { PackageValidator } from '../../../services/package-validator.js';
 import { PackageCompressor } from '../../../services/package-compressor.js';
@@ -215,7 +215,7 @@ describe('Phase 7 Package Assembly Enhancements', () => {
         userPrompt: '' // Invalid empty prompt
       };
 
-      const result = await PackageValidator.validatePackage(invalidPackage as any);
+      const result = await PackageValidator.validatePackage(invalidPackage as Record<string, unknown>);
 
       expect(result.isValid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
@@ -408,7 +408,7 @@ describe('Phase 7 Package Assembly Enhancements', () => {
         }
       };
 
-      const validation = await PackageValidator.validatePackage(poorQualityPackage as any);
+      const validation = await PackageValidator.validatePackage(poorQualityPackage as Record<string, unknown>);
 
       expect(validation.isValid).toBe(false);
       expect(validation.qualityScore).toBeLessThan(0.4); // Adjusted expectation

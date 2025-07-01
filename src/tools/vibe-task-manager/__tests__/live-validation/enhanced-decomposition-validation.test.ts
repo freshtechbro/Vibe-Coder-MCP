@@ -25,7 +25,7 @@ describe('Enhanced Decomposition Live Validation', () => {
   let atomicDetector: AtomicTaskDetector;
   let autoResearchDetector: AutoResearchDetector;
   let contextService: ContextEnrichmentService;
-  let config: any;
+  let config: Record<string, unknown>;
 
   // Real project context for testing
   const testProjectContext: ProjectContext = {
@@ -551,7 +551,7 @@ describe('Enhanced Decomposition Live Validation', () => {
 
       try {
         // Test 1: Auto-research detector
-        const researchTest = await autoResearchDetector.evaluateResearchNeed({
+        await autoResearchDetector.evaluateResearchNeed({
           task: {
             id: 'HEALTH-001',
             title: 'Test task for health check',
@@ -587,7 +587,7 @@ describe('Enhanced Decomposition Live Validation', () => {
 
         // Test 3: Dependency detection
         const dependencyGraph = getDependencyGraph('health-check');
-        const depTest = dependencyGraph.applyIntelligentDependencyDetection([]);
+        dependencyGraph.applyIntelligentDependencyDetection([]);
         healthCheck.dependencyDetection = true;
 
         // Test 4: Enhanced validation
@@ -643,7 +643,7 @@ describe('Enhanced Decomposition Live Validation', () => {
       console.log('🩺 Integration Health Check Results:', healthCheck);
 
       // Verify all systems are operational
-      Object.entries(healthCheck).forEach(([system, healthy]) => {
+      Object.entries(healthCheck).forEach(([_system, healthy]) => {
         expect(healthy).toBe(true);
       });
 

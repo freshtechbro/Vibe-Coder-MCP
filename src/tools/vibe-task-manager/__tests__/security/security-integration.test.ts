@@ -33,11 +33,11 @@ describe('Epic 7.1: Security Integration Tests', () => {
 
   beforeEach(() => {
     // Reset singletons
-    (PathSecurityValidator as any).instance = null;
-    (ConcurrentAccessManager as any).instance = null;
-    (DataSanitizer as any).instance = null;
-    (SecurityAuditLogger as any).instance = null;
-    (AuthenticationIntegration as any).instance = null;
+    (PathSecurityValidator as Record<string, unknown>).instance = null;
+    (ConcurrentAccessManager as Record<string, unknown>).instance = null;
+    (DataSanitizer as Record<string, unknown>).instance = null;
+    (SecurityAuditLogger as Record<string, unknown>).instance = null;
+    (AuthenticationIntegration as Record<string, unknown>).instance = null;
 
     // Initialize components
     pathValidator = PathSecurityValidator.getInstance();
@@ -286,7 +286,7 @@ describe('Epic 7.1: Security Integration Tests', () => {
 
         // Simulate typical security operations
         await pathValidator.validatePath(path.join(process.cwd(), `test${i}.js`));
-        const sanitizeResult = await dataSanitizer.sanitizeInput(`test input ${i}`);
+        await dataSanitizer.sanitizeInput(`test input ${i}`);
         await auditLogger.logSecurityEvent(
           'data_access',
           'info',
@@ -385,7 +385,7 @@ describe('Epic 7.1: Security Integration Tests', () => {
       // Verify all components worked together
       const pathStats = pathValidator.getSecurityStatistics();
       const lockStats = concurrentAccess.getLockStatistics();
-      const sanitizeStats = dataSanitizer.getSanitizationStatistics();
+      // const sanitizeStats = dataSanitizer.getSanitizationStatistics();
       const auditStats = auditLogger.getAuditStatistics();
 
       expect(pathStats.totalValidations).toBeGreaterThan(0);

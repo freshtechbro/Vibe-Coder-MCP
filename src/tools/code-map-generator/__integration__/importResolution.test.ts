@@ -3,10 +3,6 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { executeCodeMapGeneration } from '../index.js';
-import { CodeMapGeneratorConfig } from '../types.js';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock the file system
 vi.mock('fs', () => {

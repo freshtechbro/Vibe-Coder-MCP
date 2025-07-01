@@ -516,7 +516,7 @@ describe('ResponseGenerator', () => {
         }
       };
 
-      const malformedResult: any = {
+      const malformedResult: Record<string, unknown> = {
         success: true,
         result: null // This could cause errors
       };

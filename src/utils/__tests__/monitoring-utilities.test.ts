@@ -375,7 +375,7 @@ describe('InitializationMonitor', () => {
 });
 
 describe('Memory Pressure Detection', () => {
-  let mockMemoryManager: any;
+  let mockMemoryManager: { getMemoryUsage: () => { heapUsed: number; heapTotal: number } };
 
   beforeEach(() => {
     vi.clearAllMocks();

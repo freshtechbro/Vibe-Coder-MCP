@@ -5,7 +5,7 @@
 
 import { rm } from 'fs/promises';
 import { resolve } from 'path';
-import logger from '../../../../logger.js';
+// import logger from '../../../../logger.js'; // Unused import
 import { performTestCleanup, checkMemoryLeaks } from './test-cleanup.js';
 
 export default async function globalTeardown() {

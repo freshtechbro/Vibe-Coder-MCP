@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { JobManagerIntegrationService, TaskJob, JobMetrics } from '../../integrations/job-manager-integration.js';
+import { JobManagerIntegrationService } from '../../integrations/job-manager-integration.js';
 import { jobManager, JobStatus } from '../../../../services/job-manager/index.js';
 
 // Mock the job manager
@@ -30,13 +30,13 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('JobManagerIntegrationService', () => {
   let service: JobManagerIntegrationService;
-  const mockJobManager = jobManager as any;
+  const mockJobManager = jobManager as Record<string, unknown>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset singleton
-    (JobManagerIntegrationService as any).instance = undefined;
+    (JobManagerIntegrationService as Record<string, unknown>).instance = undefined;
 
     service = JobManagerIntegrationService.getInstance({
       maxConcurrentJobs: 2,

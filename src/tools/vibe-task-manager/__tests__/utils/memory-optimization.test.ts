@@ -6,7 +6,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { 
   MemoryOptimizer,
-  testMemoryOptimizer,
   memoryUtils
 } from './memory-optimizer.js';
 import { 
@@ -90,7 +89,7 @@ describe('Memory Optimization', () => {
       testOptimizer.startMonitoring();
 
       // Create some objects to simulate memory usage
-      const largeArray: any[] = [];
+      const largeArray: unknown[] = [];
       for (let i = 0; i < 10000; i++) {
         largeArray.push({ data: 'test'.repeat(100), index: i });
       }
@@ -283,7 +282,7 @@ describe('Memory Optimization', () => {
       optimizer.startMonitoring();
 
       // Simulate consistent memory growth
-      const growingArray: any[] = [];
+      const growingArray: unknown[] = [];
       for (let i = 0; i < 3; i++) {
         // Add data and wait
         for (let j = 0; j < 1000; j++) {

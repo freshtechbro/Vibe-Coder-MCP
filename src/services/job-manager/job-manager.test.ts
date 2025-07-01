@@ -2,7 +2,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { jobManager, JobStatus } from './index.js'; // Import the singleton instance
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { sseNotifier } from '../sse-notifier/index.js'; // Import to potentially mock
 
 // Mock the sseNotifier if JobManager interacts with it directly (e.g., on setJobResult)
 vi.mock('../sse-notifier/index.js', () => ({

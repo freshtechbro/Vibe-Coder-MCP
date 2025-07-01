@@ -183,7 +183,7 @@ export class TestCoverageAnalyzer {
   /**
    * Load coverage data from coverage reports
    */
-  private async loadCoverageData(): Promise<any> {
+  private async loadCoverageData(): Promise<Record<string, unknown>> {
     try {
       const coverageJsonPath = path.join(this.coverageDirectory, 'coverage-final.json');
       if (await fs.pathExists(coverageJsonPath)) {
@@ -208,7 +208,7 @@ export class TestCoverageAnalyzer {
   /**
    * Parse LCOV coverage report
    */
-  private async parseLcovReport(): Promise<any> {
+  private async parseLcovReport(): Promise<Record<string, unknown>> {
     try {
       const lcovPath = path.join(this.coverageDirectory, 'lcov.info');
       if (await fs.pathExists(lcovPath)) {
@@ -224,8 +224,8 @@ export class TestCoverageAnalyzer {
   /**
    * Parse LCOV content into coverage data
    */
-  private parseLcovContent(content: string): any {
-    const files: any = {};
+  private parseLcovContent(content: string): Record<string, unknown> {
+    const files: Record<string, unknown> = {};
     const lines = content.split('\n');
     let currentFile = '';
 
@@ -262,7 +262,7 @@ export class TestCoverageAnalyzer {
   private async analyzeFiles(
     sourceFiles: string[],
     testFiles: string[],
-    coverageData: any
+    coverageData: Record<string, unknown>
   ): Promise<FileCoverageAnalysis[]> {
     const analysis: FileCoverageAnalysis[] = [];
 
@@ -282,7 +282,7 @@ export class TestCoverageAnalyzer {
     filePath: string,
     relativePath: string,
     testFiles: string[],
-    coverageData: any
+    coverageData: Record<string, unknown>
   ): Promise<FileCoverageAnalysis> {
     const fileCoverage = coverageData[filePath] || coverageData[relativePath];
     const metrics = this.extractMetrics(fileCoverage);
@@ -308,7 +308,7 @@ export class TestCoverageAnalyzer {
   /**
    * Extract metrics from coverage data
    */
-  private extractMetrics(fileCoverage: any): CoverageMetrics {
+  private extractMetrics(fileCoverage: Record<string, unknown>): CoverageMetrics {
     if (!fileCoverage) {
       return {
         lines: { total: 0, covered: 0, percentage: 0 },

@@ -2,7 +2,7 @@
  * Integration tests for class diagram generation with properties.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { generateMermaidClassDiagram } from '../../diagramGenerator.js';
 import { ClassInfo } from '../../codeMapModel.js';
 import { GraphNode, GraphEdge } from '../../graphBuilder.js';

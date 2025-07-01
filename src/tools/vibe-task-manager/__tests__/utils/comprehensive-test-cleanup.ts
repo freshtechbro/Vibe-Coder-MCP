@@ -16,10 +16,10 @@ export interface CleanupOptions {
 }
 
 export interface TestState {
-  mocks: Map<string, any>;
+  mocks: Map<string, unknown>;
   timers: Set<NodeJS.Timeout>;
   intervals: Set<NodeJS.Timeout>;
-  singletons: Map<string, any>;
+  singletons: Map<string, unknown>;
   moduleCache: Set<string>;
 }
 
@@ -61,7 +61,7 @@ export class ComprehensiveTestCleanup {
   /**
    * Register a mock for cleanup tracking
    */
-  registerMock(testName: string, mockName: string, mock: any): void {
+  registerMock(testName: string, mockName: string, mock: unknown): void {
     const state = this.testStates.get(testName);
     if (state) {
       state.mocks.set(mockName, mock);
@@ -81,7 +81,7 @@ export class ComprehensiveTestCleanup {
   /**
    * Register a singleton for cleanup tracking
    */
-  registerSingleton(testName: string, singletonName: string, singleton: any): void {
+  registerSingleton(testName: string, singletonName: string, singleton: unknown): void {
     const state = this.testStates.get(testName);
     if (state) {
       state.singletons.set(singletonName, singleton);
@@ -251,7 +251,7 @@ export class ComprehensiveTestCleanup {
   /**
    * Reset modules
    */
-  private resetModules(state: TestState): void {
+  private resetModules(_state: TestState): void {
     try {
       vi.resetModules();
     } catch (error) {
@@ -338,13 +338,13 @@ export const comprehensiveTestCleanup = ComprehensiveTestCleanup.getInstance();
 export const initializeTestState = (testName: string) => 
   comprehensiveTestCleanup.initializeTestState(testName);
 
-export const registerMock = (testName: string, mockName: string, mock: any) =>
+export const registerMock = (testName: string, mockName: string, mock: unknown) =>
   comprehensiveTestCleanup.registerMock(testName, mockName, mock);
 
 export const registerTimer = (testName: string, timer: NodeJS.Timeout) =>
   comprehensiveTestCleanup.registerTimer(testName, timer);
 
-export const registerSingleton = (testName: string, singletonName: string, singleton: any) =>
+export const registerSingleton = (testName: string, singletonName: string, singleton: unknown) =>
   comprehensiveTestCleanup.registerSingleton(testName, singletonName, singleton);
 
 export const cleanupTest = (testName: string, options?: CleanupOptions) =>

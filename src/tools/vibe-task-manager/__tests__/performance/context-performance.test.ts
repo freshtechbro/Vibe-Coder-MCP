@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ContextEnrichmentService, ContextRequest, ContextResult } from '../../services/context-enrichment-service.js';
-import { FileSearchEngine } from '../../../../services/file-search-service/file-search-engine.js';
-import { FileReaderService } from '../../../../services/file-search-service/file-reader-service.js';
-import { createMockConfig, createMockContext } from '../utils/test-setup.js';
 import { performance } from 'perf_hooks';
 
 /**
@@ -36,10 +33,8 @@ class PerformanceTestUtils {
 
 describe('Context Performance Benchmarks', () => {
   let contextService: ContextEnrichmentService;
-  let mockConfig: any;
 
   beforeEach(() => {
-    mockConfig = createMockConfig();
     contextService = ContextEnrichmentService.getInstance();
 
     // Clear any existing cache

@@ -34,8 +34,8 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('ContextCuratorLLMService - Relevance Scoring with Retry and Chunking', () => {
   let llmService: ContextCuratorLLMService;
-  let mockPerformResilientLlmCall: any;
-  let mockIntelligentJsonParse: any;
+  let mockPerformResilientLlmCall: unknown;
+  let mockIntelligentJsonParse: unknown;
 
   const mockConfig = {
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -66,11 +66,11 @@ describe('ContextCuratorLLMService - Relevance Scoring with Retry and Chunking',
     vi.restoreAllMocks();
 
     // Reset the singleton instance to ensure fresh state
-    (ContextCuratorLLMService as any).instance = null;
+    (ContextCuratorLLMService as unknown as { instance: unknown }).instance = null;
 
     // Import the actual module to get the mocked functions
     const llmHelperModule = await import('../../../../../utils/llmHelper.ts');
-    mockIntelligentJsonParse = llmHelperModule.intelligentJsonParse as any;
+    mockIntelligentJsonParse = llmHelperModule.intelligentJsonParse as unknown;
 
     // Ensure it's a proper mock function with complete reset
     if (!mockIntelligentJsonParse || !mockIntelligentJsonParse.mockReturnValueOnce) {
@@ -90,7 +90,7 @@ describe('ContextCuratorLLMService - Relevance Scoring with Retry and Chunking',
     llmService = ContextCuratorLLMService.getInstance();
 
     // Create a fresh spy with complete isolation
-    mockPerformResilientLlmCall = vi.spyOn(llmService as any, 'performResilientLlmCall');
+    mockPerformResilientLlmCall = vi.spyOn(llmService as unknown as { performResilientLlmCall: unknown }, 'performResilientLlmCall');
     mockPerformResilientLlmCall.mockClear();
     mockPerformResilientLlmCall.mockReset();
   });
@@ -109,7 +109,7 @@ describe('ContextCuratorLLMService - Relevance Scoring with Retry and Chunking',
     }
 
     // Reset singleton instance
-    (ContextCuratorLLMService as any).instance = null;
+    (ContextCuratorLLMService as unknown as { instance: unknown }).instance = null;
 
     // Restore all mocks
     vi.restoreAllMocks();

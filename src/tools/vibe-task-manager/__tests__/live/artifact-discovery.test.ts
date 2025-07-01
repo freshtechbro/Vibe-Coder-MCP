@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PRDIntegrationService } from '../../integrations/prd-integration.js';
 import { TaskListIntegrationService } from '../../integrations/task-list-integration.js';
 import type { PRDInfo, TaskListInfo } from '../../types/artifact-types.js';
-import logger from '../../../../logger.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

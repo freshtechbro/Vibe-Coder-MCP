@@ -5,15 +5,28 @@
  * (Phase 3: Prompt Refinement, Phase 5: Relevance Scoring, Phase 6: Meta-Prompt Generation)
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextCuratorService } from '../../../services/context-curator-service.js';
 import type { ProjectTypeAnalysisResult, LanguageAnalysisResult } from '../../../types/llm-tasks.js';
 
+/**
+ * Extended interface to access private methods for testing
+ */
+interface ContextCuratorServiceWithPrivateMethods extends ContextCuratorService {
+  getEnhancedPriorityWeights(strategy: string, projectAnalysis?: ProjectTypeAnalysisResult): { semantic: number; keyword: number; structural: number };
+  getProjectSpecificFilters(projectAnalysis?: ProjectTypeAnalysisResult): string[];
+  getAdaptiveThreshold(languageAnalysis?: LanguageAnalysisResult): number;
+  deriveConstraintsFromProject(projectAnalysis?: ProjectTypeAnalysisResult): string[];
+  deriveQualityRequirements(languageAnalysis?: LanguageAnalysisResult): string[];
+  inferTeamExpertise(projectAnalysis?: ProjectTypeAnalysisResult): string[];
+  getFrameworkGuidelines(frameworkStack?: string[]): string[];
+}
+
 describe('Phase 2D Enhanced Intent Analysis Integration', () => {
-  let service: ContextCuratorService;
+  let service: ContextCuratorServiceWithPrivateMethods;
 
   beforeEach(() => {
-    service = ContextCuratorService.getInstance();
+    service = ContextCuratorService.getInstance() as ContextCuratorServiceWithPrivateMethods;
   });
 
   describe('Enhanced Priority Weights', () => {
@@ -29,7 +42,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
       };
 
       // Access private method for testing
-      const weights = (service as any).getEnhancedPriorityWeights('semantic_similarity', projectAnalysis);
+      const weights = service.getEnhancedPriorityWeights('semantic_similarity', projectAnalysis);
 
       expect(weights).toHaveProperty('semantic');
       expect(weights).toHaveProperty('keyword');
@@ -49,7 +62,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['npm', 'Docker']
       };
 
-      const weights = (service as any).getEnhancedPriorityWeights('structural_importance', projectAnalysis);
+      const weights = service.getEnhancedPriorityWeights('structural_importance', projectAnalysis);
 
       expect(weights.structural).toBeGreaterThan(0.3); // Enhanced for backend
       expect(weights.semantic).toBe(0.2); // Base weight maintained
@@ -67,7 +80,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: []
       };
 
-      const weights = (service as any).getEnhancedPriorityWeights('semantic_similarity', projectAnalysis);
+      const weights = service.getEnhancedPriorityWeights('semantic_similarity', projectAnalysis);
 
       // Should match base weights for semantic_similarity
       expect(weights.semantic).toBe(0.7);
@@ -88,7 +101,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['npm']
       };
 
-      const filters = (service as any).getProjectSpecificFilters(projectAnalysis);
+      const filters = service.getProjectSpecificFilters(projectAnalysis);
 
       expect(filters).toContain('components');
       expect(filters).toContain('styles');
@@ -106,7 +119,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['npm']
       };
 
-      const filters = (service as any).getProjectSpecificFilters(projectAnalysis);
+      const filters = service.getProjectSpecificFilters(projectAnalysis);
 
       expect(filters).toContain('api');
       expect(filters).toContain('controllers');
@@ -125,7 +138,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['pip']
       };
 
-      const filters = (service as any).getProjectSpecificFilters(projectAnalysis);
+      const filters = service.getProjectSpecificFilters(projectAnalysis);
 
       expect(filters).toContain('models');
       expect(filters).toContain('views');
@@ -149,7 +162,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         totalFilesAnalyzed: 100
       };
 
-      const threshold = (service as any).getAdaptiveThreshold(languageAnalysis);
+      const threshold = service.getAdaptiveThreshold(languageAnalysis);
 
       expect(threshold).toBeLessThanOrEqual(0.3); // Lower threshold for good grammar support
       expect(threshold).toBeGreaterThan(0.2); // But not too low
@@ -169,13 +182,13 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         totalFilesAnalyzed: 200
       };
 
-      const threshold = (service as any).getAdaptiveThreshold(languageAnalysis);
+      const threshold = service.getAdaptiveThreshold(languageAnalysis);
 
       expect(threshold).toBeGreaterThan(0.3); // Higher threshold for many languages
     });
 
     it('should return default threshold when no language analysis is provided', () => {
-      const threshold = (service as any).getAdaptiveThreshold(undefined);
+      const threshold = service.getAdaptiveThreshold(undefined);
 
       expect(threshold).toBe(0.3); // Default threshold
     });
@@ -193,7 +206,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['npm']
       };
 
-      const constraints = (service as any).deriveConstraintsFromProject(projectAnalysis);
+      const constraints = service.deriveConstraintsFromProject(projectAnalysis);
 
       expect(constraints).toContain('Follow React hooks patterns');
       expect(constraints).toContain('Use functional components');
@@ -211,7 +224,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['Docker', 'Kubernetes']
       };
 
-      const constraints = (service as any).deriveConstraintsFromProject(projectAnalysis);
+      const constraints = service.deriveConstraintsFromProject(projectAnalysis);
 
       expect(constraints).toContain('Maintain service boundaries');
       expect(constraints).toContain('Use async communication');
@@ -234,7 +247,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         totalFilesAnalyzed: 50
       };
 
-      const requirements = (service as any).deriveQualityRequirements(languageAnalysis);
+      const requirements = service.deriveQualityRequirements(languageAnalysis);
 
       expect(requirements).toContain('Maintain strict typing');
       expect(requirements).toContain('Use proper interfaces');
@@ -255,7 +268,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         totalFilesAnalyzed: 75
       };
 
-      const requirements = (service as any).deriveQualityRequirements(languageAnalysis);
+      const requirements = service.deriveQualityRequirements(languageAnalysis);
 
       expect(requirements).toContain('Follow PEP 8 style guide');
       expect(requirements).toContain('Use type hints');
@@ -275,7 +288,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['npm']
       };
 
-      const expertise = (service as any).inferTeamExpertise(projectAnalysis);
+      const expertise = service.inferTeamExpertise(projectAnalysis);
 
       expect(expertise).toContain('Frontend Development');
       expect(expertise).toContain('UI/UX Design');
@@ -295,7 +308,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
         developmentEnvironment: ['Docker']
       };
 
-      const expertise = (service as any).inferTeamExpertise(projectAnalysis);
+      const expertise = service.inferTeamExpertise(projectAnalysis);
 
       expect(expertise).toContain('Backend Development');
       expect(expertise).toContain('API Design');
@@ -309,7 +322,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
     it('should generate React guidelines', () => {
       const frameworkStack = ['React'];
 
-      const guidelines = (service as any).getFrameworkGuidelines(frameworkStack);
+      const guidelines = service.getFrameworkGuidelines(frameworkStack);
 
       expect(guidelines).toContain('Use functional components with hooks');
       expect(guidelines).toContain('Implement proper error boundaries');
@@ -319,7 +332,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
     it('should generate Django guidelines', () => {
       const frameworkStack = ['Django'];
 
-      const guidelines = (service as any).getFrameworkGuidelines(frameworkStack);
+      const guidelines = service.getFrameworkGuidelines(frameworkStack);
 
       expect(guidelines).toContain('Follow Django project structure');
       expect(guidelines).toContain('Use Django ORM best practices');
@@ -329,7 +342,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
     it('should handle multiple frameworks', () => {
       const frameworkStack = ['React', 'Django'];
 
-      const guidelines = (service as any).getFrameworkGuidelines(frameworkStack);
+      const guidelines = service.getFrameworkGuidelines(frameworkStack);
 
       expect(guidelines.length).toBeGreaterThan(3); // Should have guidelines from both frameworks
       expect(guidelines).toContain('Use functional components with hooks'); // React
@@ -337,7 +350,7 @@ describe('Phase 2D Enhanced Intent Analysis Integration', () => {
     });
 
     it('should return empty array for undefined framework stack', () => {
-      const guidelines = (service as any).getFrameworkGuidelines(undefined);
+      const guidelines = service.getFrameworkGuidelines(undefined);
 
       expect(guidelines).toEqual([]);
     });

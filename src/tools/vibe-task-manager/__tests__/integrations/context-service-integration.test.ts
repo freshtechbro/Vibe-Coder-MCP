@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ContextServiceIntegration, EnhancedContextRequest, EnhancedContextResult } from '../../integrations/context-service-integration.js';
+import { ContextServiceIntegration, EnhancedContextRequest } from '../../integrations/context-service-integration.js';
 import { ContextEnrichmentService } from '../../services/context-enrichment-service.js';
-import { FileSearchService, FileReaderService } from '../../../../services/file-search-service/index.js';
 
 // Mock the dependencies
 vi.mock('../../services/context-enrichment-service.js', () => ({
@@ -46,15 +45,13 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('ContextServiceIntegration', () => {
   let service: ContextServiceIntegration;
-  let mockContextService: any;
-  let mockFileSearchService: any;
-  let mockFileReaderService: any;
+  let mockContextService: Record<string, unknown>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset singleton
-    (ContextServiceIntegration as any).instance = undefined;
+    (ContextServiceIntegration as Record<string, unknown>).instance = undefined;
 
     // Setup mocks
     mockContextService = {
@@ -65,20 +62,8 @@ describe('ContextServiceIntegration', () => {
       getPerformanceMetrics: vi.fn()
     };
 
-    mockFileSearchService = {
-      searchFiles: vi.fn(),
-      clearCache: vi.fn(),
-      getPerformanceMetrics: vi.fn(),
-      getCacheStats: vi.fn()
-    };
 
-    mockFileReaderService = {
-      readFiles: vi.fn(),
-      clearCache: vi.fn(),
-      getCacheStats: vi.fn()
-    };
-
-    (ContextEnrichmentService.getInstance as any).mockReturnValue(mockContextService);
+    (ContextEnrichmentService.getInstance as Record<string, unknown>).mockReturnValue(mockContextService);
 
     service = ContextServiceIntegration.getInstance({
       maxConcurrentRequests: 2,
@@ -87,10 +72,10 @@ describe('ContextServiceIntegration', () => {
     });
 
     // Clear any existing state
-    service['activeRequests'].clear();
-    service['contextCache'].clear();
-    service['sessionContexts'].clear();
-    service['contextSubscriptions'].clear();
+    (service as Record<string, unknown>)['activeRequests']?.clear?.();
+    (service as Record<string, unknown>)['contextCache']?.clear?.();
+    (service as Record<string, unknown>)['sessionContexts']?.clear?.();
+    (service as Record<string, unknown>)['contextSubscriptions']?.clear?.();
     service['progressSubscriptions'].clear();
     service['performanceMetrics'].clear();
   });

@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { performance } from 'perf_hooks';
 import { PerformanceBenchmarks, DEFAULT_BENCHMARK_CONFIG } from '../../utils/performance-benchmarks.js';
 import { PerformanceMonitor } from '../../utils/performance-monitor.js';
 import { TaskManagerMemoryManager } from '../../utils/memory-manager-integration.js';
-import { createMockConfig } from '../utils/test-setup.js';
 
 /**
  * Baseline Performance Tests for Epic 6.2
@@ -14,10 +12,8 @@ describe('Baseline Performance Tests - Epic 6.2', () => {
   let benchmarks: PerformanceBenchmarks;
   let performanceMonitor: PerformanceMonitor;
   let memoryManager: TaskManagerMemoryManager;
-  let mockConfig: any;
 
   beforeEach(() => {
-    mockConfig = createMockConfig();
 
     // Initialize memory manager first
     memoryManager = TaskManagerMemoryManager.getInstance({

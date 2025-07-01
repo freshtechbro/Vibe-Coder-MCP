@@ -45,7 +45,7 @@ describe('Singleton Initialization Guards', () => {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
       
       // Simulate circular initialization by setting the flag
-      (AgentOrchestrator as any).isInitializing = true;
+      (AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean }).isInitializing = true;
       
       const fallbackInstance = AgentOrchestrator.getInstance();
       
@@ -61,15 +61,15 @@ describe('Singleton Initialization Guards', () => {
       expect(typeof fallbackInstance.getAgents).toBe('function');
       
       // Reset the flag
-      (AgentOrchestrator as any).isInitializing = false;
+      (AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean }).isInitializing = false;
     });
 
     it('should create normal instance when not in circular initialization', async () => {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
       
       // Ensure flag is not set
-      (AgentOrchestrator as any).isInitializing = false;
-      (AgentOrchestrator as any).instance = null;
+      (AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean; instance: unknown }).isInitializing = false;
+      (AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean; instance: unknown }).instance = null;
       
       const instance = AgentOrchestrator.getInstance();
       
@@ -85,9 +85,9 @@ describe('Singleton Initialization Guards', () => {
       const { AgentRegistry } = await import('../../../agent-registry/index.js');
       
       // Simulate circular initialization
-      (AgentRegistry as any).isInitializing = true;
+      (AgentRegistry as typeof AgentRegistry & { isInitializing: boolean }).isInitializing = true;
       
-      const fallbackInstance = (AgentRegistry as any).getInstance();
+      const fallbackInstance = (AgentRegistry as typeof AgentRegistry & { getInstance: () => unknown }).getInstance();
       
       expect(fallbackInstance).toBeDefined();
       expect(mockConsole.warn).toHaveBeenCalledWith(
@@ -100,7 +100,7 @@ describe('Singleton Initialization Guards', () => {
       expect(typeof fallbackInstance.getOnlineAgents).toBe('function');
       
       // Reset the flag
-      (AgentRegistry as any).isInitializing = false;
+      (AgentRegistry as typeof AgentRegistry & { isInitializing: boolean }).isInitializing = false;
     });
   });
 
@@ -109,9 +109,9 @@ describe('Singleton Initialization Guards', () => {
       const { AgentTaskQueue } = await import('../../../agent-tasks/index.js');
       
       // Simulate circular initialization
-      (AgentTaskQueue as any).isInitializing = true;
+      (AgentTaskQueue as typeof AgentTaskQueue & { isInitializing: boolean }).isInitializing = true;
       
-      const fallbackInstance = (AgentTaskQueue as any).getInstance();
+      const fallbackInstance = (AgentTaskQueue as typeof AgentTaskQueue & { getInstance: () => unknown }).getInstance();
       
       expect(fallbackInstance).toBeDefined();
       expect(mockConsole.warn).toHaveBeenCalledWith(
@@ -124,7 +124,7 @@ describe('Singleton Initialization Guards', () => {
       expect(typeof fallbackInstance.getQueueLength).toBe('function');
       
       // Reset the flag
-      (AgentTaskQueue as any).isInitializing = false;
+      (AgentTaskQueue as typeof AgentTaskQueue & { isInitializing: boolean }).isInitializing = false;
     });
   });
 
@@ -133,9 +133,9 @@ describe('Singleton Initialization Guards', () => {
       const { AgentResponseProcessor } = await import('../../../agent-response/index.js');
       
       // Simulate circular initialization
-      (AgentResponseProcessor as any).isInitializing = true;
+      (AgentResponseProcessor as typeof AgentResponseProcessor & { isInitializing: boolean }).isInitializing = true;
       
-      const fallbackInstance = (AgentResponseProcessor as any).getInstance();
+      const fallbackInstance = (AgentResponseProcessor as typeof AgentResponseProcessor & { getInstance: () => unknown }).getInstance();
       
       expect(fallbackInstance).toBeDefined();
       expect(mockConsole.warn).toHaveBeenCalledWith(
@@ -148,7 +148,7 @@ describe('Singleton Initialization Guards', () => {
       expect(typeof fallbackInstance.getAllResponses).toBe('function');
       
       // Reset the flag
-      (AgentResponseProcessor as any).isInitializing = false;
+      (AgentResponseProcessor as typeof AgentResponseProcessor & { isInitializing: boolean }).isInitializing = false;
     });
   });
 
@@ -157,7 +157,7 @@ describe('Singleton Initialization Guards', () => {
       const { AgentIntegrationBridge } = await import('../../services/agent-integration-bridge.js');
       
       // Simulate circular initialization
-      (AgentIntegrationBridge as any).isInitializing = true;
+      (AgentIntegrationBridge as typeof AgentIntegrationBridge & { isInitializing: boolean }).isInitializing = true;
       
       const fallbackInstance = AgentIntegrationBridge.getInstance();
       
@@ -173,7 +173,7 @@ describe('Singleton Initialization Guards', () => {
       expect(typeof fallbackInstance.startAutoSync).toBe('function');
       
       // Reset the flag
-      (AgentIntegrationBridge as any).isInitializing = false;
+      (AgentIntegrationBridge as typeof AgentIntegrationBridge & { isInitializing: boolean }).isInitializing = false;
     });
   });
 
@@ -182,13 +182,13 @@ describe('Singleton Initialization Guards', () => {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
       
       // Get fallback instance
-      (AgentOrchestrator as any).isInitializing = true;
+      (AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean }).isInitializing = true;
       const fallback = AgentOrchestrator.getInstance();
-      (AgentOrchestrator as any).isInitializing = false;
+      (AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean }).isInitializing = false;
       
       // Call fallback methods
-      await fallback.registerAgent({} as any);
-      await fallback.assignTask({} as any);
+      await fallback.registerAgent({} as Record<string, unknown>);
+      await fallback.assignTask({} as Record<string, unknown>);
       await fallback.getAgents();
       
       // Verify warnings were logged
@@ -209,14 +209,14 @@ describe('Singleton Initialization Guards', () => {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
       
       // Reset instance
-      (AgentOrchestrator as any).instance = null;
-      (AgentOrchestrator as any).isInitializing = false;
+      (AgentOrchestrator as typeof AgentOrchestrator & { instance: unknown; isInitializing: boolean }).instance = null;
+      (AgentOrchestrator as typeof AgentOrchestrator & { instance: unknown; isInitializing: boolean }).isInitializing = false;
       
       // Create instance
       const instance = AgentOrchestrator.getInstance();
       
       // Verify flag is reset
-      expect((AgentOrchestrator as any).isInitializing).toBe(false);
+      expect((AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean }).isInitializing).toBe(false);
       expect(instance).toBeDefined();
     });
 
@@ -224,7 +224,7 @@ describe('Singleton Initialization Guards', () => {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
       
       // Reset instance
-      (AgentOrchestrator as any).instance = null;
+      (AgentOrchestrator as typeof AgentOrchestrator & { instance: unknown }).instance = null;
       
       // Mock constructor to throw
       const originalConstructor = AgentOrchestrator.prototype.constructor;
@@ -234,12 +234,12 @@ describe('Singleton Initialization Guards', () => {
       
       try {
         AgentOrchestrator.getInstance();
-      } catch (error) {
+      } catch {
         // Expected to throw
       }
       
       // Verify flag is reset even after error
-      expect((AgentOrchestrator as any).isInitializing).toBe(false);
+      expect((AgentOrchestrator as typeof AgentOrchestrator & { isInitializing: boolean }).isInitializing).toBe(false);
       
       // Restore original constructor
       AgentOrchestrator.prototype.constructor = originalConstructor;

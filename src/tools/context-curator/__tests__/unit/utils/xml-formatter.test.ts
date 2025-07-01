@@ -20,9 +20,9 @@ describe('XMLFormatter', () => {
     });
 
     it('should handle non-string inputs', () => {
-      expect(XMLFormatter.escapeXML(123 as any)).toBe('123');
-      expect(XMLFormatter.escapeXML(null as any)).toBe('null');
-      expect(XMLFormatter.escapeXML(undefined as any)).toBe('undefined');
+      expect(XMLFormatter.escapeXML(123 as unknown as string)).toBe('123');
+      expect(XMLFormatter.escapeXML(null as unknown as string)).toBe('null');
+      expect(XMLFormatter.escapeXML(undefined as unknown as string)).toBe('undefined');
     });
 
     it('should remove control characters', () => {

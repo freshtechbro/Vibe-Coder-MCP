@@ -51,7 +51,7 @@ describe('WorkflowAwareAgentManager', () => {
 
   beforeEach(() => {
     // Reset singleton instance before each test
-    (WorkflowAwareAgentManager as any).instance = null;
+    (WorkflowAwareAgentManager as unknown as { instance: unknown }).instance = null;
     vi.clearAllMocks();
   });
 
@@ -143,7 +143,7 @@ describe('WorkflowAwareAgentManager', () => {
       manager = WorkflowAwareAgentManager.getInstance();
       
       // Access the private getAgentOrchestrator method through type assertion
-      const getAgentOrchestrator = (manager as any).getAgentOrchestrator;
+      const getAgentOrchestrator = (manager as unknown as { getAgentOrchestrator: () => unknown }).getAgentOrchestrator;
       
       expect(typeof getAgentOrchestrator).toBe('function');
       
@@ -157,21 +157,21 @@ describe('WorkflowAwareAgentManager', () => {
       manager = WorkflowAwareAgentManager.getInstance();
       
       // Verify that agentOrchestrator starts as null
-      expect((manager as any).agentOrchestrator).toBeNull();
+      expect((manager as unknown as { agentOrchestrator: unknown }).agentOrchestrator).toBeNull();
       
       // Call getAgentOrchestrator to trigger lazy initialization
-      const getAgentOrchestrator = (manager as any).getAgentOrchestrator;
+      const getAgentOrchestrator = (manager as unknown as { getAgentOrchestrator: () => unknown }).getAgentOrchestrator;
       const orchestrator = await getAgentOrchestrator.call(manager);
       
       // Should now have an orchestrator instance
       expect(orchestrator).toBeDefined();
-      expect((manager as any).agentOrchestrator).not.toBeNull();
+      expect((manager as unknown as { agentOrchestrator: unknown }).agentOrchestrator).not.toBeNull();
     });
 
     it('should cache AgentOrchestrator instance after first access', async () => {
       manager = WorkflowAwareAgentManager.getInstance();
       
-      const getAgentOrchestrator = (manager as any).getAgentOrchestrator;
+      const getAgentOrchestrator = (manager as unknown as { getAgentOrchestrator: () => unknown }).getAgentOrchestrator;
       
       // First call should create instance
       const orchestrator1 = await getAgentOrchestrator.call(manager);

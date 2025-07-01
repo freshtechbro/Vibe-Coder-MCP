@@ -11,8 +11,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { performResearchQuery } from '../../../utils/researchHelper.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import {
-  enhancedModuleSelectionResponseSchema,
-  unifiedTemplateSchema,
   validateEnhancedModuleSelectionWithErrors,
   validateUnifiedTemplateWithErrors,
   type EnhancedModuleSelectionResponse,
@@ -94,7 +92,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
         .mockResolvedValueOnce(mockResearchResults[2]);
 
       // Act
-      const result = await simulateEnhancedResearch('e-commerce platform', mockConfig);
+      await simulateEnhancedResearch('e-commerce platform', mockConfig);
 
       // Assert - Verify 3 research queries were made
       expect(mockPerformResearchQuery).toHaveBeenCalledTimes(3);
@@ -144,7 +142,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
         .mockResolvedValueOnce(mockResearchResults[2]);
 
       // Act
-      const result = await simulateEnhancedResearch('e-commerce platform', mockConfig);
+      await simulateEnhancedResearch('e-commerce platform', mockConfig);
 
       // Assert - Check that research context is properly structured
       expect(mockPerformResearchQuery).toHaveBeenCalledTimes(3);
@@ -239,7 +237,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
         .mockResolvedValueOnce(mockResearchResults[2]);
 
       // Act
-      const result = await simulateEnhancedResearch('e-commerce platform', mockConfig);
+      await simulateEnhancedResearch('e-commerce platform', mockConfig);
 
       // Assert
       expect(mockPerformResearchQuery).toHaveBeenCalledTimes(3);
@@ -271,7 +269,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
         .mockResolvedValueOnce(mockResearchResults[2]);
 
       // Act
-      const result = await simulateEnhancedResearch('test platform', mockConfig);
+      await simulateEnhancedResearch('test platform', mockConfig);
 
       // Assert
       expect(mockPerformResearchQuery).toHaveBeenCalledTimes(3);

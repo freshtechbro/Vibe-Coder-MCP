@@ -3,7 +3,6 @@ import { DecompositionSummaryGenerator, SummaryConfig } from '../../services/dec
 import { DecompositionService } from '../../services/decomposition-service.js';
 import { DecompositionSession } from '../../services/decomposition-service.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
-import * as path from 'path';
 
 // Mock fs-extra to track calls and simulate both success and failure scenarios
 vi.mock('fs-extra', () => ({
@@ -30,8 +29,8 @@ vi.mock('../../utils/config-loader.js', () => ({
 describe('fs-extra File Writing Operations Tests', () => {
   let summaryGenerator: DecompositionSummaryGenerator;
   let mockSession: DecompositionSession;
-  let mockWriteFile: any;
-  let mockEnsureDir: any;
+  let mockWriteFile: Record<string, unknown>;
+  let mockEnsureDir: Record<string, unknown>;
 
   beforeEach(async () => {
     // Reset mocks
@@ -310,7 +309,7 @@ describe('fs-extra File Writing Operations Tests', () => {
       };
 
       // Act - Call the private method through reflection
-      const method = (decompositionService as any).generateAndSaveVisualDependencyGraphs;
+      const method = (decompositionService as Record<string, unknown>).generateAndSaveVisualDependencyGraphs;
       await method.call(decompositionService, mockSession, mockDependencyOps);
 
       // Assert
@@ -352,7 +351,7 @@ describe('fs-extra File Writing Operations Tests', () => {
       };
 
       // Act - Should not throw
-      const method = (decompositionService as any).generateAndSaveVisualDependencyGraphs;
+      const method = (decompositionService as Record<string, unknown>).generateAndSaveVisualDependencyGraphs;
       await expect(
         method.call(decompositionService, mockSession, mockDependencyOps)
       ).resolves.not.toThrow();
@@ -374,7 +373,7 @@ describe('fs-extra File Writing Operations Tests', () => {
       mockWriteFile.mockRejectedValue(new Error('Mock writeFile error in dependency graphs'));
 
       // Act - Should not throw
-      const method = (decompositionService as any).generateAndSaveVisualDependencyGraphs;
+      const method = (decompositionService as Record<string, unknown>).generateAndSaveVisualDependencyGraphs;
       await expect(
         method.call(decompositionService, mockSession, mockDependencyOps)
       ).resolves.not.toThrow();

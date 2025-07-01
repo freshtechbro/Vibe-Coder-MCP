@@ -57,7 +57,7 @@ describe('ClangdAdapter', () => {
     const filePath = path.join(allowedDir, 'test.cpp');
 
     // Mock the exec function to return a valid path for clangd
-    vi.mocked(exec).mockImplementation((cmd: string, options: any, callback: any) => {
+    vi.mocked(exec).mockImplementation((cmd: string, options: import('child_process').ExecOptions | ((error: import('child_process').ExecException | null, stdout: string, stderr: string) => void), callback?: (error: import('child_process').ExecException | null, stdout: string, stderr: string) => void) => {
       if (typeof options === 'function') {
         callback = options;
         options = {};
@@ -76,7 +76,7 @@ describe('ClangdAdapter', () => {
         on: vi.fn(),
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() }
-      } as any;
+      } as import('child_process').ChildProcess;
     });
 
     // Mock the readFileSync function to return a valid C++ file

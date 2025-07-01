@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs/promises';
-import path from 'path';
 import { TaskListIntegrationService } from '../../integrations/task-list-integration.js';
 import type { ParsedTaskList } from '../../types/artifact-types.js';
 
@@ -28,7 +27,7 @@ describe('TaskListIntegrationService', () => {
       isFile: () => true,
       mtime: new Date('2023-12-01'),
       size: 2048
-    } as any);
+    } as Record<string, unknown>);
 
     mockFs.access.mockResolvedValue(undefined);
     mockFs.readFile.mockResolvedValue(mockTaskListContent);
@@ -42,7 +41,7 @@ describe('TaskListIntegrationService', () => {
         isSymbolicLink: () => false,
         isFIFO: () => false,
         isSocket: () => false
-      } as any
+      } as Record<string, unknown>
     ]);
 
     // Mock environment variables
@@ -102,7 +101,7 @@ describe('TaskListIntegrationService', () => {
 
     it('should return null when no matching task list exists', async () => {
       mockFs.readdir.mockResolvedValue([
-        { name: 'completely-different-file.md', isFile: () => true } as any
+        { name: 'completely-different-file.md', isFile: () => true } as Record<string, unknown>
       ]);
 
       const taskListInfo = await service.detectExistingTaskList('/completely/different/project');
@@ -130,7 +129,7 @@ describe('TaskListIntegrationService', () => {
         isFile: () => true,
         mtime: new Date('2023-12-01'),
         size: 2048
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await service.parseTaskList(testTaskListPath);
 
@@ -158,7 +157,7 @@ describe('TaskListIntegrationService', () => {
         isFile: () => true,
         mtime: new Date('2023-12-01'),
         size: 2048
-      } as any);
+      } as Record<string, unknown>);
       
       mockFs.readFile.mockResolvedValue('Invalid task list content');
 
@@ -243,7 +242,7 @@ describe('TaskListIntegrationService', () => {
         isFile: () => true,
         mtime: new Date('2023-12-01'),
         size: 2048
-      } as any);
+      } as Record<string, unknown>);
 
       const metadata = await service.getTaskListMetadata(testTaskListPath);
 

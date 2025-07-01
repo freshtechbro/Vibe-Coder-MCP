@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { validateDebugConfig, validateCacheConfig } from '../../configValidator.js';
 import { DebugConfig, CacheConfig } from '../../types.js';
-import path from 'path';
 import fs from 'fs';
 
 // Mock the logger

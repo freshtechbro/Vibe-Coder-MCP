@@ -366,7 +366,7 @@ async function savePRDScenarioOutputs(
   parsedPRD: ParsedPRD,
   projectContext: ProjectContext,
   generatedTasks: AtomicTask[],
-  finalReport: any
+  finalReport: Record<string, unknown>
 ): Promise<void> {
   try {
     const baseOutputDir = process.env.VIBE_CODER_OUTPUT_DIR || path.join(process.cwd(), 'VibeCoderOutput');

@@ -4,8 +4,8 @@ import { createMockConfig, createMockContext, PerformanceTestUtils } from '../ut
 import { vibeTaskManagerExecutor } from '../../index.js';
 
 describe('Vibe Task Manager - Performance Tests', () => {
-  let mockConfig: any;
-  let mockContext: any;
+  let mockConfig: Record<string, unknown>;
+  let mockContext: Record<string, unknown>;
 
   beforeEach(() => {
     mockConfig = createMockConfig();

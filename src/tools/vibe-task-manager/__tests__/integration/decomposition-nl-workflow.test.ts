@@ -7,17 +7,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
-  mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 import { CommandGateway } from '../../nl/command-gateway.js';
-import { OpenRouterConfig } from '../../../../types/workflow.js';
-import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import logger from '../../../../logger.js';
 
 // Mock all external dependencies to avoid live LLM calls
@@ -45,7 +40,6 @@ vi.mock('../../../../utils/llmHelper.js', () => ({
 
 describe('Decomposition Natural Language Workflow Integration', () => {
   let commandGateway: CommandGateway;
-  let mockConfig: OpenRouterConfig;
 
   beforeEach(async () => {
     // Clear all mocks before each test
@@ -68,19 +62,6 @@ describe('Decomposition Natural Language Workflow Integration', () => {
     
     // Initialize CommandGateway
     commandGateway = CommandGateway.getInstance();
-    
-    // Mock OpenRouter config for testing
-    mockConfig = {
-      baseUrl: 'https://openrouter.ai/api/v1',
-      apiKey: 'test-key',
-      geminiModel: 'google/gemini-2.5-flash-preview-05-20',
-      perplexityModel: 'perplexity/sonar-deep-research',
-      llm_mapping: {
-        intent_recognition: 'google/gemini-2.5-flash-preview-05-20',
-        task_decomposition: 'google/gemini-2.5-flash-preview-05-20',
-        default_generation: 'google/gemini-2.5-flash-preview-05-20'
-      }
-    };
   });
 
   afterEach(() => {
@@ -193,7 +174,7 @@ describe('Decomposition Natural Language Workflow Integration', () => {
         expect(result.toolParams.options).toBeDefined();
         
         // Should capture detailed decomposition requirements
-        const options = result.toolParams.options as Record<string, any>;
+        const options = result.toolParams.options as Record<string, unknown>;
         expect(options.details || options.scope).toBeDefined();
       } else {
         logger.info({ result }, 'Complex project decomposition intent recognition failed - this may be expected in test environment');
@@ -235,7 +216,7 @@ describe('Decomposition Natural Language Workflow Integration', () => {
         expect(entities.some(e => e.type === 'project_name')).toBe(true);
         
         // Check that tool parameters include mapped entities
-        const options = result.toolParams.options as Record<string, any>;
+        const options = result.toolParams.options as Record<string, unknown>;
         expect(options).toBeDefined();
       }
     });
@@ -250,7 +231,7 @@ describe('Decomposition Natural Language Workflow Integration', () => {
 
       if (result.success && result.intent.intent === 'decompose_task') {
         // Verify that decomposition-specific entities are handled
-        const options = result.toolParams.options as Record<string, any>;
+        const options = result.toolParams.options as Record<string, unknown>;
         expect(options).toBeDefined();
         
         // Should not throw errors for decomposition_scope or decomposition_details

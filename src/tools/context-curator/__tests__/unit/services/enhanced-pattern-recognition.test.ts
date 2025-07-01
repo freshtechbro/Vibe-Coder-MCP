@@ -19,9 +19,9 @@ describe('Enhanced Pattern Recognition', () => {
     mockConfigLoader = {
       loadConfig: () => Promise.resolve({ success: true, config: {} }),
       getLLMModel: () => 'test-model'
-    } as any;
+    } as unknown as ConfigLoader;
 
-    mockLLMService = {} as any;
+    mockLLMService = {} as unknown as LLMIntegrationService;
     service = new ContextCuratorService(mockConfigLoader, mockLLMService);
   });
 
@@ -40,7 +40,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── entities/
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Layered Architecture');
       expect(result.confidence['Layered Architecture']).toBeGreaterThan(0);
@@ -61,7 +61,7 @@ describe('Enhanced Pattern Recognition', () => {
         └── service-mesh.yaml
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Microservices Architecture');
       expect(result.confidence['Microservices Architecture']).toBeGreaterThan(0);
@@ -86,7 +86,7 @@ describe('Enhanced Pattern Recognition', () => {
         rabbitmq/
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Event-Driven Architecture');
       expect(result.confidence['Event-Driven Architecture']).toBeGreaterThan(0);
@@ -111,7 +111,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── write-model.ts
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('CQRS');
       expect(result.confidence['CQRS']).toBeGreaterThan(0);
@@ -137,7 +137,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── database/
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Hexagonal Architecture');
       expect(result.confidence['Hexagonal Architecture']).toBeGreaterThan(0);
@@ -163,7 +163,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── database/
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Clean Architecture');
       expect(result.confidence['Clean Architecture']).toBeGreaterThan(0);
@@ -187,7 +187,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── base-controller.ts
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('MVC');
       expect(result.confidence['MVC']).toBeGreaterThan(0);
@@ -212,7 +212,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── command.ts
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('MVVM');
       expect(result.confidence['MVVM']).toBeGreaterThan(0);
@@ -233,7 +233,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── logger.ts // static instance
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Singleton Pattern');
       expect(result.confidence['Singleton Pattern']).toBeGreaterThan(0);
@@ -252,7 +252,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── service-creator.ts
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Factory Pattern');
       expect(result.confidence['Factory Pattern']).toBeGreaterThan(0);
@@ -274,7 +274,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── data-observable.ts
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Observer Pattern');
       expect(result.confidence['Observer Pattern']).toBeGreaterThan(0);
@@ -295,7 +295,7 @@ describe('Enhanced Pattern Recognition', () => {
             └── repository-impl.ts
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       expect(result.patterns).toContain('Repository Pattern');
       expect(result.confidence['Repository Pattern']).toBeGreaterThan(0);
@@ -316,7 +316,7 @@ describe('Enhanced Pattern Recognition', () => {
         └── observers/
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       Object.values(result.confidence).forEach(confidence => {
         expect(confidence).toBeGreaterThanOrEqual(0);
@@ -332,7 +332,7 @@ describe('Enhanced Pattern Recognition', () => {
         └── factories/
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       result.patterns.forEach(pattern => {
         expect(result.evidence[pattern]).toBeDefined();
@@ -364,7 +364,7 @@ describe('Enhanced Pattern Recognition', () => {
         └── docker-compose.yml
       `;
 
-      const result = (service as any).extractArchitecturalPatterns(codemap);
+      const result = (service as unknown as { extractArchitecturalPatterns: (codemap: string) => { patterns: string[]; confidence: Record<string, number>; evidence: Record<string, string[]> } }).extractArchitecturalPatterns(codemap);
       
       // Should detect multiple patterns
       expect(result.patterns.length).toBeGreaterThan(3);

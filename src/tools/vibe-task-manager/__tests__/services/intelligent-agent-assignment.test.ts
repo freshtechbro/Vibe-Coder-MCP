@@ -10,9 +10,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { IntelligentAgentAssignmentService, AgentAssignmentConfig, WorkloadDistributionStrategy } from '../../services/intelligent-agent-assignment.js';
-import { Agent, AgentCapability, TaskAssignment } from '../../types/agent.js';
-import { AtomicTask, TaskStatus } from '../../types/task.js';
+import { IntelligentAgentAssignmentService, AgentAssignmentConfig } from '../../services/intelligent-agent-assignment.js';
+import { Agent } from '../../types/agent.js';
+import { AtomicTask } from '../../types/task.js';
 
 // Mock logger
 vi.mock('../../../logger.js', () => ({
@@ -584,7 +584,7 @@ describe('IntelligentAgentAssignmentService', () => {
     });
 
     it('should emit workload events', async () => {
-      const events: any[] = [];
+      const events: unknown[] = [];
       
       assignmentService.on('workload:imbalance', (event) => {
         events.push(event);

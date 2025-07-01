@@ -304,7 +304,7 @@ describe('AdaptiveTimeoutManager', () => {
     }, 3000);
 
     it('should get operation progress', async () => {
-      let progressCallback: any;
+      let progressCallback: unknown;
 
       const operation = vi.fn().mockImplementation(async (cancellationToken, callback) => {
         progressCallback = callback;

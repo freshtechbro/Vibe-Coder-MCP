@@ -5,12 +5,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
-  mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 import { CommandGateway } from '../../nl/command-gateway.js';
@@ -66,7 +63,6 @@ describe('Natural Language Command Processing Integration', () => {
   let commandGateway: CommandGateway;
   let commandHandlers: CommandHandlers;
   let responseGenerator: ResponseGenerator;
-  let mockIntentRecognizer: any;
 
   beforeEach(() => {
     // Clear all mocks before each test
@@ -90,7 +86,7 @@ describe('Natural Language Command Processing Integration', () => {
     commandGateway = CommandGateway.getInstance();
     commandHandlers = CommandHandlers.getInstance();
     responseGenerator = ResponseGenerator.getInstance();
-    mockIntentRecognizer = IntentRecognitionEngine.getInstance();
+    IntentRecognitionEngine.getInstance();
   });
   
   afterEach(() => {

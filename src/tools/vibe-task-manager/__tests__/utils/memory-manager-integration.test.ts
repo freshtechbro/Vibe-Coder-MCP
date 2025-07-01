@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TaskManagerMemoryManager, TaskManagerMemoryStats, MemoryAlert } from '../../utils/memory-manager-integration.js';
+import { TaskManagerMemoryManager, TaskManagerMemoryStats } from '../../utils/memory-manager-integration.js';
 
 // Mock the MemoryManager from code-map-generator
 vi.mock('../../../code-map-generator/cache/memoryManager.js', () => ({
@@ -32,7 +32,7 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('TaskManagerMemoryManager', () => {
   let memoryManager: TaskManagerMemoryManager;
-  let mockConfig: any;
+  let mockConfig: Record<string, unknown>;
 
   beforeEach(() => {
     mockConfig = {
@@ -45,7 +45,7 @@ describe('TaskManagerMemoryManager', () => {
     };
 
     // Reset singleton
-    (TaskManagerMemoryManager as any).instance = null;
+    (TaskManagerMemoryManager as Record<string, unknown> as { instance: unknown }).instance = null;
   });
 
   afterEach(() => {
@@ -100,8 +100,8 @@ describe('TaskManagerMemoryManager', () => {
 
     it('should maintain statistics history', async () => {
       // Manually trigger stats collection to ensure we have data
-      (memoryManager as any).collectMemoryStats();
-      (memoryManager as any).collectMemoryStats();
+      (memoryManager as Record<string, unknown>).collectMemoryStats();
+      (memoryManager as Record<string, unknown>).collectMemoryStats();
 
       const history = memoryManager.getMemoryStatsHistory();
       expect(history.length).toBeGreaterThan(0);
@@ -117,7 +117,7 @@ describe('TaskManagerMemoryManager', () => {
     it('should limit statistics history to 100 entries', async () => {
       // Simulate many stats collections
       for (let i = 0; i < 150; i++) {
-        (memoryManager as any).collectMemoryStats();
+        (memoryManager as Record<string, unknown>).collectMemoryStats();
       }
 
       const history = memoryManager.getMemoryStatsHistory();
@@ -147,8 +147,8 @@ describe('TaskManagerMemoryManager', () => {
       };
 
       // Inject mock stats
-      (memoryManager as any).memoryStats = [mockStats];
-      (memoryManager as any).checkMemoryThresholds();
+      (memoryManager as unknown).memoryStats = [mockStats];
+      (memoryManager as unknown).checkMemoryThresholds();
 
       const alerts = memoryManager.getActiveAlerts();
       expect(alerts.length).toBeGreaterThan(0);
@@ -174,8 +174,8 @@ describe('TaskManagerMemoryManager', () => {
       };
 
       // Inject mock stats
-      (memoryManager as any).memoryStats = [mockStats];
-      (memoryManager as any).checkMemoryThresholds();
+      (memoryManager as unknown).memoryStats = [mockStats];
+      (memoryManager as unknown).checkMemoryThresholds();
 
       const alerts = memoryManager.getActiveAlerts();
       const criticalAlert = alerts.find(alert => alert.type === 'critical');
@@ -198,8 +198,8 @@ describe('TaskManagerMemoryManager', () => {
         timestamp: new Date()
       };
 
-      (memoryManager as any).memoryStats = [mockStats];
-      (memoryManager as any).checkMemoryThresholds();
+      (memoryManager as unknown).memoryStats = [mockStats];
+      (memoryManager as unknown).checkMemoryThresholds();
 
       const alerts = memoryManager.getActiveAlerts();
       expect(alerts.length).toBeGreaterThan(0);
@@ -229,7 +229,7 @@ describe('TaskManagerMemoryManager', () => {
       memoryManager.registerCleanupCallback('test-component', mockCallback);
 
       // Verify callback is registered (internal state check)
-      expect((memoryManager as any).cleanupCallbacks.has('test-component')).toBe(true);
+      expect((memoryManager as unknown).cleanupCallbacks.has('test-component')).toBe(true);
     });
 
     it('should unregister cleanup callbacks', () => {
@@ -243,7 +243,7 @@ describe('TaskManagerMemoryManager', () => {
       memoryManager.registerCleanupCallback('test-component', mockCallback);
       memoryManager.unregisterCleanupCallback('test-component');
 
-      expect((memoryManager as any).cleanupCallbacks.has('test-component')).toBe(false);
+      expect((memoryManager as unknown).cleanupCallbacks.has('test-component')).toBe(false);
     });
 
     it('should execute cleanup callbacks during aggressive cleanup', async () => {
@@ -329,7 +329,7 @@ describe('TaskManagerMemoryManager', () => {
         timestamp: new Date()
       };
 
-      (memoryManager as any).memoryStats = [stats1, stats2];
+      (memoryManager as unknown).memoryStats = [stats1, stats2];
 
       const summary = memoryManager.getMemoryUsageSummary();
       expect(summary.peak?.totalMemoryUsage).toBe(100 * 1024 * 1024);
@@ -341,7 +341,7 @@ describe('TaskManagerMemoryManager', () => {
       memoryManager = TaskManagerMemoryManager.getInstance(mockConfig);
 
       // Check that monitoring interval is set
-      expect((memoryManager as any).monitoringInterval).toBeDefined();
+      expect((memoryManager as unknown).monitoringInterval).toBeDefined();
     });
 
     it('should not start monitoring when disabled', () => {
@@ -349,17 +349,17 @@ describe('TaskManagerMemoryManager', () => {
       memoryManager = TaskManagerMemoryManager.getInstance(disabledConfig);
 
       // Check that monitoring interval is not set
-      expect((memoryManager as any).monitoringInterval).toBeNull();
+      expect((memoryManager as unknown).monitoringInterval).toBeNull();
     });
 
     it('should stop monitoring on shutdown', () => {
       memoryManager = TaskManagerMemoryManager.getInstance(mockConfig);
 
-      expect((memoryManager as any).monitoringInterval).toBeDefined();
+      expect((memoryManager as unknown).monitoringInterval).toBeDefined();
 
       memoryManager.stopMonitoring();
 
-      expect((memoryManager as any).monitoringInterval).toBeNull();
+      expect((memoryManager as unknown).monitoringInterval).toBeNull();
     });
   });
 

@@ -2,14 +2,21 @@
  * Tests for the SemgrepAdapter.
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SemgrepAdapter } from '../../importResolvers/semgrepAdapter.js';
-import { ImportInfo, ImportedItem } from '../../codeMapModel.js';
-import { ImportResolverOptions } from '../../importResolvers/importResolver.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+
+// Type definition for mock promise with child property
+interface MockExecPromise extends Promise<{ stdout: string; stderr: string }> {
+  child: {
+    on: () => void;
+    stdout: { on: () => void };
+    stderr: { on: () => void };
+  };
+}
 
 // Mock the util.promisify function
 vi.mock('util', () => ({
@@ -21,7 +28,7 @@ vi.mock('util', () => ({
           stderr: ''
         });
         // Add child property to the promise
-        (promise as any).child = {
+        (promise as MockExecPromise).child = {
           on: vi.fn(),
           stdout: { on: vi.fn() },
           stderr: { on: vi.fn() }
@@ -116,7 +123,7 @@ describe('SemgrepAdapter', () => {
         stderr: ''
       });
       // Add child property to the promise
-      (promise as any).child = {
+      (promise as MockExecPromise).child = {
         on: vi.fn(),
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() }
@@ -190,7 +197,7 @@ describe('SemgrepAdapter', () => {
         stderr: ''
       });
       // Add child property to the promise
-      (promise as any).child = {
+      (promise as MockExecPromise).child = {
         on: vi.fn(),
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() }
@@ -225,7 +232,7 @@ describe('SemgrepAdapter', () => {
     vi.mocked(promisify(exec)).mockImplementation(() => {
       const promise = Promise.reject(new Error('Semgrep failed'));
       // Add child property to the promise
-      (promise as any).child = {
+      (promise as MockExecPromise).child = {
         on: vi.fn(),
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() }
@@ -274,7 +281,7 @@ describe('SemgrepAdapter', () => {
         stderr: ''
       });
       // Add child property to the promise
-      (promise as any).child = {
+      (promise as MockExecPromise).child = {
         on: vi.fn(),
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() }

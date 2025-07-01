@@ -38,7 +38,7 @@ describe('PathSecurityValidator', () => {
     // Clean up temporary directory
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });
@@ -55,8 +55,8 @@ describe('PathSecurityValidator', () => {
     it('should reject empty or null paths', async () => {
       const results = await Promise.all([
         validator.validatePath(''),
-        validator.validatePath(null as any),
-        validator.validatePath(undefined as any)
+        validator.validatePath(null as string),
+        validator.validatePath(undefined as string)
       ]);
 
       results.forEach(result => {
@@ -172,7 +172,7 @@ describe('PathSecurityValidator', () => {
         const result = await validator.validatePath(symlinkFile);
         expect(result.isValid).toBe(false);
         expect(result.error).toContain('Symbolic links are not allowed');
-      } catch (error) {
+      } catch {
         // Skip test if symlinks not supported on this system
         console.log('Skipping symlink test - not supported on this system');
       }
@@ -196,7 +196,7 @@ describe('PathSecurityValidator', () => {
         
         const result = await symlinkValidator.validatePath(symlinkFile);
         expect(result.isValid).toBe(true);
-      } catch (error) {
+      } catch {
         // Skip test if symlinks not supported on this system
         console.log('Skipping symlink test - not supported on this system');
       }

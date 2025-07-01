@@ -3,9 +3,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { SemgrepRuleGenerator, SemgrepRule } from '../../importResolvers/semgrepRuleGenerator.js';
+import { SemgrepRuleGenerator } from '../../importResolvers/semgrepRuleGenerator.js';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock fs.promises.writeFile
 vi.mock('fs', () => ({

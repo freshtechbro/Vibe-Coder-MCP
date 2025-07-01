@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   META_PROMPT_GENERATION_SYSTEM_PROMPT,
   buildMetaPromptGenerationPrompt,
-  META_PROMPT_GENERATION_RESPONSE_SCHEMA,
-  META_PROMPT_GENERATION_EXAMPLES,
   getMetaPromptGenerationTaskId,
   validateMetaPromptGenerationResponse,
   attemptResponseRecovery,
@@ -690,7 +688,7 @@ describe('Meta-Prompt Generation Templates', () => {
       expect(recovered).toHaveProperty('qualityScore');
       expect(recovered).toHaveProperty('aiAgentResponseFormat');
 
-      expect((recovered as any).taskDecomposition.epics).toEqual(partialResponse.epics);
+      expect((recovered as Record<string, unknown>).taskDecomposition.epics).toEqual(partialResponse.epics);
       expect(validateMetaPromptGenerationResponse(recovered)).toBe(true);
     });
 
@@ -757,8 +755,8 @@ describe('Meta-Prompt Generation Templates', () => {
       expect(result).toHaveProperty('aiAgentResponseFormat');
 
       // Verify the single epic was wrapped in the epics array
-      expect((result as any).taskDecomposition.epics).toHaveLength(1);
-      expect((result as any).taskDecomposition.epics[0]).toEqual(singleEpicResponse);
+      expect((result as Record<string, unknown>).taskDecomposition.epics).toHaveLength(1);
+      expect((result as Record<string, unknown>).taskDecomposition.epics[0]).toEqual(singleEpicResponse);
 
       // Verify the recovered response passes validation
       expect(validateMetaPromptGenerationResponse(result)).toBe(true);
@@ -782,7 +780,7 @@ describe('Meta-Prompt Generation Templates', () => {
       // Should be transformed to complete structure, not treated as single epic
       expect(result).toHaveProperty('systemPrompt');
       expect(result).toHaveProperty('taskDecomposition');
-      expect((result as any).taskDecomposition.epics).toEqual(validResponse.epics);
+      expect((result as Record<string, unknown>).taskDecomposition.epics).toEqual(validResponse.epics);
     });
   });
 });

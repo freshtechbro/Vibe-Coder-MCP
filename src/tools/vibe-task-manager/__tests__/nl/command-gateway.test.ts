@@ -17,12 +17,12 @@ vi.mock('../../nl/intent-recognizer.js', () => ({
 
 describe('CommandGateway', () => {
   let commandGateway: CommandGateway;
-  let mockIntentRecognizer: any;
+  let mockIntentRecognizer: Record<string, unknown>;
 
   beforeEach(async () => {
     // Reset singletons to ensure clean state
-    (CommandGateway as any)._instance = undefined;
-    (IntentRecognitionEngine as any)._instance = undefined;
+    (CommandGateway as Record<string, unknown>)._instance = undefined;
+    (IntentRecognitionEngine as Record<string, unknown>)._instance = undefined;
 
     // Initialize fresh instances
     commandGateway = CommandGateway.getInstance();
@@ -190,7 +190,7 @@ describe('CommandGateway', () => {
       let history = commandGateway.getHistory('test-session-history');
       expect(history).toHaveLength(0);
 
-      const result = await commandGateway.processCommand(
+      await commandGateway.processCommand(
         'Create a project called TestProject',
         { sessionId: 'test-session-history' }
       );

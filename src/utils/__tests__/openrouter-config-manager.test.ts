@@ -7,6 +7,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OpenRouterConfigManager } from '../openrouter-config-manager.js';
 import { readFile } from 'fs/promises';
 
+// Interface for OpenRouterConfigManager with private instance property
+interface OpenRouterConfigManagerStatic {
+  instance: OpenRouterConfigManager | null;
+}
+
 // Mock fs/promises since that's what the config manager actually uses
 vi.mock('fs/promises', () => ({
   readFile: vi.fn()
@@ -29,7 +34,7 @@ describe('OpenRouterConfigManager', () => {
 
   beforeEach(() => {
     // Reset singleton instance
-    (OpenRouterConfigManager as any).instance = null;
+    (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
 
     // Save original environment
     originalEnv = { ...process.env };
@@ -81,7 +86,7 @@ describe('OpenRouterConfigManager', () => {
   describe('Initialization', () => {
     it('should initialize successfully with valid environment variables', async () => {
       // Make sure we have a fresh instance with good mock data
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       mockReadFile.mockResolvedValue(JSON.stringify({
         llm_mapping: {
           'default_generation': 'google/gemini-test',
@@ -96,7 +101,7 @@ describe('OpenRouterConfigManager', () => {
 
     it('should use default values when environment variables are missing', async () => {
       // Create a fresh instance for this test
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       
       // Set up good mock data first
       mockReadFile.mockResolvedValue(JSON.stringify({
@@ -120,11 +125,11 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should handle LLM config file not found', async () => {
-      (OpenRouterConfigManager as any).instance = null;
-      
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
+
       // Override the default mock for this specific test
       // Mock readFile to throw ENOENT error (file not found)
-      const error = new Error('ENOENT: no such file or directory') as any;
+      const error = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
       error.code = 'ENOENT';
       mockReadFile.mockRejectedValue(error);
 
@@ -136,7 +141,7 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should handle invalid JSON in LLM config file gracefully', async () => {
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       mockReadFile.mockResolvedValue('invalid json');
 
       const configManager = OpenRouterConfigManager.getInstance();
@@ -170,7 +175,7 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should initialize automatically if not initialized', async () => {
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       const configManager = OpenRouterConfigManager.getInstance();
       // Don't call initialize manually
 
@@ -179,7 +184,7 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should handle file read errors gracefully', async () => {
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       mockReadFile.mockRejectedValue(new Error('File read error'));
 
       const configManager = OpenRouterConfigManager.getInstance();
@@ -204,7 +209,7 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should return fallback model when no mapping exists', async () => {
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       mockReadFile.mockResolvedValue(JSON.stringify({ llm_mapping: {} }));
 
       const configManager = OpenRouterConfigManager.getInstance();
@@ -215,7 +220,7 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should handle missing default_generation mapping', async () => {
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       mockReadFile.mockResolvedValue(JSON.stringify({
         llm_mapping: {
           'task_decomposition': 'google/gemini-test'
@@ -241,7 +246,7 @@ describe('OpenRouterConfigManager', () => {
     });
 
     it('should warn about missing LLM mappings', async () => {
-      (OpenRouterConfigManager as any).instance = null;
+      (OpenRouterConfigManager as unknown as OpenRouterConfigManagerStatic).instance = null;
       mockReadFile.mockResolvedValue(JSON.stringify({ llm_mapping: {} }));
 
       const configManager = OpenRouterConfigManager.getInstance();

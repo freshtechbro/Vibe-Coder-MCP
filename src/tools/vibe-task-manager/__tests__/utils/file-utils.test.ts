@@ -377,7 +377,7 @@ describe('FileUtils', () => {
         })
       };
 
-      const result = await FileUtils.writeYamlFile('test.yaml', testData, mockSchema as any);
+      const result = await FileUtils.writeYamlFile('test.yaml', testData, mockSchema as Record<string, unknown>);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Data validation failed');

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PromptService, PromptType, getPrompt, getPromptService } from '../../services/prompt-service.js';
-import { readFile } from 'fs/promises';
 
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
@@ -26,12 +25,12 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('PromptService', () => {
   let promptService: PromptService;
-  let mockReadFile: any;
-  let mockYamlParse: any;
+  let mockReadFile: Record<string, unknown>;
+  let mockYamlParse: Record<string, unknown>;
 
   beforeEach(async () => {
     // Clear singleton instance
-    (PromptService as any).instance = undefined;
+    (PromptService as Record<string, unknown>).instance = undefined;
     promptService = PromptService.getInstance();
 
     const fs = await import('fs/promises');

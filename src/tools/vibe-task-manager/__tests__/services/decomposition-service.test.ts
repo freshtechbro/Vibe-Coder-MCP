@@ -18,7 +18,7 @@ vi.mock('../../utils/config-loader.js', () => ({
   })
 }));
 
-import { DecompositionService, DecompositionSession, DecompositionRequest } from '../../services/decomposition-service.js';
+import { DecompositionService, DecompositionRequest } from '../../services/decomposition-service.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
@@ -27,7 +27,7 @@ import { withTestCleanup, registerTestSingleton } from '../utils/test-helpers.js
 
 // Mock fs-extra for workflow state manager
 vi.mock('fs-extra', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     ensureDir: vi.fn().mockResolvedValue(undefined),
@@ -180,7 +180,7 @@ describe('DecompositionService', () => {
   let mockConfig: OpenRouterConfig;
   let mockTask: AtomicTask;
   let mockContext: ProjectContext;
-  let mockEngine: any;
+  let mockEngine: Record<string, unknown>;
 
   // Apply test cleanup wrapper
   withTestCleanup('DecompositionService');
@@ -210,7 +210,7 @@ describe('DecompositionService', () => {
 
     // IMPORTANT: Replace the real engine with our mock after service creation
     // This is necessary because DecompositionService creates its own RDD engine instance
-    (service as any).engine = mockEngine;
+    (service as Record<string, unknown>).engine = mockEngine;
 
     mockTask = {
       id: 'T0001',
@@ -262,7 +262,7 @@ describe('DecompositionService', () => {
 
         // Clean up old sessions
         service.cleanupSessions(0); // Remove all sessions
-      } catch (error) {
+      } catch {
         // Ignore cleanup errors in tests
       }
     }

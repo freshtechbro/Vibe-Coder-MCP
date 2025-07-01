@@ -39,7 +39,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert
       expect(result.provides.setupCommands).toEqual([
@@ -71,7 +71,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert - should remain unchanged
       expect(result.provides.setupCommands).toEqual([
@@ -93,7 +93,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert
       expect(result.provides.setupCommands).toEqual([
@@ -125,7 +125,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert - only valid commands should remain
       expect(result.provides.setupCommands).toEqual([
@@ -156,7 +156,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert
       expect(result.provides.setupCommands).toEqual([
@@ -182,7 +182,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert
       expect(result.provides.setupCommands).toEqual([
@@ -202,7 +202,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert
       expect(result.provides.setupCommands).toEqual([]);
@@ -219,7 +219,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert
       expect(result.provides.setupCommands).toBeUndefined();
@@ -243,7 +243,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert - should convert strings to objects
       expect(result.provides.setupCommands).toEqual([
@@ -274,10 +274,10 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/conversion-test');
+      (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/conversion-test');
 
       // Assert - verify metrics were logged (check the last call)
-      const infoCalls = (logger.info as any).mock.calls;
+      const infoCalls = (logger.info as unknown as { mock: { calls: unknown[] } }).mock.calls;
       const lastCall = infoCalls[infoCalls.length - 1];
 
       expect(lastCall).toBeDefined();
@@ -301,10 +301,10 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/removal-test');
+      (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/removal-test');
 
       // Assert - verify metrics were logged (check the last call)
-      const infoCalls = (logger.info as any).mock.calls;
+      const infoCalls = (logger.info as unknown as { mock: { calls: unknown[] } }).mock.calls;
       const lastCall = infoCalls[infoCalls.length - 1];
 
       expect(lastCall).toBeDefined();
@@ -331,10 +331,10 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/no-changes-test');
+      (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/no-changes-test');
 
       // Assert - verify debug log for no changes (check the last call)
-      const debugCalls = (logger.debug as any).mock.calls;
+      const debugCalls = (logger.debug as unknown as { mock: { calls: unknown[] } }).mock.calls;
       const lastCall = debugCalls[debugCalls.length - 1];
 
       expect(lastCall).toBeDefined();
@@ -362,7 +362,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert - both fixes should be applied
       expect(result.provides.directoryStructure[0].content).toBe(null);
@@ -388,7 +388,7 @@ describe('SetupCommands Preprocessing', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(input, 'testing/jest');
+      const result = (yamlComposer as unknown as { preprocessTemplateForValidation: (input: unknown, modulePathSegment: string) => unknown }).preprocessTemplateForValidation(input, 'testing/jest');
 
       // Assert - other fields should remain unchanged
       expect(result.moduleName).toBe("test-module");

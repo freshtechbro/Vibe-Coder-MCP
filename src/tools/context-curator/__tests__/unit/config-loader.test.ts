@@ -38,7 +38,7 @@ describe('ContextCuratorConfigLoader', () => {
 
   beforeEach(() => {
     // Reset singleton instance
-    (ContextCuratorConfigLoader as any).instance = null;
+    (ContextCuratorConfigLoader as Record<string, unknown>).instance = null;
 
     // Clear all mock calls first
     vi.clearAllMocks();
@@ -56,15 +56,15 @@ describe('ContextCuratorConfigLoader', () => {
     });
 
     // Reset singleton instance
-    (ContextCuratorConfigLoader as any).instance = null;
+    (ContextCuratorConfigLoader as Record<string, unknown>).instance = null;
 
     configLoader = ContextCuratorConfigLoader.getInstance();
 
     // Reset internal state
-    (configLoader as any).config = null;
-    (configLoader as any).llmConfig = null;
-    (configLoader as any).configLoaded = false;
-    (configLoader as any).lastLoadTime = 0;
+    (configLoader as Record<string, unknown>).config = null;
+    (configLoader as Record<string, unknown>).llmConfig = null;
+    (configLoader as Record<string, unknown>).configLoaded = false;
+    (configLoader as Record<string, unknown>).lastLoadTime = 0;
   });
 
   afterEach(() => {
@@ -81,7 +81,7 @@ describe('ContextCuratorConfigLoader', () => {
     it('should initialize with correct paths', () => {
       // Reset mocks and create a new instance to test initialization
       vi.clearAllMocks();
-      (ContextCuratorConfigLoader as any).instance = null;
+      (ContextCuratorConfigLoader as Record<string, unknown>).instance = null;
 
       const newInstance = ContextCuratorConfigLoader.getInstance();
       // The singleton pattern may not call getProjectRoot on subsequent getInstance calls
@@ -300,11 +300,11 @@ describe('ContextCuratorConfigLoader', () => {
 
     it('should return fallback when no LLM config is loaded', () => {
       // Create a fresh instance with no LLM config
-      (ContextCuratorConfigLoader as any).instance = null;
+      (ContextCuratorConfigLoader as Record<string, unknown>).instance = null;
       const newLoader = ContextCuratorConfigLoader.getInstance();
 
       // Reset internal state to ensure no LLM config
-      (newLoader as any).llmConfig = null;
+      (newLoader as Record<string, unknown>).llmConfig = null;
 
       expect(newLoader.getLLMModel('intent_analysis')).toBe('google/gemini-2.5-flash-preview-05-20');
     });

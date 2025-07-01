@@ -8,8 +8,7 @@ import {
   ContextCuratorValidationError,
   ContextCuratorTokenBudgetError,
   ContextCuratorTimeoutError,
-  ErrorHandler,
-  type ContextCuratorErrorContext
+  ErrorHandler
 } from '../../../utils/error-handling.js';
 
 describe('ContextCuratorError', () => {

@@ -43,8 +43,8 @@ vi.mock('../../../logger.js', () => ({
 
 describe('Context Extractor', () => {
   let mockContext: CommandExecutionContext;
-  let mockExec: any;
-  let mockReadFile: any;
+  let mockExec: Record<string, unknown>;
+  let mockReadFile: Record<string, unknown>;
 
   beforeEach(async () => {
     mockContext = {
@@ -182,7 +182,7 @@ describe('Context Extractor', () => {
           }
         })
       };
-      vi.mocked(getTaskOperations).mockReturnValue(mockTaskOps as any);
+      vi.mocked(getTaskOperations).mockReturnValue(mockTaskOps as Record<string, unknown>);
 
       const result = await extractEpicFromContext(mockContext, 'test-project');
 
@@ -205,7 +205,7 @@ describe('Context Extractor', () => {
           }
         })
       };
-      vi.mocked(getTaskOperations).mockReturnValue(mockTaskOps as any);
+      vi.mocked(getTaskOperations).mockReturnValue(mockTaskOps as Record<string, unknown>);
 
       const { getProjectOperations } = await import('../../core/operations/project-operations.js');
       const mockProjectOps = {
@@ -217,7 +217,7 @@ describe('Context Extractor', () => {
           }
         })
       };
-      vi.mocked(getProjectOperations).mockReturnValue(mockProjectOps as any);
+      vi.mocked(getProjectOperations).mockReturnValue(mockProjectOps as Record<string, unknown>);
 
       const result = await extractEpicFromContext(mockContext, 'test-project');
 
@@ -243,7 +243,7 @@ describe('Context Extractor', () => {
       const mockTaskOps = {
         getTask: vi.fn().mockRejectedValue(new Error('Task not found'))
       };
-      vi.mocked(getTaskOperations).mockReturnValue(mockTaskOps as any);
+      vi.mocked(getTaskOperations).mockReturnValue(mockTaskOps as Record<string, unknown>);
 
       const result = await extractEpicFromContext(mockContext, 'invalid-project');
 

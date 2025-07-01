@@ -5,12 +5,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { JavaScriptHandler } from '../../languageHandlers/javascript.js';
 import { SyntaxNode } from '../../parser.js';
-import { FunctionInfo, ClassInfo } from '../../codeMapModel.js';
 
 // Mock SyntaxNode for testing
-function createMockNode(type: string, text: string, children: any[] = [], namedChildren: any[] = [], parent: any = null, fields: Record<string, any> = {}, startIndex: number = 0, endIndex?: number): SyntaxNode {
+function createMockNode(type: string, text: string, children: SyntaxNode[] = [], namedChildren: SyntaxNode[] = [], parent: SyntaxNode | null = null, fields: Record<string, SyntaxNode> = {}, startIndex: number = 0, endIndex?: number): SyntaxNode {
   const actualEndIndex = endIndex ?? startIndex + text.length;
-  const node: any = {
+  const node: Record<string, unknown> = {
     type,
     text,
     children,
@@ -74,6 +73,7 @@ describe('JavaScriptHandler', () => {
       );
 
       // Extract function name
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const name = (handler as any).extractFunctionName(funcNode, sourceCode);
 
       // Verify result
@@ -97,9 +97,10 @@ describe('JavaScriptHandler', () => {
       );
 
       // Set parent relationship
-      (arrowFuncNode as any).parent = varDeclNode;
+      (arrowFuncNode as Record<string, unknown>).parent = varDeclNode;
 
       // Extract function name
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const name = (handler as any).extractFunctionName(arrowFuncNode, sourceCode);
 
       // Verify result
@@ -123,9 +124,10 @@ describe('JavaScriptHandler', () => {
       );
 
       // Set parent relationship
-      (arrowFuncNode as any).parent = varDeclNode;
+      (arrowFuncNode as Record<string, unknown>).parent = varDeclNode;
 
       // Extract function name
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const name = (handler as any).extractFunctionName(arrowFuncNode, sourceCode);
 
       // Verify result
@@ -149,9 +151,10 @@ describe('JavaScriptHandler', () => {
       );
 
       // Set parent relationship
-      (arrowFuncNode as any).parent = varDeclNode;
+      (arrowFuncNode as Record<string, unknown>).parent = varDeclNode;
 
       // Extract function name
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const name = (handler as any).extractFunctionName(arrowFuncNode, sourceCode);
 
       // Verify result
@@ -186,16 +189,18 @@ describe('JavaScriptHandler', () => {
       );
 
       // Set parent relationship
-      (arrowFuncNode as any).parent = varDeclNode;
+      (arrowFuncNode as Record<string, unknown>).parent = varDeclNode;
 
       // First, test that the basic name extraction works
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const basicName = (handler as any).extractFunctionName(arrowFuncNode, sourceCode);
       expect(basicName).toBe('MyComponent');
 
       // Now test with JSX handler and mock the React component detection
       // We need to mock the entire extractFunctionName method to test the React component logic
       const originalExtractFunctionName = jsxHandler.extractFunctionName;
-      vi.spyOn(jsxHandler as any, 'extractFunctionName').mockImplementation((node: any, code: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.spyOn(jsxHandler as any, 'extractFunctionName').mockImplementation((node: SyntaxNode, code: string) => {
         // Simulate the React component detection logic
         if (node.type === 'arrow_function' && node.parent?.type === 'variable_declarator') {
           const nameNode = node.parent.childForFieldName('name');
@@ -210,6 +215,7 @@ describe('JavaScriptHandler', () => {
         return 'anonymous';
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const jsxName = (jsxHandler as any).extractFunctionName(arrowFuncNode, sourceCode);
       expect(jsxName).toBe('MyComponentComponent');
 
@@ -248,10 +254,11 @@ describe('JavaScriptHandler', () => {
       const arrowFuncNode = createMockNode('arrow_function', '() => {}', [], [], null, {}, 10, 18);
 
       // Set parent relationships
-      (arrowFuncNode as any).parent = argsNode;
-      (argsNode as any).parent = callExprNode;
+      (arrowFuncNode as Record<string, unknown>).parent = argsNode;
+      (argsNode as Record<string, unknown>).parent = callExprNode;
 
       // Extract function name
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const name = (handler as any).extractFunctionName(arrowFuncNode, sourceCode);
 
       // Verify result
@@ -283,9 +290,11 @@ function myFunction() {}
       `;
 
       // Mock implementation for extractFunctionComment
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.spyOn(handler as any, 'extractFunctionComment').mockReturnValue('This is a test function.');
 
       // Extract function comment
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const comment = (handler as any).extractFunctionComment(funcNode, sourceCode);
 
       // Verify result

@@ -10,16 +10,16 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getDependencyGraph, OptimizedDependencyGraph } from '../../core/dependency-graph.js';
+import { getDependencyGraph } from '../../core/dependency-graph.js';
 import { DecompositionService } from '../../services/decomposition-service.js';
 import { getOpenRouterConfig } from '../../../../utils/openrouter-config-manager.js';
-import { AtomicTask, TaskPriority } from '../../types/task.js';
+import { AtomicTask } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
 
 describe('Dependency Detection Validation', () => {
   let decompositionService: DecompositionService;
-  let config: any;
+  let config: Record<string, unknown>;
 
   // Helper to create realistic task for testing
   const createTask = (
@@ -460,7 +460,7 @@ describe('Dependency Detection Validation', () => {
       ];
 
       const dependencyGraph = getDependencyGraph('execution-test-project');
-      const result = dependencyGraph.applyIntelligentDependencyDetection(complexTasks);
+      dependencyGraph.applyIntelligentDependencyDetection(complexTasks);
 
       // Get execution order
       const executionPlan = dependencyGraph.getRecommendedExecutionOrder();

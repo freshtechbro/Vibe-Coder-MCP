@@ -22,7 +22,7 @@ vi.mock('axios', () => ({
 
 // Mock fs-extra at module level for proper hoisting
 vi.mock('fs-extra', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     // Directory operations
@@ -81,8 +81,8 @@ export interface TestServiceConfig {
   useLifecycleManager?: boolean;
   enableTransportServices?: boolean;
   enableAgentOrchestrator?: boolean;
-  coordinatorConfig?: any;
-  schedulerConfig?: any;
+  coordinatorConfig?: Record<string, unknown>;
+  schedulerConfig?: Record<string, unknown>;
 }
 
 /**
@@ -279,25 +279,25 @@ export class ServiceTestHelper {
           await ConcurrentAccessManager.getInstance().clearAllLocks();
           ConcurrentAccessManager.resetInstance();
         }
-      } catch (error) {
+      } catch {
         // Ignore errors during cleanup
       }
 
       // Reset AgentOrchestrator if it exists
       try {
         const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
-        if ((AgentOrchestrator as any).instance) {
-          const orchestrator = (AgentOrchestrator as any).instance;
+        if ((AgentOrchestrator as unknown as { instance: unknown }).instance) {
+          const orchestrator = (AgentOrchestrator as unknown as { instance: { communicationChannel?: { cleanup(): Promise<void> } } }).instance;
           if (orchestrator.communicationChannel) {
             try {
               await orchestrator.communicationChannel.cleanup();
-            } catch (error) {
+            } catch {
               // Ignore cleanup errors
             }
           }
-          (AgentOrchestrator as any).instance = null;
+          (AgentOrchestrator as unknown as { instance: unknown }).instance = null;
         }
-      } catch (error) {
+      } catch {
         // Ignore errors during cleanup
       }
 
@@ -309,7 +309,7 @@ export class ServiceTestHelper {
   /**
    * Get service status
    */
-  getServiceStatus(): any {
+  getServiceStatus(): unknown {
     if (this.lifecycleManager) {
       return this.lifecycleManager.getAllServiceStatuses();
     }
@@ -423,10 +423,10 @@ export class DisposableResourceManager {
  * Extends successful patterns to work with storage, file system, and import resolvers
  */
 export class UniversalMockIsolationManager {
-  private static originalChannels = new Map<string, any>();
-  private static mockChannels = new Map<string, any>();
+  private static originalChannels = new Map<string, unknown>();
+  private static mockChannels = new Map<string, unknown>();
   private static testId: string | null = null;
-  private static mockRegistry = new Map<string, any>();
+  private static mockRegistry = new Map<string, unknown>();
   private static disposableRegistry = new Set<() => void>();
 
   /**
@@ -434,7 +434,7 @@ export class UniversalMockIsolationManager {
    */
   static async setupUniversalMock(testId: string, options: {
     mockBehavior?: 'success' | 'failure' | 'custom';
-    customMock?: any;
+    customMock?: unknown;
     enableFileSystemMocks?: boolean;
     enableStorageMocks?: boolean;
     enableImportResolverMocks?: boolean;
@@ -478,14 +478,14 @@ export class UniversalMockIsolationManager {
   /**
    * Setup isolated mock for a test (legacy method for backward compatibility)
    */
-  static async setupIsolatedMock(testId: string, mockBehavior: 'success' | 'failure' | 'custom', customMock?: any): Promise<() => void> {
+  static async setupIsolatedMock(testId: string, mockBehavior: 'success' | 'failure' | 'custom', customMock?: unknown): Promise<() => void> {
     return this.setupUniversalMock(testId, { mockBehavior, customMock });
   }
 
   /**
    * Setup agent orchestrator mock (extracted from original method)
    */
-  private static async setupAgentOrchestratorMock(testId: string, mockBehavior: 'success' | 'failure' | 'custom', customMock?: any): Promise<() => void> {
+  private static async setupAgentOrchestratorMock(testId: string, mockBehavior: 'success' | 'failure' | 'custom', customMock?: unknown): Promise<() => void> {
     this.testId = testId;
 
     try {
@@ -494,12 +494,12 @@ export class UniversalMockIsolationManager {
 
       // Store original channel if not already stored
       if (!this.originalChannels.has(testId)) {
-        this.originalChannels.set(testId, (orchestrator as any).communicationChannel);
+        this.originalChannels.set(testId, (orchestrator as Record<string, unknown>).communicationChannel);
       }
 
       // Create isolated mock channel
       const originalChannel = this.originalChannels.get(testId);
-      let mockChannel;
+      let mockChannel: unknown;
 
       if (mockBehavior === 'custom' && customMock) {
         mockChannel = customMock;
@@ -511,7 +511,7 @@ export class UniversalMockIsolationManager {
       this.mockChannels.set(testId, mockChannel);
 
       // Apply mock
-      (orchestrator as any).communicationChannel = mockChannel;
+      (orchestrator as Record<string, unknown>).communicationChannel = mockChannel;
 
       // Return cleanup function
       return () => this.cleanupIsolatedMock(testId);
@@ -525,7 +525,7 @@ export class UniversalMockIsolationManager {
   /**
    * Create standard mock channel based on behavior
    */
-  private static createStandardMockChannel(originalChannel: any, behavior: 'success' | 'failure') {
+  private static createStandardMockChannel(originalChannel: unknown, behavior: 'success' | 'failure'): Record<string, unknown> {
     const mockChannel = {
       ...originalChannel,
       sendTask: vi.fn(),
@@ -568,16 +568,16 @@ export class UniversalMockIsolationManager {
       // Restore original channel
       const originalChannel = this.originalChannels.get(testId);
       if (originalChannel) {
-        (orchestrator as any).communicationChannel = originalChannel;
+        (orchestrator as Record<string, unknown>).communicationChannel = originalChannel;
       }
 
       // Clear mock channel
       const mockChannel = this.mockChannels.get(testId);
-      if (mockChannel) {
+      if (mockChannel && typeof mockChannel === 'object' && mockChannel !== null) {
         // Clear all mock functions
         Object.values(mockChannel).forEach(value => {
           if (typeof value === 'function' && 'mockClear' in value) {
-            (value as any).mockClear();
+            (value as { mockClear(): void }).mockClear();
           }
         });
         this.mockChannels.delete(testId);
@@ -610,12 +610,12 @@ export class UniversalMockIsolationManager {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
 
       // Get current instance if it exists
-      let instance: any = null;
+      let instance: Record<string, unknown> | null = null;
       try {
-        if ((AgentOrchestrator as any).instance) {
-          instance = (AgentOrchestrator as any).instance;
+        if ((AgentOrchestrator as Record<string, unknown>).instance) {
+          instance = (AgentOrchestrator as Record<string, unknown>).instance as Record<string, unknown>;
         }
-      } catch (error) {
+      } catch {
         // Instance might not exist
       }
 
@@ -627,15 +627,16 @@ export class UniversalMockIsolationManager {
       // Clear communication channel
       if (instance && instance.communicationChannel) {
         try {
-          await instance.communicationChannel.cleanup();
-        } catch (error) {
+          const channel = instance.communicationChannel as { cleanup(): Promise<void> };
+          await channel.cleanup();
+        } catch {
           // Ignore cleanup errors
         }
       }
 
       // Reset static properties
-      (AgentOrchestrator as any).instance = null;
-      (AgentOrchestrator as any).isInitializing = false;
+      (AgentOrchestrator as Record<string, unknown>).instance = null;
+      (AgentOrchestrator as Record<string, unknown>).isInitializing = false;
 
       logger.debug('AgentOrchestrator singleton reset complete');
     } catch (error) {
@@ -649,7 +650,7 @@ export class UniversalMockIsolationManager {
   private static setupFileSystemMocks(): void {
     // Setup comprehensive fs-extra mock with all required methods
     vi.mock('fs-extra', async (importOriginal) => {
-      const actual = await importOriginal() as any;
+      const actual = await importOriginal() as Record<string, unknown>;
       return {
         ...actual,
         // Directory operations
@@ -782,7 +783,7 @@ export class UniversalMockIsolationManager {
   private static setupImportResolverMocks(): void {
     // Mock ImportResolverFactory
     vi.mock('../../importResolvers/importResolverFactory.js', () => ({
-      ImportResolverFactory: vi.fn().mockImplementation((options) => ({
+      ImportResolverFactory: vi.fn().mockImplementation((_options: unknown) => ({
         getImportResolver: vi.fn().mockReturnValue({
           analyzeImports: vi.fn().mockResolvedValue([]),
           dispose: vi.fn()
@@ -893,15 +894,15 @@ export class UniversalMockIsolationManager {
 
     // Register queueMockResponses utility globally
     if (typeof globalThis !== 'undefined') {
-      (globalThis as any).queueMockResponses = this.queueMockResponses.bind(this);
-      (globalThis as any).mockOpenRouterResponse = this.mockOpenRouterResponse.bind(this);
+      (globalThis as Record<string, unknown>).queueMockResponses = this.queueMockResponses.bind(this);
+      (globalThis as Record<string, unknown>).mockOpenRouterResponse = this.mockOpenRouterResponse.bind(this);
     }
   }
 
   /**
    * Queue multiple mock responses for LLM calls
    */
-  static queueMockResponses(responses: Array<{ success: boolean; data?: any; error?: string }>): void {
+  static queueMockResponses(responses: Array<{ success: boolean; data?: unknown; error?: string }>): void {
     const mockQueue = responses.slice(); // Create a copy
     let responseIndex = 0;
 
@@ -909,7 +910,7 @@ export class UniversalMockIsolationManager {
     const mockedAxios = vi.mocked(axios);
     
     // Configure axios.post mock behavior
-    mockedAxios.post.mockImplementation(async (url: string, data?: any) => {
+    mockedAxios.post.mockImplementation(async (_url: string, _data?: unknown) => {
       const response = mockQueue[responseIndex] || mockQueue[mockQueue.length - 1] || { success: true, data: {} };
       responseIndex = Math.min(responseIndex + 1, mockQueue.length - 1);
 
@@ -944,12 +945,12 @@ export class UniversalMockIsolationManager {
   /**
    * Mock single OpenRouter response
    */
-  static mockOpenRouterResponse(response: { success: boolean; data?: any; error?: string }): void {
+  static mockOpenRouterResponse(response: { success: boolean; data?: unknown; error?: string }): void {
     // Get the mocked axios instance
     const mockedAxios = vi.mocked(axios);
     
     // Configure axios.post mock behavior
-    mockedAxios.post.mockImplementation(async (url: string, data?: any) => {
+    mockedAxios.post.mockImplementation(async (_url: string, _data?: unknown) => {
       if (response.success) {
         return {
           data: {
@@ -1003,8 +1004,8 @@ export class UniversalMockIsolationManager {
 
     // Clear global utilities
     if (typeof globalThis !== 'undefined') {
-      delete (globalThis as any).queueMockResponses;
-      delete (globalThis as any).mockOpenRouterResponse;
+      delete (globalThis as Record<string, unknown>).queueMockResponses;
+      delete (globalThis as Record<string, unknown>).mockOpenRouterResponse;
     }
   }
 }
@@ -1039,7 +1040,7 @@ export const setupTestMock = async (testName: string, behavior: 'success' | 'fai
 /**
  * Setup custom mock for tests
  */
-export const setupCustomTestMock = async (testName: string, customMock: any) => {
+export const setupCustomTestMock = async (testName: string, customMock: unknown) => {
   const testId = `${testName}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   return await UniversalMockIsolationManager.setupUniversalMock(testId, {
     mockBehavior: 'custom',
@@ -1084,7 +1085,7 @@ export const mockOpenRouterResponse = UniversalMockIsolationManager.mockOpenRout
 /**
  * Enable execution delays for testing
  */
-export const enableExecutionDelays = (coordinator: any, delayMs: number = 500) => {
+export const enableExecutionDelays = (coordinator: Record<string, unknown>, delayMs: number = 500) => {
   coordinator.config.enableExecutionDelays = true;
   coordinator.config.defaultExecutionDelayMs = delayMs;
   logger.debug('Execution delays enabled for testing', { delayMs });
@@ -1093,28 +1094,28 @@ export const enableExecutionDelays = (coordinator: any, delayMs: number = 500) =
 /**
  * Set specific execution delay
  */
-export const setExecutionDelay = (coordinator: any, executionId: string, delayMs: number) => {
+export const setExecutionDelay = (coordinator: Record<string, unknown>, executionId: string, delayMs: number) => {
   coordinator.setExecutionDelay(executionId, delayMs);
 };
 
 /**
  * Pause execution for testing
  */
-export const pauseExecution = (coordinator: any, executionId: string) => {
+export const pauseExecution = (coordinator: Record<string, unknown>, executionId: string) => {
   coordinator.pauseExecution(executionId);
 };
 
 /**
  * Resume paused execution
  */
-export const resumeExecution = (coordinator: any, executionId: string) => {
+export const resumeExecution = (coordinator: Record<string, unknown>, executionId: string) => {
   coordinator.resumeExecution(executionId);
 };
 
 /**
  * Clear all execution controls
  */
-export const clearExecutionControls = (coordinator: any) => {
+export const clearExecutionControls = (coordinator: Record<string, unknown>) => {
   coordinator.clearExecutionControls();
 };
 
@@ -1133,7 +1134,7 @@ export const cleanupTestServices = async () => {
         await ConcurrentAccessManager.getInstance().clearAllLocks();
         ConcurrentAccessManager.resetInstance();
       }
-    } catch (error) {
+    } catch {
       // Ignore errors during cleanup
     }
 

@@ -6,10 +6,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BaseLanguageHandler } from '../../languageHandlers/base.js';
 import { SyntaxNode } from '../../parser.js';
 import { FunctionExtractionOptions } from '../../types.js';
-import { FunctionInfo, ClassInfo } from '../../codeMapModel.js';
 
 // Mock implementation of BaseLanguageHandler for testing
 class TestLanguageHandler extends BaseLanguageHandler {
+  // Make protected methods public for testing
+  public generateHeuristicComment(name: string, type: string, signature?: string, className?: string): string {
+    return super.generateHeuristicComment(name, type, signature, className);
+  }
+
+  public isNestedFunction(node: SyntaxNode): boolean {
+    return super.isNestedFunction(node);
+  }
   protected getFunctionQueryPatterns(): string[] {
     return ['function_declaration', 'method_definition'];
   }
@@ -24,8 +31,8 @@ class TestLanguageHandler extends BaseLanguageHandler {
 
   protected extractFunctionName(
     node: SyntaxNode,
-    sourceCode: string,
-    options?: FunctionExtractionOptions
+    _sourceCode: string,
+    _options?: FunctionExtractionOptions
   ): string {
     if (node.type === 'function_declaration') {
       const nameNode = node.childForFieldName('name');
@@ -40,20 +47,20 @@ class TestLanguageHandler extends BaseLanguageHandler {
     return 'anonymous';
   }
 
-  protected extractClassName(node: SyntaxNode, sourceCode: string): string {
+  protected extractClassName(node: SyntaxNode, _sourceCode: string): string {
     const nameNode = node.childForFieldName('name');
     return nameNode ? nameNode.text : 'AnonymousClass';
   }
 
-  protected extractImportPath(node: SyntaxNode, sourceCode: string): string {
+  protected extractImportPath(node: SyntaxNode, _sourceCode: string): string {
     const sourceNode = node.childForFieldName('source');
     return sourceNode ? sourceNode.text.replace(/['"]/g, '') : 'unknown';
   }
 }
 
 // Mock SyntaxNode for testing
-function createMockNode(type: string, text: string, children: any[] = [], namedChildren: any[] = [], parent: any = null, fields: Record<string, any> = {}): SyntaxNode {
-  const node: any = {
+function createMockNode(type: string, text: string, children: SyntaxNode[] = [], namedChildren: SyntaxNode[] = [], parent: SyntaxNode | null = null, fields: Record<string, SyntaxNode> = {}): SyntaxNode {
+  const node: SyntaxNode = {
     type,
     text,
     children,
@@ -166,7 +173,7 @@ describe('BaseLanguageHandler', () => {
       );
 
       // Set parent relationship
-      (innerFuncNode as any).parent = outerBodyNode;
+      (innerFuncNode as SyntaxNode).parent = outerBodyNode;
 
       const rootNode = createMockNode('program', 'function outerFunction() { function innerFunction() {} }', [outerFuncNode], [outerFuncNode]);
 
@@ -182,7 +189,7 @@ describe('BaseLanguageHandler', () => {
       });
 
       // Mock isNestedFunction to return true for innerFuncNode
-      vi.spyOn(handler as any, 'isNestedFunction').mockImplementation(function(this: any, node: any) {
+      vi.spyOn(handler, 'isNestedFunction').mockImplementation((node: SyntaxNode) => {
         return node === innerFuncNode;
       });
 
@@ -236,17 +243,17 @@ describe('BaseLanguageHandler', () => {
 
   describe('generateHeuristicComment', () => {
     it('should generate a comment for a getter function', () => {
-      const comment = (handler as any).generateHeuristicComment('getUserData', 'function');
+      const comment = handler.generateHeuristicComment('getUserData', 'function');
       expect(comment).toContain('Gets the userData');
     });
 
     it('should generate a comment for a setter function', () => {
-      const comment = (handler as any).generateHeuristicComment('setUserData', 'function');
+      const comment = handler.generateHeuristicComment('setUserData', 'function');
       expect(comment).toContain('Sets the userData');
     });
 
     it('should generate a comment for a class', () => {
-      const comment = (handler as any).generateHeuristicComment('UserManager', 'class');
+      const comment = handler.generateHeuristicComment('UserManager', 'class');
       expect(comment).toContain('Represents a UserManager object');
     });
   });

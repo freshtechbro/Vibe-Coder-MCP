@@ -3,6 +3,8 @@ import { YAMLComposer, validateSetupCommandsFormat, generateSetupCommandsErrorCo
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import logger from '../../../logger.js';
 
+type YAMLComposerWithPreprocess = YAMLComposer & { preprocessTemplateForValidation: (input: unknown, moduleType: string) => unknown };
+
 // Mock logger to avoid noise in tests
 vi.mock('../../../logger.js', () => ({
   default: {
@@ -77,7 +79,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
       };
 
       // Act - Apply preprocessing
-      const result = (yamlComposer as any).preprocessTemplateForValidation(problematicLlmOutput, 'testing/jest');
+      const result = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicLlmOutput, 'testing/jest');
 
       // Assert - setupCommands should be converted to objects
       expect(result.provides.setupCommands).toEqual([
@@ -164,7 +166,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
         }
       };
 
-      const result1 = (yamlComposer as any).preprocessTemplateForValidation(mixedOutput, 'mixed-test');
+      const result1 = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(mixedOutput, 'mixed-test');
       expect(result1.provides.setupCommands).toEqual([
         { command: "npm install", context: "root" },
         { command: "npm test", context: "backend" },
@@ -179,7 +181,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
         }
       };
 
-      const result2 = (yamlComposer as any).preprocessTemplateForValidation(allInvalidOutput, 'invalid-test');
+      const result2 = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(allInvalidOutput, 'invalid-test');
       expect(result2.provides.setupCommands).toEqual([]);
 
       // Test case 3: Empty array
@@ -189,7 +191,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
         }
       };
 
-      const result3 = (yamlComposer as any).preprocessTemplateForValidation(emptyOutput, 'empty-test');
+      const result3 = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(emptyOutput, 'empty-test');
       expect(result3.provides.setupCommands).toEqual([]);
     });
 
@@ -206,7 +208,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(validOutput, 'valid-test');
+      const result = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(validOutput, 'valid-test');
 
       // Assert - should remain unchanged
       expect(result.provides.setupCommands).toEqual([
@@ -257,7 +259,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
       };
 
       // Act
-      const result = (yamlComposer as any).preprocessTemplateForValidation(completeTemplate, 'complete-test');
+      const result = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(completeTemplate, 'complete-test');
 
       // Assert - All parts should be processed correctly
       expect(result.moduleName).toBe("complete-test");
@@ -290,7 +292,7 @@ describe('Bug Fix Verification: SetupCommands Schema Validation Error', () => {
       };
 
       // Act - Apply preprocessing
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicData, 'testing/jest');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicData, 'testing/jest');
 
       // Assert - The data should now be valid
       expect(preprocessed.provides.setupCommands).toEqual([

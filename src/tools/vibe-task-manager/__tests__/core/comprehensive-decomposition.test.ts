@@ -7,24 +7,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
-import { RDDEngine, DecompositionResult, RDDConfig } from '../../core/rdd-engine.js';
-import { DecompositionService, DecompositionSession } from '../../services/decomposition-service.js';
+import { RDDEngine, RDDConfig } from '../../core/rdd-engine.js';
+import { DecompositionService } from '../../services/decomposition-service.js';
 import { AtomicTaskDetector } from '../../core/atomic-detector.js';
-import { getDependencyGraph, OptimizedDependencyGraph } from '../../core/dependency-graph.js';
-import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
+import { getDependencyGraph } from '../../core/dependency-graph.js';
+import { AtomicTask } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
-import { ProgressTracker, ProgressEventData } from '../../services/progress-tracker.js';
+import { ProgressEventData } from '../../services/progress-tracker.js';
 import { createMockConfig } from '../utils/test-setup.js';
 import { withTestCleanup, registerTestSingleton } from '../utils/test-helpers.js';
 
 // Import enhanced mock utilities
 import { 
-  mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 
@@ -65,6 +62,7 @@ vi.mock('../../utils/config-loader.js', () => ({
 }));
 
 vi.mock('fs-extra', async (importOriginal) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const actual = await importOriginal() as any;
   return {
     ...actual,
@@ -117,7 +115,8 @@ vi.mock('../../services/context-enrichment-service.js', () => ({
 describe('Comprehensive Core Decomposition Tests', () => {
   let mockConfig: OpenRouterConfig;
   let mockProjectContext: ProjectContext;
-  let mockPerformFormatAwareLlmCall: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockPerformFormatAwareLlmCall: unknown;
 
   beforeAll(() => {
     // Register test singletons
@@ -264,6 +263,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
           recommendations: []
         })
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (engine as any).atomicDetector = mockAtomicDetector;
 
       const result = await engine.decomposeTask(atomicTask, mockProjectContext);
@@ -338,6 +338,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
           recommendations: ['decompose_by_component']
         })
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (engine as any).atomicDetector = mockAtomicDetector;
 
       // Mock LLM response for decomposition in the format expected by RDD engine
@@ -464,6 +465,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
           recommendations: ['decompose_by_module']
         })
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (shallowEngine as any).atomicDetector = mockAtomicDetector;
 
       // Mock decomposition response in string format
@@ -563,6 +565,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
           recommendations: []
         })
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (engine as any).atomicDetector = mockAtomicDetector;
 
       // Mock LLM to throw error
@@ -645,7 +648,8 @@ describe('Comprehensive Core Decomposition Tests', () => {
             subTasks: undefined
           })
         };
-        (service as any).engine = mockEngine;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).engine = mockEngine;
 
         const result = await service.decomposeTask(task, mockProjectContext, progressCallback);
 

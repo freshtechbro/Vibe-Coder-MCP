@@ -6,15 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TagManagementService, TagSuggestion } from '../../services/tag-management-service.js';
+import { TagManagementService } from '../../services/tag-management-service.js';
 import { MetadataService, MetadataEnrichmentOptions } from '../../services/metadata-service.js';
 import { 
-  TagCollection, 
-  BaseTag, 
-  FunctionalTag, 
-  TaskMetadata,
-  TagCategory,
-  TagSource 
+  BaseTag
 } from '../../types/metadata-types.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
@@ -53,7 +48,7 @@ describe('Enhanced Metadata and Tagging System', () => {
   let tagService: TagManagementService;
   let metadataService: MetadataService;
   let mockTask: AtomicTask;
-  let mockPerformFormatAwareLlmCall: any;
+  let mockPerformFormatAwareLlmCall: Record<string, unknown>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -481,7 +476,7 @@ describe('Enhanced Metadata and Tagging System', () => {
       });
 
       it('should identify metadata validation errors', async () => {
-        const invalidMetadata: any = {
+        const invalidMetadata: Record<string, unknown> = {
           // Missing required fields
           version: 0, // Invalid version
           lifecycle: 'invalid_lifecycle' // Invalid lifecycle

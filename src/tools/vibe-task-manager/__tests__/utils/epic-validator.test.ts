@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
-import { EpicValidator, EpicValidationResult, validateAndEnsureEpic, validateEpicForTask } from '../../utils/epic-validator.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { EpicValidator, validateAndEnsureEpic, validateEpicForTask } from '../../utils/epic-validator.js';
 import { AtomicTask } from '../../types/task.js';
 
 // Mock dependencies
@@ -9,8 +9,8 @@ vi.mock('../../../logger.js');
 
 describe('EpicValidator', () => {
   let validator: EpicValidator;
-  let mockStorageManager: any;
-  let mockEpicContextResolver: any;
+  let mockStorageManager: Record<string, unknown>;
+  let mockEpicContextResolver: Record<string, unknown>;
 
   beforeEach(async () => {
     // Reset all mocks

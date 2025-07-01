@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
-import { EpicContextResolver, EpicCreationParams, EpicContextResult } from '../../services/epic-context-resolver.js';
-import { Epic, TaskPriority } from '../../types/task.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { EpicContextResolver, EpicCreationParams } from '../../services/epic-context-resolver.js';
+import { TaskPriority } from '../../types/task.js';
 
 // Mock dependencies
 vi.mock('../../core/storage/storage-manager.js');
@@ -11,10 +11,10 @@ vi.mock('../../../logger.js');
 
 describe('EpicContextResolver', () => {
   let resolver: EpicContextResolver;
-  let mockStorageManager: any;
-  let mockProjectOperations: any;
-  let mockEpicService: any;
-  let mockIdGenerator: any;
+  let mockStorageManager: Record<string, unknown>;
+  let mockProjectOperations: Record<string, unknown>;
+  let mockEpicService: Record<string, unknown>;
+  let mockIdGenerator: Record<string, unknown>;
 
   beforeEach(async () => {
     // Reset all mocks
@@ -411,9 +411,9 @@ describe('EpicContextResolver', () => {
   });
 
   describe('bidirectional relationship management', () => {
-    let mockTask: any;
-    let mockEpic: any;
-    let mockToEpic: any;
+    let mockTask: Record<string, unknown>;
+    let mockEpic: Record<string, unknown>;
+    let mockToEpic: Record<string, unknown>;
 
     beforeEach(() => {
       mockTask = {

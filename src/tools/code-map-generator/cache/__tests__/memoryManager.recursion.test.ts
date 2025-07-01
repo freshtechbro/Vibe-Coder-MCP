@@ -19,6 +19,13 @@ vi.mock('../../../../logger.js', () => ({
 import { MemoryManager } from '../memoryManager.js';
 import logger from '../../../../logger.js';
 
+// Interface for MemoryManager with private methods we need to access
+interface MemoryManagerPrivate extends MemoryManager {
+  startMonitoring(): void;
+  checkMemoryUsage(): void;
+  monitorTimer: NodeJS.Timeout | null;
+}
+
 describe('MemoryManager Logging Recursion Fix', () => {
   let memoryManager: MemoryManager;
 
@@ -47,7 +54,7 @@ describe('MemoryManager Logging Recursion Fix', () => {
     vi.mocked(logger.info).mockClear();
 
     // Start monitoring manually
-    (memoryManager as any).startMonitoring();
+    (memoryManager as MemoryManagerPrivate).startMonitoring();
 
     // Immediately after startMonitoring, the debug log should not have been called yet
     expect(logger.debug).not.toHaveBeenCalledWith(
@@ -87,9 +94,9 @@ describe('MemoryManager Logging Recursion Fix', () => {
     vi.mocked(logger.debug).mockClear();
 
     // Call startMonitoring multiple times
-    (memoryManager as any).startMonitoring();
-    (memoryManager as any).startMonitoring();
-    (memoryManager as any).startMonitoring();
+    (memoryManager as MemoryManagerPrivate).startMonitoring();
+    (memoryManager as MemoryManagerPrivate).startMonitoring();
+    (memoryManager as MemoryManagerPrivate).startMonitoring();
 
     // Advance timers
     vi.runAllTimers();
@@ -108,10 +115,10 @@ describe('MemoryManager Logging Recursion Fix', () => {
     });
 
     // Start monitoring
-    (memoryManager as any).startMonitoring();
+    (memoryManager as MemoryManagerPrivate).startMonitoring();
 
     // Verify timer is set up immediately
-    const monitorTimer = (memoryManager as any).monitorTimer;
+    const monitorTimer = (memoryManager as MemoryManagerPrivate).monitorTimer;
     expect(monitorTimer).toBeDefined();
     expect(monitorTimer).not.toBeNull();
 
@@ -136,7 +143,7 @@ describe('MemoryManager Logging Recursion Fix', () => {
     });
 
     // Mock checkMemoryUsage to verify it gets called
-    const checkMemoryUsageSpy = vi.spyOn(memoryManager as any, 'checkMemoryUsage');
+    const checkMemoryUsageSpy = vi.spyOn(memoryManager as MemoryManagerPrivate, 'checkMemoryUsage');
 
     // Advance time to trigger monitoring interval
     vi.advanceTimersByTime(100);

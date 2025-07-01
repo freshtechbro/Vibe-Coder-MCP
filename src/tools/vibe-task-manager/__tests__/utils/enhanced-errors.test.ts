@@ -32,7 +32,7 @@ vi.mock('../../../logger.js', () => ({
 }));
 
 describe('Enhanced Error Types', () => {
-  let mockContext: any;
+  let mockContext: unknown;
 
   beforeEach(() => {
     mockContext = {
@@ -279,7 +279,7 @@ describe('Enhanced Error Types', () => {
 
     it('should create generic enhanced error for unknown types', () => {
       const genericError = ErrorFactory.createError(
-        'system' as any,
+        'system' as 'validation' | 'configuration' | 'integration' | 'processing' | 'storage' | 'system',
         'System error',
         mockContext
       );
@@ -385,7 +385,7 @@ describe('Enhanced Error Types', () => {
 
       testCases.forEach(({ category, expected }) => {
         const error = ErrorFactory.createError(
-          category as any,
+          category as 'validation' | 'configuration' | 'integration' | 'processing' | 'storage' | 'system',
           'Technical error message',
           mockContext
         );

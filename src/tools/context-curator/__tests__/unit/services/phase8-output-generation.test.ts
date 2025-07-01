@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
-import path from 'path';
 import { OutputFormatterService } from '../../../services/output-formatter.js';
 import { ContextCuratorService } from '../../../services/context-curator-service.js';
 import {
@@ -314,7 +313,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
           mockConfig
         );
 
-        const validation = result.validation as any;
+        const validation = result.validation as Record<string, unknown>;
         expect(validation).toHaveProperty('hasXmlDeclaration');
         expect(validation).toHaveProperty('isWellFormed');
         expect(validation).toHaveProperty('schemaCompliant');
@@ -328,7 +327,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
           mockConfig
         );
 
-        const validation = result.validation as any;
+        const validation = result.validation as Record<string, unknown>;
         expect(validation).toHaveProperty('isValidJson');
         expect(validation).toHaveProperty('schemaCompliant');
         expect(validation).toHaveProperty('hasRequiredFields');
@@ -341,7 +340,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
           mockConfig
         );
 
-        const validation = result.validation as any;
+        const validation = result.validation as Record<string, unknown>;
         expect(validation).toHaveProperty('isValidYaml');
         expect(validation).toHaveProperty('schemaCompliant');
         expect(validation).toHaveProperty('hasRequiredFields');
@@ -401,7 +400,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
 
       it('should handle malformed context package', async () => {
         const malformedPackage = { ...mockContextPackage };
-        delete (malformedPackage as any).metadata;
+        delete (malformedPackage as Record<string, unknown>).metadata;
 
         await expect(
           outputFormatter.formatOutput(
@@ -435,7 +434,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
         };
 
         // Use reflection to access private method
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
         await service.executeOutputGeneration(mockContext);
 
         // Verify directory creation
@@ -482,7 +481,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
           totalPhases: 8
         };
 
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
         await service.executeOutputGeneration(mockContext);
 
         // Verify JSON was written as primary format
@@ -513,7 +512,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
           totalPhases: 8
         };
 
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
 
         // Should not throw error, but handle gracefully
         await expect(service.executeOutputGeneration(mockContext)).resolves.not.toThrow();
@@ -535,7 +534,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
           totalPhases: 8
         };
 
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
 
         await expect(service.executeOutputGeneration(mockContext))
           .rejects.toThrow('Context package is not available for output generation');
@@ -544,7 +543,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
 
     describe('Validation Helper Methods', () => {
       it('should correctly validate XML output', () => {
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
 
         const validXmlValidation = {
           hasXmlDeclaration: true,
@@ -565,7 +564,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
       });
 
       it('should correctly validate JSON output', () => {
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
 
         const validJsonValidation = {
           isValidJson: true,
@@ -584,7 +583,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
       });
 
       it('should correctly validate YAML output', () => {
-        const service = contextCuratorService as any;
+        const service = contextCuratorService as Record<string, unknown>;
 
         const validYamlValidation = {
           isValidYaml: true,
@@ -639,7 +638,7 @@ describe('Phase 8: Enhanced Output Generation', () => {
 
     it('should maintain backward compatibility', async () => {
       // Test that legacy XML generation still works
-      const service = contextCuratorService as any;
+      const service = contextCuratorService as Record<string, unknown>;
       const legacyXml = service.generateSimpleXMLOutput(mockContextPackage);
 
       expect(legacyXml).toContain('<?xml version="1.0" encoding="UTF-8"?>');

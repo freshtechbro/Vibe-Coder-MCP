@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as astAnalyzer from '../astAnalyzer.js';
 import { SyntaxNode } from '../parser.js';
 import { parseCode } from '../parser.js';
 
 // Mock extractFunctions to return a single function with the expected name
-vi.spyOn(astAnalyzer, 'extractFunctions').mockImplementation((node, sourceCode, languageId) => {
+vi.spyOn(astAnalyzer, 'extractFunctions').mockImplementation((node, _sourceCode, _languageId) => {
   // Check the node type and return the appropriate function name
   if (node.text.includes('myArrowFunc')) {
     return [{
@@ -230,7 +230,7 @@ describe('Function Name Detection', () => {
         getLanguage: vi.fn().mockReturnValue(null)
       };
 
-      const result = await parseCode('console.log("test");', '.js', invalidParser as any);
+      const result = await parseCode('console.log("test");', '.js', invalidParser as Record<string, unknown>);
       
       expect(result).toBeNull();
     });
@@ -242,7 +242,7 @@ describe('Function Name Detection', () => {
         getLanguage: vi.fn().mockReturnValue(null)
       };
 
-      const result = await parseCode('console.log("test");', '.js', parserWithoutLanguage as any);
+      const result = await parseCode('console.log("test");', '.js', parserWithoutLanguage as Record<string, unknown>);
       
       expect(result).toBeNull();
     });
@@ -256,7 +256,7 @@ describe('Function Name Detection', () => {
         getLanguage: vi.fn().mockReturnValue({ name: 'javascript' })
       };
 
-      const result = await parseCode('console.log("test");', '.js', corruptedParser as any);
+      const result = await parseCode('console.log("test");', '.js', corruptedParser as Record<string, unknown>);
       
       expect(result).toBeNull();
     });

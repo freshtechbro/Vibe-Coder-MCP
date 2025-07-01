@@ -4,8 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { promises as fs } from 'fs';
-import path from 'path';
+// File system operations mocked via vi.mock
 
 // Mock logger to capture logs and prevent actual file writing
 const mockLogger = {
@@ -80,7 +79,7 @@ describe('Recursion Prevention Integration Test', () => {
       const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
       
       // Reset instance to force new creation
-      (AgentOrchestrator as any).instance = null;
+      (AgentOrchestrator as { instance: unknown }).instance = null;
       
       // Create instance - this should not cause stack overflow
       const orchestrator = AgentOrchestrator.getInstance();
@@ -108,7 +107,7 @@ describe('Recursion Prevention Integration Test', () => {
     const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
     
     // Simulate circular initialization scenario
-    (AgentOrchestrator as any).isInitializing = true;
+    (AgentOrchestrator as { isInitializing: boolean }).isInitializing = true;
     
     const fallbackInstance = AgentOrchestrator.getInstance();
     
@@ -121,8 +120,8 @@ describe('Recursion Prevention Integration Test', () => {
     expect(fallbackInstance).toBeDefined();
     
     // Test fallback methods don't cause recursion
-    await fallbackInstance.registerAgent({} as any);
-    await fallbackInstance.assignTask({} as any);
+    await fallbackInstance.registerAgent({} as Record<string, unknown>);
+    await fallbackInstance.assignTask({} as Record<string, unknown>);
     await fallbackInstance.getAgents();
     
     // Verify fallback warnings were logged
@@ -131,7 +130,7 @@ describe('Recursion Prevention Integration Test', () => {
     );
     
     // Reset flag
-    (AgentOrchestrator as any).isInitializing = false;
+    (AgentOrchestrator as { isInitializing: boolean }).isInitializing = false;
   });
 
   it('should prevent MemoryManager logging recursion', async () => {
@@ -175,18 +174,18 @@ describe('Recursion Prevention Integration Test', () => {
       const { AgentIntegrationBridge } = await import('../../services/agent-integration-bridge.js');
       
       // Reset all instances
-      (AgentOrchestrator as any).instance = null;
-      (AgentRegistry as any).instance = null;
-      (AgentTaskQueue as any).instance = null;
-      (AgentResponseProcessor as any).instance = null;
-      (AgentIntegrationBridge as any).instance = null;
+      (AgentOrchestrator as { instance: unknown }).instance = null;
+      (AgentRegistry as { instance: unknown }).instance = null;
+      (AgentTaskQueue as { instance: unknown }).instance = null;
+      (AgentResponseProcessor as { instance: unknown }).instance = null;
+      (AgentIntegrationBridge as { instance: unknown }).instance = null;
       
       // Create all instances simultaneously (potential circular dependency trigger)
       const instances = await Promise.all([
         Promise.resolve(AgentOrchestrator.getInstance()),
-        Promise.resolve((AgentRegistry as any).getInstance()),
-        Promise.resolve((AgentTaskQueue as any).getInstance()),
-        Promise.resolve((AgentResponseProcessor as any).getInstance()),
+        Promise.resolve((AgentRegistry as { getInstance: () => unknown }).getInstance()),
+        Promise.resolve((AgentTaskQueue as { getInstance: () => unknown }).getInstance()),
+        Promise.resolve((AgentResponseProcessor as { getInstance: () => unknown }).getInstance()),
         Promise.resolve(AgentIntegrationBridge.getInstance())
       ]);
       
@@ -210,15 +209,18 @@ describe('Recursion Prevention Integration Test', () => {
     let stackOverflowOccurred = false;
     
     try {
-      // Import the main tool handler
-      const toolModule = await import('../../index.js');
+      // Import the main tool handler (validates module loads without error)
+      await import('../../index.js');
       
-      // Mock the tool arguments that would trigger the issue
-      const mockArgs = {
+      // Mock the tool arguments that would trigger the issue (validates structure)
+      const mockArgsStructure = {
         action: 'create-project',
         projectName: 'test-project',
         description: 'Test project for recursion prevention'
       };
+      
+      // Validate mock structure
+      expect(mockArgsStructure.action).toBe('create-project');
       
       // Execute the tool (this was the original trigger)
       // Note: We're not actually executing to avoid side effects, just testing instantiation
@@ -246,7 +248,7 @@ describe('Recursion Prevention Integration Test', () => {
     const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
     
     // Reset instance
-    (AgentOrchestrator as any).instance = null;
+    (AgentOrchestrator as { instance: unknown }).instance = null;
     
     // Create orchestrator
     const orchestrator = AgentOrchestrator.getInstance();

@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 // Mock fs-extra at module level for proper hoisting
 vi.mock('fs-extra', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     // Directory operations
@@ -53,15 +53,15 @@ vi.mock('fs-extra', async (importOriginal) => {
 
 // Mock LLM helper for performance optimization
 vi.mock('../../../../utils/llmHelper.js', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     performFormatAwareLlmCall: vi.fn().mockImplementation(async (
       prompt: string,
       systemPrompt: string,
-      config: any,
+      config: Record<string, unknown>,
       logicalTaskName: string,
-      expectedFormat?: string
+      _expectedFormat?: string
     ) => {
       console.log(`Mock LLM call: ${logicalTaskName}`);
 
@@ -115,7 +115,6 @@ import { vibeTaskManagerExecutor } from '../../index.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
 import { DecompositionService } from '../../services/decomposition-service.js';
-import { RDDEngine } from '../../core/rdd-engine.js';
 import { OptimizedDependencyGraph } from '../../core/dependency-graph.js';
 import { PRDIntegrationService } from '../../integrations/prd-integration.js';
 import { TaskListIntegrationService } from '../../integrations/task-list-integration.js';
@@ -204,14 +203,14 @@ async function scheduleTasksWithAlgorithm(
   scheduler: TaskScheduler,
   tasks: AtomicTask[],
   algorithm: string
-): Promise<{ success: boolean; data?: Map<string, any>; error?: string }> {
+): Promise<{ success: boolean; data?: Map<string, Record<string, unknown>>; error?: string }> {
   try {
     // Create dependency graph
     const dependencyGraph = new OptimizedDependencyGraph();
     tasks.forEach(task => dependencyGraph.addTask(task));
 
     // Set algorithm on scheduler
-    (scheduler as any).config.algorithm = algorithm;
+    (scheduler as Record<string, unknown>).config.algorithm = algorithm;
 
     // Generate schedule
     const schedule = await scheduler.generateSchedule(tasks, dependencyGraph, 'test-project');
@@ -233,8 +232,8 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
   let intentEngine: IntentRecognitionEngine;
   let decompositionService: DecompositionService;
   let testProjectContext: ProjectContext;
-  let mockConfig: any;
-  let mockContext: any;
+  let mockConfig: Record<string, unknown>;
+  let mockContext: Record<string, unknown>;
   let testPortRange: ReturnType<typeof setupUniqueTestPorts>;
   let mockCleanup: (() => Promise<void>) | undefined;
 
@@ -733,13 +732,14 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
 
   describe('6. Code Map Integration with Real Configuration', () => {
     it('should integrate with code-map-generator using proper OpenRouter config', async () => {
-      const codeMapParams = {
+      // Code map parameters for integration testing
+      void ({
         targetPath: process.cwd(),
         outputPath: 'VibeCoderOutput/integration-test-codemap',
         includeTests: false,
         maxDepth: 2,
         excludePatterns: ['node_modules', '.git', 'dist', 'build']
-      };
+      });
 
       // This test verifies the configuration loading works properly
       // We don't actually run the code map generation to avoid long execution times
@@ -816,12 +816,13 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
       expect(status.http?.running).toBe(true);
 
       // Test agent registration capability
-      const mockAgent = {
+      // Mock agent for testing registration
+      void ({
         id: 'test-agent-001',
         name: 'Integration Test Agent',
         capabilities: ['task_execution', 'code_analysis'],
         status: 'available'
-      };
+      });
 
       // This verifies the transport layer can handle agent communication
       expect(status.websocket?.port).toBeGreaterThan(0);
@@ -1190,7 +1191,7 @@ describe('Vibe Task Manager - Comprehensive Integration Tests', () => {
         id: `perf-task-${index}`,
         title: `Performance Test Task ${index}`,
         description: `Task ${index} for performance testing`,
-        priority: ['critical', 'high', 'medium', 'low'][index % 4] as any,
+        priority: ['critical', 'high', 'medium', 'low'][index % 4] as 'critical' | 'high' | 'medium' | 'low',
         estimatedHours: Math.floor(Math.random() * 8) + 1,
         dependencies: index > 0 ? [`perf-task-${index - 1}`] : [],
         dependents: index < 9 ? [`perf-task-${index + 1}`] : [],

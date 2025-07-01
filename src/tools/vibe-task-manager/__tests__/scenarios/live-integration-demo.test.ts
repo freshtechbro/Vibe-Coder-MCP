@@ -17,7 +17,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 describe('🚀 Live Integration Demo - CodeQuest Academy', () => {
-  let config: any;
+  let config: Record<string, unknown>;
   let outputDir: string;
   let performanceMonitor: PerformanceMonitor;
   let memoryManager: TaskManagerMemoryManager;
@@ -261,7 +261,7 @@ describe('🚀 Live Integration Demo - CodeQuest Academy', () => {
 
       // Test error handling
       const invalidResult = await vibeTaskManagerExecutor({
-        command: 'invalid_command' as any
+        command: 'invalid_command' as 'create' | 'list' | 'run' | 'status' | 'refine' | 'decompose'
       }, config);
 
       expect(invalidResult.isError).toBe(true);

@@ -5,12 +5,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { 
-  mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
@@ -174,7 +171,6 @@ describe('Vibe Task Manager - Basic Integration Tests', () => {
     it('should handle empty task list', async () => {
       try {
         // Test with empty task list
-        const emptyTasks: AtomicTask[] = [];
         
         // This should not throw an error
         expect(() => taskScheduler).not.toThrow();
@@ -234,7 +230,7 @@ describe('Vibe Task Manager - Basic Integration Tests', () => {
         try {
           await fs.access(filePath);
           logger.info({ file, exists: true }, 'Key file check');
-        } catch (error) {
+        } catch {
           logger.warn({ file, exists: false }, 'Key file missing');
           throw new Error(`Required file ${file} not found`);
         }

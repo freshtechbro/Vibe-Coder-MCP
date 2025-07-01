@@ -6,8 +6,9 @@
 import { resolve } from 'path';
 import { mkdir } from 'fs/promises';
 import logger from '../../../../logger.js';
-import { initializeTestServices, getTestConfig } from '../setup.js';
+import { initializeTestServices } from '../setup.js';
 import { autoRegisterKnownSingletons } from './singleton-reset-manager.js';
+import { EventEmitter } from 'events';
 
 export default async function globalSetup() {
   try {
@@ -44,7 +45,6 @@ export default async function globalSetup() {
     });
 
     // Configure EventEmitter defaults for tests
-    const EventEmitter = require('events');
     EventEmitter.defaultMaxListeners = 20; // Increase default for tests
 
     console.log('✅ Global test setup completed');

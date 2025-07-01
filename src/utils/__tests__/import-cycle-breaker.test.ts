@@ -39,7 +39,7 @@ describe('ImportCycleBreaker', () => {
       const importName = 'TestClass';
       
       // Add to import stack to simulate ongoing import
-      (ImportCycleBreaker as any).importStack.add(`${modulePath}:${importName}`);
+      (ImportCycleBreaker as unknown as { importStack: Set<string> }).importStack.add(`${modulePath}:${importName}`);
       
       const result = await ImportCycleBreaker.safeImport(modulePath, importName);
       
@@ -243,7 +243,7 @@ describe('ImportCycleBreaker', () => {
       const modulePath = './test-module.js';
       
       // Add old entry to history
-      (ImportCycleBreaker as any).importHistory.set(`${modulePath}:TestClass`, {
+      (ImportCycleBreaker as unknown as { importHistory: Map<string, { timestamp: number; success: boolean }> }).importHistory.set(`${modulePath}:TestClass`, {
         timestamp: Date.now() - 200000, // 200 seconds ago
         success: false
       });
@@ -336,8 +336,8 @@ describe('ImportCycleBreaker', () => {
 
     it('should clear all state correctly', () => {
       // Add some state
-      (ImportCycleBreaker as any).importStack.add('test');
-      (ImportCycleBreaker as any).importHistory.set('test', { timestamp: Date.now(), success: true });
+      (ImportCycleBreaker as unknown as { importStack: Set<string> }).importStack.add('test');
+      (ImportCycleBreaker as unknown as { importHistory: Map<string, { timestamp: number; success: boolean }> }).importHistory.set('test', { timestamp: Date.now(), success: true });
       
       ImportCycleBreaker.clearAll();
       

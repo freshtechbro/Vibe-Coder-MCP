@@ -8,6 +8,17 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
+// Interface for detector with private methods we need to spy on
+interface MemoryLeakDetectorPrivate extends MemoryLeakDetector {
+  takeHeapSnapshot(): Promise<string>;
+  compareHeapSnapshots(path1: string, path2: string): Promise<{
+    snapshot1Size: number;
+    snapshot2Size: number;
+    sizeDifference: number;
+    growthPercentage: number;
+  }>;
+}
+
 // Mock the parser's getMemoryStats function
 vi.mock('../../parser.js', () => {
   return {
@@ -190,7 +201,7 @@ describe('MemoryLeakDetector', () => {
 
   it('should take heap snapshots', async () => {
     // Mock the takeHeapSnapshot method to avoid actual snapshot creation
-    vi.spyOn(detector as any, 'takeHeapSnapshot').mockImplementation(async () => {
+    vi.spyOn(detector as MemoryLeakDetectorPrivate, 'takeHeapSnapshot').mockImplementation(async () => {
       const snapshotPath = path.join(tempDir, `heap-snapshot-${Date.now()}.heapsnapshot`);
       return snapshotPath;
     });
@@ -205,7 +216,7 @@ describe('MemoryLeakDetector', () => {
   it('should compare heap snapshots', async () => {
     // Mock the takeHeapSnapshot method
     const snapshotPath = path.join(tempDir, `heap-snapshot-${Date.now()}.heapsnapshot`);
-    vi.spyOn(detector as any, 'takeHeapSnapshot').mockResolvedValue(snapshotPath);
+    vi.spyOn(detector as MemoryLeakDetectorPrivate, 'takeHeapSnapshot').mockResolvedValue(snapshotPath);
 
     // Mock fs.stat to return different sizes
     const statMock = vi.fn()
@@ -215,7 +226,7 @@ describe('MemoryLeakDetector', () => {
     vi.spyOn(fs, 'stat').mockImplementation(statMock);
 
     // Mock the compareHeapSnapshots method
-    vi.spyOn(detector as any, 'compareHeapSnapshots').mockResolvedValue({
+    vi.spyOn(detector as MemoryLeakDetectorPrivate, 'compareHeapSnapshots').mockResolvedValue({
       snapshot1Size: 1000000,
       snapshot2Size: 1200000,
       sizeDiff: 200000,

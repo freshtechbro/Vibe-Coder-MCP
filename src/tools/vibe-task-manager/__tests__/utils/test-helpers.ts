@@ -12,8 +12,7 @@ import {
   registerSingleton,
   getMemoryUsage
 } from './test-cleanup.js';
-import { initializeTestServices, resetTestServices } from '../setup.js';
-import { registerSingletonForReset, resetSingleton } from './singleton-reset-manager.js';
+import { initializeTestServices } from '../setup.js';
 import { memoryUtils, testMemoryOptimizer } from './memory-optimizer.js';
 
 /**
@@ -95,7 +94,7 @@ export function createTestService<T>(
   const service = factory();
   
   if (cleanupMethod && typeof service[cleanupMethod] === 'function') {
-    registerCleanupFunction(name, () => (service[cleanupMethod] as any)());
+    registerCleanupFunction(name, () => (service[cleanupMethod] as () => void)());
   }
   
   return service;
@@ -106,7 +105,7 @@ export function createTestService<T>(
  */
 export function registerTestSingleton(
   name: string,
-  getInstanceOrInstance: (() => any) | any,
+  getInstanceOrInstance: (() => unknown) | unknown,
   resetMethod?: string
 ): void {
   // Register with both the legacy system and the enhanced singleton manager
@@ -151,7 +150,7 @@ export async function waitFor(
 /**
  * Create a mock function with automatic cleanup
  */
-export function createMockFunction<T extends (...args: any[]) => any>(
+export function createMockFunction<T extends (...args: unknown[]) => unknown>(
   name: string,
   implementation?: T
 ): T & { cleanup: () => void } {
@@ -221,7 +220,7 @@ export async function retryWithBackoff<T>(
 /**
  * Create a test configuration with overrides
  */
-export function createTestConfig(overrides: any = {}): any {
+export function createTestConfig(overrides: unknown = {}): unknown {
   const baseConfig = {
     maxConcurrentTasks: 2,
     defaultTaskTemplate: 'test',

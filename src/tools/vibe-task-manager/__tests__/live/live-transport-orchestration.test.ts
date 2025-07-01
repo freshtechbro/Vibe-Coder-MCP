@@ -6,7 +6,6 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
-import { RDDEngine } from '../../core/rdd-engine.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
 import { AgentOrchestrator } from '../../services/agent-orchestrator.js';
 import { transportManager } from '../../../../services/transport-manager/index.js';
@@ -22,7 +21,6 @@ const LIVE_TRANSPORT_TIMEOUT = 300000; // 5 minutes
 
 describe('🚀 Live Transport & Orchestration - HTTP/SSE/Agent Integration', () => {
   let intentEngine: IntentRecognitionEngine;
-  let rddEngine: RDDEngine;
   let taskScheduler: TaskScheduler;
   let agentOrchestrator: AgentOrchestrator;
   let projectContext: ProjectContext;
@@ -33,17 +31,9 @@ describe('🚀 Live Transport & Orchestration - HTTP/SSE/Agent Integration', () 
 
   beforeAll(async () => {
     // Initialize components with live transport configuration
-    const config = await getVibeTaskManagerConfig();
-    const openRouterConfig = {
-      baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || '',
-      geminiModel: process.env.GEMINI_MODEL || 'google/gemini-2.5-flash-preview-05-20',
-      perplexityModel: process.env.PERPLEXITY_MODEL || 'perplexity/llama-3.1-sonar-small-128k-online',
-      llm_mapping: config?.llm?.llm_mapping || {}
-    };
+    await getVibeTaskManagerConfig();
 
     intentEngine = new IntentRecognitionEngine();
-    rddEngine = new RDDEngine(openRouterConfig);
     taskScheduler = new TaskScheduler({ enableDynamicOptimization: true });
     agentOrchestrator = AgentOrchestrator.getInstance();
 
@@ -170,7 +160,7 @@ describe('🚀 Live Transport & Orchestration - HTTP/SSE/Agent Integration', () 
         const agentInfo = {
           id: agentConfig.id,
           name: agentConfig.name,
-          capabilities: agentConfig.capabilities as any[],
+          capabilities: agentConfig.capabilities as Record<string, unknown>[],
           maxConcurrentTasks: agentConfig.maxConcurrentTasks,
           currentTasks: [],
           status: 'available' as const,
@@ -223,7 +213,7 @@ describe('🚀 Live Transport & Orchestration - HTTP/SSE/Agent Integration', () 
         expect(intentResult.confidence).toBeGreaterThan(0.7);
 
         // Create epic task
-        const epicTask = createLiveTask({
+        createLiveTask({
           id: `epic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           title: requirement.substring(0, 50) + '...',
           description: requirement,
@@ -523,7 +513,7 @@ function createLiveTask(overrides: Partial<AtomicTask>): AtomicTask {
 
 // Helper function to save live scenario outputs
 async function saveLiveScenarioOutputs(
-  scenarioReport: any,
+  scenarioReport: Record<string, unknown>,
   orchestratedTasks: AtomicTask[],
   registeredAgents: string[]
 ): Promise<void> {

@@ -21,7 +21,7 @@ describe('Codemap Generation Integration Validation', () => {
   let codeMapService: CodeMapIntegrationService;
   let contextService: ContextEnrichmentService;
   let decompositionService: DecompositionService;
-  let config: any;
+  let config: Record<string, unknown>;
 
   // Real project context for testing
   const testProjectPath = '/Users/bishopdotun/Documents/Dev Projects/Vibe-Coder-MCP';
@@ -576,7 +576,7 @@ describe('Codemap Generation Integration Validation', () => {
       console.log('🩺 Codemap Integration Health Check Results:', healthCheck);
 
       // Verify all systems are operational
-      Object.entries(healthCheck).forEach(([system, healthy]) => {
+      Object.entries(healthCheck).forEach(([_system, healthy]) => {
         expect(healthy).toBe(true);
       });
 

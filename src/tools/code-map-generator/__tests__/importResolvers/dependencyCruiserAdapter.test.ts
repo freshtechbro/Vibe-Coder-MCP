@@ -2,7 +2,7 @@
  * Tests for the DependencyCruiserAdapter.
  */
 
-import { describe, it, expect, beforeEach, beforeAll, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DependencyCruiserAdapter } from '../../importResolvers/dependencyCruiserAdapter.js';
 import * as path from 'path';
 import * as fs from 'fs';

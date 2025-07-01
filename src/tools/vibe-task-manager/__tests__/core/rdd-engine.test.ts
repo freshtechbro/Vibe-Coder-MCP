@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { RDDEngine, DecompositionResult, RDDConfig } from '../../core/rdd-engine.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { RDDEngine, RDDConfig } from '../../core/rdd-engine.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
@@ -38,8 +38,8 @@ describe('RDDEngine', () => {
   let mockConfig: OpenRouterConfig;
   let mockTask: AtomicTask;
   let mockContext: ProjectContext;
-  let mockAtomicDetector: any;
-  let mockPerformFormatAwareLlmCall: any;
+  let mockAtomicDetector: unknown;
+  let mockPerformFormatAwareLlmCall: unknown;
 
   beforeEach(async () => {
     // Clear all mocks first
@@ -78,7 +78,7 @@ describe('RDDEngine', () => {
     };
 
     // Inject the mock detector into the engine
-    (engine as any).atomicDetector = mockAtomicDetector;
+    (engine as Record<string, unknown>).atomicDetector = mockAtomicDetector;
 
     // Reset the circuit breaker for each test to ensure clean state
     if (engine.resetCircuitBreaker) {
@@ -94,7 +94,7 @@ describe('RDDEngine', () => {
       getStats: () => ({ attempts: 0, failures: 0, canAttempt: true }),
       reset: () => {}
     };
-    (engine as any).circuitBreaker = testCircuitBreaker;
+    (engine as Record<string, unknown>).circuitBreaker = testCircuitBreaker;
 
     mockTask = {
       id: 'T0001',
@@ -686,7 +686,7 @@ describe('RDDEngine', () => {
       const staleStartTime = new Date(Date.now() - 1000000); // 16+ minutes ago
 
       // Access private property for testing (not ideal but necessary for this test)
-      (engine as any).activeOperations.set(staleOperationId, {
+      (engine as Record<string, unknown>).activeOperations.set(staleOperationId, {
         startTime: staleStartTime,
         operation: 'test_operation',
         taskId: 'test-task'

@@ -2,7 +2,7 @@
  * Tests for Intent Recognition Engine
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
 
 describe('IntentRecognitionEngine', () => {

@@ -6,12 +6,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock the entire ImportResolverFactory module to avoid filesystem checks
 vi.mock('../../importResolvers/importResolverFactory.js', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
 
   // Create a test version that bypasses filesystem checks
   class TestImportResolverFactory extends actual.ImportResolverFactory {
     public getImportResolver(filePath: string) {
-      const extension = require('path').extname(filePath).toLowerCase();
+      const extension = (await import('path')).extname(filePath).toLowerCase();
 
       // JavaScript/TypeScript files
       if (['.js', '.jsx', '.ts', '.tsx'].includes(extension)) {
@@ -43,7 +43,6 @@ vi.mock('../../importResolvers/importResolverFactory.js', async (importOriginal)
   };
 });
 
-import * as path from 'path';
 import { ImportResolverFactory } from '../../importResolvers/importResolverFactory.js';
 import { DependencyCruiserAdapter } from '../../importResolvers/dependencyCruiserAdapter.js';
 import { ExtendedPythonImportResolver } from '../../importResolvers/extendedPythonImportResolver.js';
@@ -63,7 +62,7 @@ vi.mock('../../../logger.js', () => ({
 
 // Enhanced fs mock that properly handles file existence checks
 vi.mock('fs', () => ({
-  statSync: vi.fn().mockImplementation((filePath: string) => {
+  statSync: vi.fn().mockImplementation((_filePath: string) => {
     // Always return valid stats for any file path in tests
     // This ensures the ImportResolverFactory file existence check passes
     return {
@@ -79,7 +78,7 @@ vi.mock('fs', () => ({
 
 // Mock path module to handle path resolution
 vi.mock('path', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     resolve: vi.fn().mockImplementation((...args: string[]) => {

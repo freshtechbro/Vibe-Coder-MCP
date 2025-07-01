@@ -4,11 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { executeCodeMapGeneration } from '../index.js';
-import { CodeMapGeneratorConfig } from '../types.js';
-import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 
 // Mock the file system
 vi.mock('fs', () => {
@@ -177,7 +173,7 @@ function createLanguageBasedBatches(files, batchSize) {
   return batches;
 }
 
-async function processLanguageBasedBatches(files, processor, config, jobId, sessionId, operation, startProgress, endProgress) {
+async function processLanguageBasedBatches(files, processor, config, _jobId, _sessionId, _operation, _startProgress, _endProgress) {
   const batchSize = config?.processing?.batchSize || 10;
   const batches = createLanguageBasedBatches(files, batchSize);
 
@@ -194,54 +190,15 @@ async function processLanguageBasedBatches(files, processor, config, jobId, sess
   return results;
 }
 
-class MockGrammarManager {
-  constructor() {
-    this.grammars = new Map();
-  }
-
-  async loadGrammarWithMemoryAwareness(extension) {
-    this.grammars.set(extension, { loaded: true });
-  }
-
-  getLoadedGrammars() {
-    return Array.from(this.grammars.keys());
-  }
-
-  async getParserForExtensionWithMemoryAwareness(extension) {
-    return { parse: () => ({ rootNode: { text: 'mock' } }) };
-  }
-
-  async prepareGrammarsForBatch(extensions) {
-    for (const extension of extensions) {
-      await this.loadGrammarWithMemoryAwareness(extension);
-    }
-  }
-
-  getStats() {
-    return {
-      lruList: Array.from(this.grammars.keys()),
-      grammars: Array.from(this.grammars.entries()).map(([extension, value]) => ({
-        extension,
-        size: extension === '.cpp' ? 2000000 : 1000000
-      }))
-    };
-  }
-}
 
 describe('Memory Optimization Integration', () => {
   let sourceCodeMetadataCache;
-  let astMetadataCache;
-  let grammarManager;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Initialize the caches
     sourceCodeMetadataCache = new MockMetadataCache('source-code');
-    astMetadataCache = new MockMetadataCache('ast');
-
-    // Initialize the grammar manager
-    grammarManager = new MockGrammarManager();
   });
 
   afterEach(() => {

@@ -7,10 +7,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextCuratorService, WorkflowPhase } from '../../../services/context-curator-service.js';
-import { ConfigLoader } from '../../../services/config-loader.js';
 import { LLMIntegrationService } from '../../../services/llm-integration.js';
 import { IntentAnalysisResult, FileDiscoveryResult } from '../../../types/llm-tasks.js';
-import { PrioritizedFile, MultiStrategyFileDiscoveryResult, ContextCuratorInput } from '../../../types/context-curator.js';
+import { PrioritizedFile, ContextCuratorInput } from '../../../types/context-curator.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
 
 // Define WorkflowContext interface for testing
@@ -22,7 +21,7 @@ interface WorkflowContext {
   startTime: number;
   codemapContent?: string;
   intentAnalysis?: IntentAnalysisResult;
-  fileDiscovery?: any;
+  fileDiscovery?: unknown;
   totalPhases: number;
   completedPhases: number;
   errors: string[];
@@ -31,29 +30,18 @@ interface WorkflowContext {
 
 describe('Multi-Strategy File Discovery', () => {
   let service: ContextCuratorService;
-  let mockConfigLoader: ConfigLoader;
   let mockLLMService: LLMIntegrationService;
   let mockContext: WorkflowContext;
 
   beforeEach(() => {
-    mockConfigLoader = {
-      loadConfig: vi.fn().mockResolvedValue({
-        success: true,
-        config: {
-          openRouter: { apiKey: 'test-key', baseUrl: 'test-url' },
-          models: { intent_analysis: 'test-model' }
-        }
-      })
-    } as any;
-
     mockLLMService = {
       performFileDiscovery: vi.fn()
-    } as any;
+    } as Record<string, unknown>;
 
     // Create service instance using singleton pattern
     service = ContextCuratorService.getInstance();
     // Replace the internal LLM service with our mock
-    (service as any).llmService = mockLLMService;
+    (service as Record<string, unknown>).llmService = mockLLMService;
 
     mockContext = {
       jobId: 'test-job-123',
@@ -171,7 +159,7 @@ describe('Multi-Strategy File Discovery', () => {
       );
 
       // Execute the multi-strategy file discovery
-      await (service as any).executeFileDiscovery(mockContext);
+      await (service as Record<string, unknown>).executeFileDiscovery(mockContext);
 
       // Verify all 4 strategies were called
       expect(mockLLMService.performFileDiscovery).toHaveBeenCalledTimes(4);
@@ -210,7 +198,7 @@ describe('Multi-Strategy File Discovery', () => {
       ];
 
       testFiles.forEach(({ confidence, priority }) => {
-        const result = (service as any).categorizePriorityLevel(confidence);
+        const result = (service as Record<string, unknown>).categorizePriorityLevel(confidence);
         expect(result).toBe(priority);
       });
     });
@@ -279,7 +267,7 @@ describe('Multi-Strategy File Discovery', () => {
         }
       ];
 
-      const result = (service as any).deduplicateFilesByPriority(duplicateFiles);
+      const result = (service as Record<string, unknown>).deduplicateFilesByPriority(duplicateFiles);
 
       // Should have only one file
       expect(result).toHaveLength(1);
@@ -303,7 +291,7 @@ describe('Multi-Strategy File Discovery', () => {
 
       mockLLMService.performFileDiscovery = vi.fn().mockResolvedValue(mockResponse);
 
-      await (service as any).executeFileDiscovery(mockContext);
+      await (service as Record<string, unknown>).executeFileDiscovery(mockContext);
 
       // Verify enhanced configuration was used
       expect(mockLLMService.performFileDiscovery).toHaveBeenCalledWith(

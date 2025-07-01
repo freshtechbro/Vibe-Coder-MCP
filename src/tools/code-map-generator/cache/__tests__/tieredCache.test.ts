@@ -17,7 +17,7 @@ vi.mock('../../parser.js', () => ({
 
 describe('TieredCache', () => {
   let tempDir: string;
-  let cache: TieredCache<any>;
+  let cache: TieredCache<unknown>;
 
   beforeEach(async () => {
     // Create a temporary directory for the cache
@@ -25,7 +25,7 @@ describe('TieredCache', () => {
     await fs.mkdir(tempDir, { recursive: true });
 
     // Create a new cache instance
-    cache = new TieredCache<any>({
+    cache = new TieredCache<unknown>({
       name: 'test-cache',
       cacheDir: tempDir,
       maxEntries: 100,

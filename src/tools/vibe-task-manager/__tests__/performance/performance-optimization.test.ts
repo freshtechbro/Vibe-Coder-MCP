@@ -13,103 +13,11 @@ describe('Performance Optimization', () => {
   let performanceMonitor: PerformanceMonitor;
   let executionCoordinator: ExecutionCoordinator;
   let configLoader: ConfigLoader;
-  let memoryManager: TaskManagerMemoryManager;
-  let mockConfig: any;
 
   beforeEach(async () => {
-    mockConfig = {
-      llm: {
-        llm_mapping: {
-          'task_decomposition': 'gemini-2.0-flash-exp',
-          'default_generation': 'gemini-2.0-flash-exp'
-        }
-      },
-      mcp: {
-        tools: {
-          'vibe-task-manager': {
-            description: 'Test tool',
-            use_cases: ['testing'],
-            input_patterns: ['test']
-          }
-        }
-      },
-      taskManager: {
-        maxConcurrentTasks: 5,
-        defaultTaskTemplate: 'default',
-        dataDirectory: '/tmp/test',
-        performanceTargets: {
-          maxResponseTime: 50,
-          maxMemoryUsage: 100,
-          minTestCoverage: 80
-        },
-        agentSettings: {
-          maxAgents: 3,
-          defaultAgent: 'test-agent',
-          coordinationStrategy: 'round_robin' as const,
-          healthCheckInterval: 30
-        },
-        nlpSettings: {
-          primaryMethod: 'pattern' as const,
-          fallbackMethod: 'llm' as const,
-          minConfidence: 0.7,
-          maxProcessingTime: 5000
-        },
-        timeouts: {
-          taskExecution: 30000,
-          taskDecomposition: 15000,
-          taskRefinement: 10000,
-          agentCommunication: 5000,
-          llmRequest: 30000,
-          fileOperations: 10000,
-          databaseOperations: 15000,
-          networkOperations: 10000
-        },
-        retryPolicy: {
-          maxRetries: 3,
-          backoffMultiplier: 2,
-          initialDelayMs: 1000,
-          maxDelayMs: 10000,
-          enableExponentialBackoff: true
-        },
-        performance: {
-          memoryManagement: {
-            enabled: true,
-            maxMemoryPercentage: 0.3,
-            monitorInterval: 5000,
-            autoManage: true,
-            pruneThreshold: 0.6,
-            prunePercentage: 0.4
-          },
-          fileSystem: {
-            enableLazyLoading: true,
-            batchSize: 50,
-            enableCompression: false,
-            indexingEnabled: true,
-            concurrentOperations: 10
-          },
-          caching: {
-            enabled: true,
-            strategy: 'memory' as const,
-            maxCacheSize: 50 * 1024 * 1024,
-            defaultTTL: 60000,
-            enableWarmup: true
-          },
-          monitoring: {
-            enabled: true,
-            metricsInterval: 1000,
-            enableAlerts: true,
-            performanceThresholds: {
-              maxResponseTime: 50,
-              maxMemoryUsage: 300,
-              maxCpuUsage: 70
-            }
-          }
-        }
-      }
-    };
 
     // Initialize memory manager
-    memoryManager = TaskManagerMemoryManager.getInstance({
+    TaskManagerMemoryManager.getInstance({
       enabled: true,
       maxMemoryPercentage: 0.3,
       monitorInterval: 5000,
@@ -252,7 +160,7 @@ describe('Performance Optimization', () => {
       ];
 
       // Mock the execution queue
-      (executionCoordinator as any).executionQueue = mockTasks;
+      (executionCoordinator as Record<string, unknown>).executionQueue = mockTasks;
 
       // Run batch optimization
       await executionCoordinator.optimizeBatchProcessing();
@@ -279,7 +187,7 @@ describe('Performance Optimization', () => {
       ]);
 
       // Mock the agents map
-      (executionCoordinator as any).agents = mockAgents;
+      (executionCoordinator as Record<string, unknown>).agents = mockAgents;
 
       // Run batch optimization
       await executionCoordinator.optimizeBatchProcessing();
@@ -300,7 +208,7 @@ describe('Performance Optimization', () => {
       ]);
 
       // Mock the active executions
-      (executionCoordinator as any).activeExecutions = mockExecutions;
+      (executionCoordinator as Record<string, unknown>).activeExecutions = mockExecutions;
 
       // Run batch optimization
       await executionCoordinator.optimizeBatchProcessing();
@@ -323,7 +231,7 @@ describe('Performance Optimization', () => {
         const stats = configLoader.getCacheStats();
         expect(stats).toBeDefined();
         expect(typeof stats.totalRequests).toBe('number');
-      } catch (error) {
+      } catch {
         // If warmup fails, just verify the method exists and can be called
         expect(configLoader.warmupCache).toBeDefined();
         expect(typeof configLoader.warmupCache).toBe('function');

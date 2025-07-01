@@ -3,6 +3,8 @@ import { YAMLComposer } from '../yaml-composer.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+type YAMLComposerWithPreprocess = YAMLComposer & { preprocessTemplateForValidation: (input: unknown, moduleType: string) => unknown };
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -42,7 +44,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
       };
 
       // Access the private method using bracket notation for testing
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'test/module');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'test/module');
 
       expect(preprocessed.provides.directoryStructure[0]).toHaveProperty('content');
       expect(preprocessed.provides.directoryStructure[0].content).toBe(null);
@@ -64,7 +66,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'test/module');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'test/module');
 
       expect(preprocessed.provides.directoryStructure[0]).toHaveProperty('content');
       expect(preprocessed.provides.directoryStructure[0]).toHaveProperty('generationPrompt');
@@ -88,7 +90,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'test/module');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'test/module');
 
       expect(preprocessed.provides.directoryStructure[0]).toHaveProperty('generationPrompt');
       expect(preprocessed.provides.directoryStructure[0].generationPrompt).toBe(null);
@@ -125,7 +127,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'test/module');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'test/module');
 
       // Check root directory
       expect(preprocessed.provides.directoryStructure[0].content).toBe(null);
@@ -173,7 +175,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'utility/voice-recognition-web-api');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'utility/voice-recognition-web-api');
 
       // Verify the directory has content: null
       expect(preprocessed.provides.directoryStructure[0].content).toBe(null);
@@ -209,7 +211,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'development-tools/monaco-judge0');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'development-tools/monaco-judge0');
 
       // Verify the conflict was resolved by prioritizing generationPrompt
       const fileItem = preprocessed.provides.directoryStructure[0].children[0];
@@ -234,7 +236,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(problematicJson, 'test/module');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(problematicJson, 'test/module');
 
       const fileItem = preprocessed.provides.directoryStructure[0];
       expect(fileItem.content).toBe(null);
@@ -293,7 +295,7 @@ describe('YAMLComposer Preprocessing Fix', () => {
         }
       };
 
-      const preprocessed = (yamlComposer as any).preprocessTemplateForValidation(validJson, 'test/module');
+      const preprocessed = (yamlComposer as YAMLComposerWithPreprocess).preprocessTemplateForValidation(validJson, 'test/module');
 
       // Should remain unchanged
       expect(preprocessed.provides.directoryStructure[0].content).toBe(null);

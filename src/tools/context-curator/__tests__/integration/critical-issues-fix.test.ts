@@ -6,38 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ContextCuratorService } from '../../services/context-curator-service.js';
-import { ContextCuratorInput } from '../../types/context-curator.js';
-import { OpenRouterConfig } from '../../../../types/workflow.js';
 import { TokenEstimator } from '../../utils/token-estimator.js';
 import logger from '../../../../logger.js';
 
 describe('Context Curator Critical Issues Fix', () => {
-  let contextCuratorService: ContextCuratorService;
-  let mockConfig: OpenRouterConfig;
-  let testInput: ContextCuratorInput;
 
   beforeEach(() => {
-    contextCuratorService = ContextCuratorService.getInstance();
-    
-    mockConfig = {
-      apiKey: 'test-key',
-      baseUrl: 'https://openrouter.ai/api/v1',
-      model: 'anthropic/claude-3.5-sonnet',
-      maxTokens: 4000,
-      temperature: 0.1
-    };
-
-    testInput = {
-      userPrompt: 'Add comprehensive error handling and logging to the file search service, including retry mechanisms for failed file operations and detailed error reporting.',
-      projectPath: process.cwd(),
-      taskType: 'feature_addition',
-      maxFiles: 50,
-      includePatterns: ['**/*.ts', '**/*.js'],
-      excludePatterns: ['node_modules/**', '.git/**', 'dist/**'],
-      focusAreas: ['error-handling', 'logging', 'file-operations'],
-      tokenBudget: 250000
-    };
+    // Setup for tests - variables removed as they were unused
   });
 
   afterEach(() => {

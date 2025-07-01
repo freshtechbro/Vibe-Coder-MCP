@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs-extra';
 import path from 'path';
-import { PathSecurityValidator, validateSecurePath, PathValidationResult } from '../../security/path-validator.js';
+import { PathSecurityValidator, validateSecurePath } from '../../security/path-validator.js';
 
 // Mock fs-extra
 vi.mock('fs-extra');
@@ -26,12 +26,12 @@ describe('PathSecurityValidator', () => {
 
   beforeEach(() => {
     // Reset singleton
-    (PathSecurityValidator as any).instance = null;
+    (PathSecurityValidator as Record<string, unknown>).instance = null;
 
     // Setup fs mocks
     mockFs.lstat.mockResolvedValue({
       isSymbolicLink: () => false
-    } as any);
+    } as Record<string, unknown>);
   });
 
   afterEach(() => {
@@ -137,7 +137,7 @@ describe('PathSecurityValidator', () => {
     it('should reject symbolic links when disabled', async () => {
       mockFs.lstat.mockResolvedValue({
         isSymbolicLink: () => true
-      } as any);
+      } as Record<string, unknown>);
 
       const symlinkPath = path.join(process.cwd(), 'symlink.js');
 
@@ -151,7 +151,7 @@ describe('PathSecurityValidator', () => {
     it('should allow symbolic links when enabled', async () => {
       validator.shutdown();
       // Reset singleton to ensure clean state
-      (PathSecurityValidator as any).instance = null;
+      (PathSecurityValidator as Record<string, unknown>).instance = null;
 
       validator = PathSecurityValidator.getInstance({
         allowedDirectories: [process.cwd()],
@@ -163,7 +163,7 @@ describe('PathSecurityValidator', () => {
 
       mockFs.lstat.mockResolvedValue({
         isSymbolicLink: () => true
-      } as any);
+      } as Record<string, unknown>);
 
       const symlinkPath = path.join(process.cwd(), 'symlink.js');
 
@@ -191,7 +191,7 @@ describe('PathSecurityValidator', () => {
     });
 
     it('should handle non-string input', async () => {
-      const result = await validator.validatePath(null as any);
+      const result = await validator.validatePath(null as Record<string, unknown>);
 
       expect(result.valid).toBe(false);
       expect(result.violationType).toBe('malformed');

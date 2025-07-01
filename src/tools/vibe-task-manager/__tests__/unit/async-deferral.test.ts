@@ -58,7 +58,7 @@ vi.mock('../../../agent-response/index.js', () => ({
 }));
 
 describe('UniversalAgentCommunicationChannel Async Deferral', () => {
-  let UniversalAgentCommunicationChannel: any;
+  let UniversalAgentCommunicationChannel: unknown;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -66,16 +66,16 @@ describe('UniversalAgentCommunicationChannel Async Deferral', () => {
     vi.useFakeTimers();
 
     // Import the class after mocks are set up
-    const module = await import('../../services/agent-orchestrator.js');
+    await import('../../services/agent-orchestrator.js');
     // Extract the class from the module (it's not exported, so we need to access it differently)
     // For testing purposes, we'll create a test version
     UniversalAgentCommunicationChannel = class TestUniversalAgentCommunicationChannel {
-      private agentRegistry: any;
-      private taskQueue: any;
-      private responseProcessor: any;
-      private websocketServer: any;
-      private httpAgentAPI: any;
-      private sseNotifier: any;
+      private agentRegistry: unknown;
+      private taskQueue: unknown;
+      private responseProcessor: unknown;
+      private websocketServer: unknown;
+      private httpAgentAPI: unknown;
+      private sseNotifier: unknown;
       private isInitialized: boolean = false;
       private dependenciesPromise: Promise<void> | null = null;
 
@@ -104,17 +104,17 @@ describe('UniversalAgentCommunicationChannel Async Deferral', () => {
         mockLogger.info('Universal agent communication channel initialized');
       }
 
-      async sendTask(agentId: string, taskPayload: string): Promise<boolean> {
+      async sendTask(_agentId: string, _taskPayload: string): Promise<boolean> {
         await this.ensureDependencies();
         return true;
       }
 
-      async receiveResponse(agentId: string, timeout: number = 30000): Promise<string> {
+      async receiveResponse(_agentId: string, _timeout: number = 30000): Promise<string> {
         await this.ensureDependencies();
         return 'test response';
       }
 
-      async isAgentReachable(agentId: string): Promise<boolean> {
+      async isAgentReachable(_agentId: string): Promise<boolean> {
         await this.ensureDependencies();
         return true;
       }
@@ -229,7 +229,7 @@ describe('UniversalAgentCommunicationChannel Async Deferral', () => {
       }
     }
 
-    const channel = new FailingChannel();
+    new FailingChannel();
 
     // Advance to next tick to trigger initialization
     await vi.runOnlyPendingTimersAsync();

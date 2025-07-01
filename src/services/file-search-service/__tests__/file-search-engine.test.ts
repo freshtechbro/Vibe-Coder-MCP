@@ -84,7 +84,7 @@ describe('FileSearchService', () => {
         isDirectory: () => true,
         size: 0,
         mtime: new Date()
-      } as any);
+      } as import('fs').Stats);
 
       // Mock fs.readdir for directory scanning
       mockFs.readdir.mockResolvedValue([
@@ -92,7 +92,7 @@ describe('FileSearchService', () => {
         { name: 'file2.js', isDirectory: () => false, isFile: () => true },
         { name: 'test.spec.ts', isDirectory: () => false, isFile: () => true },
         { name: 'subdir', isDirectory: () => true, isFile: () => false }
-      ] as any);
+      ] as import('fs').Dirent[]);
     });
 
     it('should perform fuzzy search by default', async () => {
@@ -151,13 +151,13 @@ describe('FileSearchService', () => {
         isDirectory: () => true,
         size: 1024,
         mtime: new Date()
-      } as any);
+      } as import('fs').Stats);
 
       mockFs.readdir.mockResolvedValue([
         { name: 'component.tsx', isDirectory: () => false, isFile: () => true },
         { name: 'utils.ts', isDirectory: () => false, isFile: () => true },
         { name: 'test.spec.ts', isDirectory: () => false, isFile: () => true }
-      ] as any);
+      ] as import('fs').Dirent[]);
     });
 
     it('should perform exact search', async () => {
@@ -231,11 +231,11 @@ describe('FileSearchService', () => {
         isDirectory: () => true,
         size: 1024,
         mtime: new Date()
-      } as any);
+      } as import('fs').Stats);
 
       mockFs.readdir.mockResolvedValue([
         { name: 'file1.ts', isDirectory: () => false, isFile: () => true }
-      ] as any);
+      ] as import('fs').Dirent[]);
     });
 
     it('should cache results when enabled', async () => {
@@ -297,11 +297,11 @@ describe('FileSearchService', () => {
         isDirectory: () => true,
         size: 1024,
         mtime: new Date()
-      } as any);
+      } as import('fs').Stats);
 
       mockFs.readdir.mockResolvedValue([
         { name: 'file1.ts', isDirectory: () => false, isFile: () => true }
-      ] as any);
+      ] as import('fs').Dirent[]);
 
       await fileSearchService.searchFiles(testProjectPath, {
         pattern: 'file',

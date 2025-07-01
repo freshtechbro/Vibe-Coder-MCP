@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { SyntaxNode } from '../../parser.js';
 
 // Mock dependencies
 vi.mock('../../../../logger.js', () => ({
@@ -170,7 +171,7 @@ describe('JavaScript Language Handler', () => {
       `;
 
       // Act - Test the actual extractClassProperties method
-      const properties = handler['extractClassProperties'](mockClassNode as any, sourceCode);
+      const properties = handler['extractClassProperties'](mockClassNode as SyntaxNode, sourceCode);
 
       // Assert
       expect(properties.length).toBeGreaterThan(0);
@@ -262,7 +263,7 @@ describe('JavaScript Language Handler', () => {
       `;
 
       // Act - Test the actual extractClassProperties method
-      const properties = handler['extractClassProperties'](mockClassNode as any, sourceCode);
+      const properties = handler['extractClassProperties'](mockClassNode as SyntaxNode, sourceCode);
 
       // Assert
       expect(properties.length).toBeGreaterThan(0);

@@ -9,7 +9,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { PRDIntegrationService } from '../../integrations/prd-integration.js';
 import { TaskListIntegrationService } from '../../integrations/task-list-integration.js';
-import type { ParsedPRD, ParsedTaskList } from '../../types/artifact-types.js';
+import type { } from '../../types/artifact-types.js';
 
 describe('Artifact Integration Services', () => {
   let prdService: PRDIntegrationService;
@@ -43,7 +43,7 @@ describe('Artifact Integration Services', () => {
     // Clean up temporary directory
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
 

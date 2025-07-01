@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { ToolExecutionContext } from '../../../services/routing/toolRegistry.js';
 
@@ -181,7 +180,7 @@ describe('Context Curator Tool Registration', () => {
   });
 
   describe('Tool Executor', () => {
-    let executor: any;
+    let executor: Record<string, unknown>;
     let mockConfig: OpenRouterConfig;
     let mockContext: ToolExecutionContext;
 
@@ -292,7 +291,7 @@ describe('Context Curator Tool Registration', () => {
   });
 
   describe('Input Schema Validation Edge Cases', () => {
-    let schema: z.ZodObject<any>;
+    let schema: z.ZodObject<Record<string, unknown>>;
 
     beforeEach(async () => {
       const { contextCuratorInputSchemaShape } = await import('../../index.js');

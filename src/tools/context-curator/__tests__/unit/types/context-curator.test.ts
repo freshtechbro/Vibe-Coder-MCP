@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod';
 import {
   contextCuratorInputSchema,
   contextCuratorConfigSchema,
@@ -11,11 +10,6 @@ import {
   taskTypeSchema,
   type ContextCuratorInput,
   type ContextCuratorConfig,
-  type ContextPackage,
-  type RelevanceScore,
-  type FileRelevance,
-  type ContextFile,
-  type MetaPrompt,
   type TaskType
 } from '../../../types/context-curator.js';
 

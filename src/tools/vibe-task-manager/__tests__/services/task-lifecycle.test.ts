@@ -10,8 +10,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TaskLifecycleService, TaskTransition, TaskLifecycleConfig } from '../../services/task-lifecycle.js';
-import { AtomicTask, TaskStatus } from '../../types/task.js';
+import { TaskLifecycleService, TaskLifecycleConfig } from '../../services/task-lifecycle.js';
+import { AtomicTask } from '../../types/task.js';
 import { OptimizedDependencyGraph } from '../../core/dependency-graph.js';
 
 // Mock logger
@@ -174,7 +174,7 @@ describe('TaskLifecycleService', () => {
       }
     });
 
-    mockTaskOperations.updateTaskStatus.mockImplementation((taskId: string, status: any) => {
+    mockTaskOperations.updateTaskStatus.mockImplementation((taskId: string, status: unknown) => {
       const task = mockTasks.find(t => t.id === taskId);
       if (task) {
         task.status = status;
@@ -401,7 +401,7 @@ describe('TaskLifecycleService', () => {
 
   describe('Event System', () => {
     it('should emit events on state transitions', async () => {
-      const transitionEvents: any[] = [];
+      const transitionEvents: unknown[] = [];
       
       lifecycleService.on('task:transition', (event) => {
         transitionEvents.push(event);
@@ -416,7 +416,7 @@ describe('TaskLifecycleService', () => {
     });
 
     it('should emit automation events', async () => {
-      const automationEvents: any[] = [];
+      const automationEvents: unknown[] = [];
       
       lifecycleService.on('automation:processed', (event) => {
         automationEvents.push(event);

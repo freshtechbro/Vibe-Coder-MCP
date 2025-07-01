@@ -4,8 +4,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GrammarManager } from '../grammarManager';
-import fs from 'fs';
-import path from 'path';
 
 // Mock language configurations
 const mockLanguageConfigurations = {

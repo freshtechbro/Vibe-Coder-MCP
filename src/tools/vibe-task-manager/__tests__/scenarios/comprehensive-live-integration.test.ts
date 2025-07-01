@@ -19,7 +19,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 describe('Comprehensive Live Integration Test - CodeQuest Academy', () => {
-  let config: any;
+  let config: Record<string, unknown>;
   let outputDir: string;
   let performanceMonitor: PerformanceMonitor;
   let memoryManager: TaskManagerMemoryManager;
@@ -322,7 +322,7 @@ describe('Comprehensive Live Integration Test - CodeQuest Academy', () => {
 
       // Test invalid command handling
       const invalidResult = await vibeTaskManagerExecutor({
-        command: 'invalid_command' as any
+        command: 'invalid_command' as 'create' | 'list' | 'run' | 'status' | 'refine' | 'decompose'
       }, config);
 
       expect(invalidResult.isError).toBe(true);
@@ -494,7 +494,7 @@ describe('Comprehensive Live Integration Test - CodeQuest Academy', () => {
     console.log('-'.repeat(50));
 
     // Generate some load to trigger monitoring
-    const loadTestPromises = Array.from({ length: 5 }, (_, i) =>
+    const loadTestPromises = Array.from({ length: 5 }, () =>
       vibeTaskManagerExecutor({
         command: 'status',
         projectId: projectId

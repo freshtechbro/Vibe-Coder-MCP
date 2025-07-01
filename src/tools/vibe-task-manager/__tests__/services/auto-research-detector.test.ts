@@ -2,7 +2,7 @@
  * Auto-Research Detector Service Tests
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AutoResearchDetector } from '../../services/auto-research-detector.js';
 import { AtomicTask } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';

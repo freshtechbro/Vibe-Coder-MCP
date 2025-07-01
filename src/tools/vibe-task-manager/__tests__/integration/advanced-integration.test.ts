@@ -7,7 +7,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { vibeTaskManagerExecutor } from '../../index.js';
 import { PerformanceMonitor } from '../../utils/performance-monitor.js';
 import { ExecutionCoordinator } from '../../services/execution-coordinator.js';
-import { ConfigLoader } from '../../utils/config-loader.js';
 import { TaskManagerMemoryManager } from '../../utils/memory-manager-integration.js';
 import { getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
 import { promises as fs } from 'fs';
@@ -16,10 +15,9 @@ import path from 'path';
 describe('Advanced Integration Testing', () => {
   let performanceMonitor: PerformanceMonitor;
   let executionCoordinator: ExecutionCoordinator;
-  let configLoader: ConfigLoader;
   let memoryManager: TaskManagerMemoryManager;
   let outputDir: string;
-  let mockConfig: any;
+  let mockConfig: unknown;
 
   beforeEach(async () => {
     // Initialize output directory
@@ -62,8 +60,6 @@ describe('Advanced Integration Testing', () => {
     // Initialize execution coordinator
     executionCoordinator = await ExecutionCoordinator.getInstance();
 
-    // Initialize config loader
-    configLoader = ConfigLoader.getInstance();
 
     // Create mock config for task manager
     mockConfig = {
@@ -185,7 +181,7 @@ describe('Advanced Integration Testing', () => {
       performanceMonitor.startOperation(operationId);
 
       const initialMetrics = performanceMonitor.getCurrentRealTimeMetrics();
-      const loadOperations: Promise<any>[] = [];
+      const loadOperations: Promise<Record<string, unknown>>[] = [];
 
       try {
         // Generate sustained load
@@ -313,7 +309,7 @@ describe('Advanced Integration Testing', () => {
     it('should handle validation errors gracefully', async () => {
       // Test invalid command
       const invalidResult = await vibeTaskManagerExecutor({
-        command: 'invalid' as any
+        command: 'invalid' as Record<string, unknown>
       }, mockConfig);
 
       expect(invalidResult.content).toBeDefined();

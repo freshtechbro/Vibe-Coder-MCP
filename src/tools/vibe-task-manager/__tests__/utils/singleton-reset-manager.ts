@@ -10,7 +10,7 @@ import logger from '../../../../logger.js';
  */
 interface SingletonResetConfig {
   name: string;
-  getInstance: () => any;
+  getInstance: () => unknown;
   resetMethod?: string;
   staticInstanceProperty?: string;
   staticResetMethod?: string;
@@ -142,10 +142,10 @@ export async function resetSingleton(name: string): Promise<boolean> {
 
   try {
     // Get the current instance
-    let instance: any = null;
+    let instance: unknown = null;
     try {
       instance = config.getInstance();
-    } catch (error) {
+    } catch {
       // Instance might not exist yet, which is fine
       logger.debug({ name }, 'No instance to reset');
     }
@@ -246,13 +246,13 @@ export async function resetTimeoutManager(): Promise<void> {
     const instance = TimeoutManager.getInstance();
     
     // Reset configuration
-    if (instance && typeof (instance as any).config !== 'undefined') {
-      (instance as any).config = null;
+    if (instance && typeof (instance as Record<string, unknown>).config !== 'undefined') {
+      (instance as Record<string, unknown>).config = null;
     }
     
     // Reset static instance
     if ('instance' in TimeoutManager) {
-      (TimeoutManager as any).instance = null;
+      (TimeoutManager as Record<string, unknown>).instance = null;
     }
     
     logger.debug('TimeoutManager reset successfully');
@@ -270,10 +270,10 @@ export async function resetAgentOrchestrator(): Promise<void> {
     const { AgentOrchestrator } = await import('../../services/agent-orchestrator.js');
     
     // Get current instance if it exists
-    let instance: any = null;
+    let instance: unknown = null;
     try {
       instance = AgentOrchestrator.getInstance();
-    } catch (error) {
+    } catch {
       // Instance might not exist
     }
     
@@ -284,11 +284,11 @@ export async function resetAgentOrchestrator(): Promise<void> {
     
     // Reset static properties
     if ('instance' in AgentOrchestrator) {
-      (AgentOrchestrator as any).instance = null;
+      (AgentOrchestrator as Record<string, unknown>).instance = null;
     }
     
     if ('isInitializing' in AgentOrchestrator) {
-      (AgentOrchestrator as any).isInitializing = false;
+      (AgentOrchestrator as Record<string, unknown>).isInitializing = false;
     }
     
     logger.debug('AgentOrchestrator reset successfully');

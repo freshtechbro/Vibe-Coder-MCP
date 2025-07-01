@@ -5,7 +5,7 @@
 
 import { EventEmitter } from 'events';
 import logger from '../../../../logger.js';
-import { performSingletonTestCleanup, autoRegisterKnownSingletons } from './singleton-reset-manager.js';
+import { performSingletonTestCleanup } from './singleton-reset-manager.js';
 
 /**
  * Registry of EventEmitters created during tests
@@ -20,7 +20,7 @@ const cleanupFunctions = new Map<string, () => Promise<void> | void>();
 /**
  * Registry of singleton instances that need reset
  */
-const singletonRegistry = new Map<string, { instance: any; resetMethod?: string }>();
+const singletonRegistry = new Map<string, { instance: Record<string, unknown>; resetMethod?: string }>();
 
 /**
  * Register an EventEmitter for cleanup
@@ -47,7 +47,7 @@ export function registerCleanupFunction(name: string, cleanupFn: () => Promise<v
 /**
  * Register a singleton instance for reset
  */
-export function registerSingleton(name: string, instance: any, resetMethod?: string): void {
+export function registerSingleton(name: string, instance: Record<string, unknown>, resetMethod?: string): void {
   singletonRegistry.set(name, { instance, resetMethod });
   logger.debug({ name, resetMethod }, 'Singleton registered for reset');
 }
@@ -84,7 +84,7 @@ export async function cleanupEventEmitters(): Promise<void> {
  * Execute all registered cleanup functions
  */
 export async function executeCleanupFunctions(): Promise<void> {
-  const results: Array<{ name: string; success: boolean; error?: any }> = [];
+  const results: Array<{ name: string; success: boolean; error?: Record<string, unknown> }> = [];
   
   for (const [name, cleanupFn] of cleanupFunctions) {
     try {
@@ -115,7 +115,7 @@ export async function executeCleanupFunctions(): Promise<void> {
  * Reset all registered singletons
  */
 export async function resetSingletons(): Promise<void> {
-  const results: Array<{ name: string; success: boolean; error?: any }> = [];
+  const results: Array<{ name: string; success: boolean; error?: Record<string, unknown> }> = [];
   
   for (const [name, { instance, resetMethod }] of singletonRegistry) {
     try {

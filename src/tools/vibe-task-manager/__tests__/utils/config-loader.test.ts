@@ -5,7 +5,7 @@ import { setupCommonMocks, cleanupMocks } from './test-setup.js';
 
 // Mock fs-extra
 vi.mock('fs-extra');
-const mockFs = fs as any;
+const mockFs = fs as Record<string, unknown>;
 
 describe('ConfigLoader', () => {
   let configLoader: ConfigLoader;
@@ -15,7 +15,7 @@ describe('ConfigLoader', () => {
     vi.clearAllMocks();
     
     // Reset singleton
-    (ConfigLoader as any).instance = undefined;
+    (ConfigLoader as Record<string, unknown>).instance = undefined;
     configLoader = ConfigLoader.getInstance();
   });
 
@@ -222,7 +222,7 @@ describe('ConfigLoader', () => {
     });
 
     it('should fallback to hardcoded default when config not loaded', () => {
-      const newLoader = new (ConfigLoader as any)();
+      const newLoader = new (ConfigLoader as Record<string, unknown>)();
       const model = newLoader.getLLMModel('task_decomposition');
       expect(model).toBe('google/gemini-2.5-flash-preview-05-20');
     });

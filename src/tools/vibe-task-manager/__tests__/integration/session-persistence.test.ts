@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
-  mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 
@@ -57,21 +54,6 @@ import { DecompositionService, DecompositionRequest } from '../../services/decom
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { AtomicDetectorContext } from '../../core/atomic-detector.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
-// Create mock config inline to avoid import issues
-const createMockConfig = () => ({
-  taskManager: {
-    dataDirectory: '/test/output',
-    maxDepth: 3,
-    maxTasks: 100
-  },
-  openRouter: {
-    baseUrl: 'https://test.openrouter.ai/api/v1',
-    apiKey: 'test-key',
-    model: 'test-model',
-    geminiModel: 'test-gemini',
-    perplexityModel: 'test-perplexity'
-  }
-});
 
 // Mock the RDD engine to return controlled results
 vi.mock('../../core/rdd-engine.js', () => ({
@@ -118,7 +100,7 @@ vi.mock('../../core/rdd-engine.js', () => ({
 vi.mock('../../core/operations/task-operations.js', () => ({
   TaskOperations: {
     getInstance: vi.fn(() => ({
-      createTask: vi.fn().mockImplementation((taskData, sessionId) => ({
+      createTask: vi.fn().mockImplementation((taskData, _sessionId) => ({
         success: true,
         data: {
           ...taskData,
@@ -340,7 +322,7 @@ describe('Session Persistence Integration Tests', () => {
           depth: 0,
           subTasks: []
         })
-      }) as any);
+      }) as Record<string, unknown>);
 
       const mockTask: AtomicTask = {
         id: 'atomic-task',

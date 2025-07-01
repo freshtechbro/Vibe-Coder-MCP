@@ -245,8 +245,8 @@ describe('Enhanced JSON Sanitization Pipeline', () => {
 
     it('should handle empty or null input', () => {
       expect(normalizeJsonResponse('')).toBe('');
-      expect(normalizeJsonResponse(null as any)).toBe(null);
-      expect(normalizeJsonResponse(undefined as any)).toBe(undefined);
+      expect(normalizeJsonResponse(null as unknown as string)).toBe(null);
+      expect(normalizeJsonResponse(undefined as unknown as string)).toBe(undefined);
     });
   });
 });

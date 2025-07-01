@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createVibeTasksCLI } from '../../../cli/commands/index.js';
-import { setupCommonMocks, cleanupMocks, testData } from '../../utils/test-setup.js';
+import { setupCommonMocks, cleanupMocks } from '../../utils/test-setup.js';
 
 // Mock integration services
 vi.mock('../../../integrations/prd-integration.js', () => ({
@@ -25,10 +25,16 @@ import { TaskListIntegrationService } from '../../../integrations/task-list-inte
 import { getProjectOperations } from '../../../core/operations/project-operations.js';
 
 describe('CLI Parse Commands', () => {
-  let consoleSpy: any;
-  let mockPRDService: any;
-  let mockTaskListService: any;
-  let mockProjectOperations: any;
+  let consoleSpy: vi.SpyInstance;
+  let mockPRDService: {
+    parseFromFile: vi.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  };
+  let mockTaskListService: {
+    parseFromFile: vi.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  };
+  let mockProjectOperations: {
+    createProject: vi.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  };
 
   beforeEach(() => {
     setupCommonMocks();

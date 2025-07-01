@@ -43,7 +43,7 @@ export class TestIsolationManager {
         if (singleton.clearState) {
           singleton.clearState();
         }
-      } catch (error) {
+      } catch {
         // Suppress errors during test cleanup
       }
     });
@@ -72,7 +72,7 @@ export class TestIsolationManager {
       // if (DependencyOperations && typeof DependencyOperations.resetInstance === 'function') {
       //   DependencyOperations.resetInstance();
       // }
-    } catch (error) {
+    } catch {
       // Suppress errors during test cleanup
     }
   }
@@ -164,13 +164,13 @@ export function createResettableSingleton<T>(
  * Decorator to make a class resettable for testing
  */
 export function Resettable<T extends { new (...args: unknown[]): object }>(constructor: T) {
-  const originalClass = constructor as any;
-  let instance: any = null;
+  const originalClass = constructor as Record<string, unknown>;
+  let instance: unknown = null;
 
   const resettableClass = class extends originalClass {
-    static getInstance(...args: any[]) {
+    static getInstance(...args: unknown[]) {
       if (!instance) {
-        instance = new (resettableClass as any)(...args);
+        instance = new (resettableClass as Record<string, unknown>)(...args);
       }
       return instance;
     }
@@ -192,5 +192,5 @@ export function Resettable<T extends { new (...args: unknown[]): object }>(const
   // Auto-register with test isolation manager
   TestIsolationManager.registerSingleton(resettableClass);
 
-  return resettableClass as any;
+  return resettableClass as Record<string, unknown>;
 }

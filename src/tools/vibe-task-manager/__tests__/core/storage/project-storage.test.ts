@@ -38,8 +38,8 @@ vi.mock('../../../../../logger.js', () => ({
 
 describe('ProjectStorage', () => {
   let projectStorage: ProjectStorage;
-  let mockFileUtils: any;
-  let mockInitializeStorage: any;
+  let mockFileUtils: unknown;
+  let mockInitializeStorage: unknown;
   const testDataDir = '/test/data';
 
   beforeEach(async () => {

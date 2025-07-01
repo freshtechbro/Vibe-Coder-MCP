@@ -4,18 +4,12 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
-import { IntentPatternEngine } from '../../nl/patterns.js';
-import { LLMFallbackSystem } from '../../nl/llm-fallback.js';
 
 describe('Natural Language Interface Integration', () => {
   let intentRecognizer: IntentRecognitionEngine;
-  let patternEngine: IntentPatternEngine;
-  let llmFallback: LLMFallbackSystem;
 
   beforeEach(() => {
     intentRecognizer = IntentRecognitionEngine.getInstance();
-    patternEngine = new IntentPatternEngine();
-    llmFallback = LLMFallbackSystem.getInstance();
   });
 
   describe('Component Integration', () => {

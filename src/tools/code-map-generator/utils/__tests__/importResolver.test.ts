@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { resolveImport } from '../importResolver.no-cache.js';
-import * as path from 'path';
 import * as fs from 'fs';
 
 // Mock fs and path

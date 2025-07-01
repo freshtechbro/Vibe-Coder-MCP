@@ -13,15 +13,12 @@ import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import type { AtomicTask, ProjectContext } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
 import { 
-  mockOpenRouterResponse, 
   queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
-import axios from 'axios';
 
 // Mock all external dependencies to avoid live LLM calls
 vi.mock('../../../../utils/llmHelper.js', () => ({
@@ -606,7 +603,7 @@ describe.sequential('Vibe Task Manager - LLM Integration Tests', () => {
           testTasks.forEach(task => dependencyGraph.addTask(task));
           
           // Set algorithm on scheduler
-          (taskScheduler as any).config.algorithm = algorithm;
+          (taskScheduler as unknown as { config: { algorithm: string } }).config.algorithm = algorithm;
           
           // Generate schedule
           const schedule = await taskScheduler.generateSchedule(testTasks, dependencyGraph, 'test-project');

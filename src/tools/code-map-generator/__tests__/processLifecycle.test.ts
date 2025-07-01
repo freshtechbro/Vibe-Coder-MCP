@@ -2,9 +2,8 @@
  * Tests for the integration of the process lifecycle manager with the code-map-generator.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { executeCodeMapGeneration } from '../index.js';
-import { JobStatus } from '../../../services/job-manager/index.js';
 
 // Import mocked modules for use in tests
 import * as parserModule from '../parser.js';

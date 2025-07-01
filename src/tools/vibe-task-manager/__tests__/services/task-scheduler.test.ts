@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TaskScheduler, DEFAULT_SCHEDULING_CONFIG, SchedulingConfig } from '../../services/task-scheduler.js';
+import { TaskScheduler, SchedulingConfig } from '../../services/task-scheduler.js';
 import { OptimizedDependencyGraph } from '../../core/dependency-graph.js';
 import { AtomicTask, TaskPriority, TaskStatus } from '../../types/task.js';
 
@@ -315,7 +315,7 @@ describe('TaskScheduler', () => {
     });
 
     it('should update existing schedule', async () => {
-      const initialSchedule = await scheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
+      await scheduler.generateSchedule(mockTasks, dependencyGraph, 'P001');
 
       // Add a new task
       const newTask: AtomicTask = {

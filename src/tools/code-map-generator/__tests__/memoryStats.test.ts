@@ -29,7 +29,7 @@ vi.mock('os', () => ({
 
 // Mock the parser module to provide the functions we need
 vi.mock('../parser.js', async () => {
-  const actual = await vi.importActual('../parser.js') as any;
+  const actual = await vi.importActual('../parser.js') as Record<string, unknown>;
 
   // Create the actual functions with mocked dependencies
   const formatBytes = (bytes: number): string => {

@@ -3,8 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { parseCode, initializeParser, cleanupParser } from '../parser';
-import * as Parser from 'tree-sitter';
+import { parseCode } from '../parser';
 
 // Mock tree-sitter
 const mockParse = vi.fn().mockReturnValue({ rootNode: { type: 'program' } });
@@ -124,7 +123,7 @@ describe('Incremental Parsing', () => {
         const sourceCode = 'const x = 1;';
 
         // Parse the code - this may return null if parser initialization fails, which is OK
-        const tree = await parseCode(sourceCode, '.js');
+        await parseCode(sourceCode, '.js');
 
         // The test passes if no error is thrown
         // The tree may be null if the parser couldn't be initialized, which is acceptable
@@ -143,7 +142,7 @@ describe('Incremental Parsing', () => {
         const sourceCode = 'const x = 1;'.repeat(100000); // Large but not huge
 
         // Parse the code - this may return null if parser initialization fails, which is OK
-        const tree = await parseCode(sourceCode, '.js');
+        await parseCode(sourceCode, '.js');
 
         // The test passes if no error is thrown
         expect(true).toBe(true);
@@ -161,7 +160,7 @@ describe('Incremental Parsing', () => {
 
       try {
         const sourceCode = 'const x = 1;'.repeat(50000);
-        const tree = await parseCode(sourceCode, '.js');
+        await parseCode(sourceCode, '.js');
 
         // Test passes if no error is thrown
         expect(true).toBe(true);
@@ -176,7 +175,7 @@ describe('Incremental Parsing', () => {
 
       try {
         const sourceCode = 'function test() { return 42; }';
-        const tree = await parseCode(sourceCode, '.js');
+        await parseCode(sourceCode, '.js');
 
         // Test passes if no error is thrown
         expect(true).toBe(true);

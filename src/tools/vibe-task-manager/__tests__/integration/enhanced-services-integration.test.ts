@@ -11,11 +11,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
   mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 import { MetadataService } from '../../services/metadata-service.js';
@@ -345,9 +343,9 @@ describe('Enhanced Services Integration Tests', () => {
     }
     
     // Force reset singleton instances for complete test isolation
-    (MetadataService as any).instance = undefined;
-    (TagManagementService as any).instance = undefined;
-    (EpicContextResolver as any).instance = undefined;
+    (MetadataService as unknown as { instance: undefined }).instance = undefined;
+    (TagManagementService as unknown as { instance: undefined }).instance = undefined;
+    (EpicContextResolver as unknown as { instance: undefined }).instance = undefined;
     
     // Clean up mock queue after each test
     clearMockQueue();
@@ -467,7 +465,7 @@ describe('Enhanced Services Integration Tests', () => {
       expect(initialProgress.progressPercentage).toBe(0);
 
       // Simulate task completion
-      const completedTask = { ...testTask, status: 'completed' as TaskStatus };
+      // const completedTask = { ...testTask, status: 'completed' as TaskStatus };
       
       // Update epic status
       const statusUpdated = await epicResolver.updateEpicStatusFromTasks(testEpic.id);

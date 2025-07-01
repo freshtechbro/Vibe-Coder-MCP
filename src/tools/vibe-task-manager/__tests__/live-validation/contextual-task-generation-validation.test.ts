@@ -11,21 +11,16 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { DecompositionService } from '../../services/decomposition-service.js';
-import { AtomicTaskDetector } from '../../core/atomic-detector.js';
 import { AutoResearchDetector } from '../../services/auto-research-detector.js';
-import { ContextEnrichmentService } from '../../services/context-enrichment-service.js';
 import { getDependencyGraph } from '../../core/dependency-graph.js';
 import { getOpenRouterConfig } from '../../../../utils/openrouter-config-manager.js';
-import { AtomicTask, TaskPriority } from '../../types/task.js';
+import { AtomicTask } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import logger from '../../../../logger.js';
 
 describe('Enhanced Contextual Task Generation Validation', () => {
   let decompositionService: DecompositionService;
-  let atomicDetector: AtomicTaskDetector;
-  let autoResearchDetector: AutoResearchDetector;
-  let contextService: ContextEnrichmentService;
-  let config: any;
+  let config: Record<string, unknown>;
 
   // Real project context based on Vibe-Coder-MCP structure
   const realProjectContext: ProjectContext = {
@@ -150,9 +145,6 @@ describe('Enhanced Contextual Task Generation Validation', () => {
     // Initialize services
     config = await getOpenRouterConfig();
     decompositionService = DecompositionService.getInstance(config);
-    atomicDetector = new AtomicTaskDetector(config);
-    autoResearchDetector = AutoResearchDetector.getInstance();
-    contextService = ContextEnrichmentService.getInstance();
 
     logger.info('Enhanced contextual task generation validation initialized');
   });
@@ -443,6 +435,7 @@ describe('Enhanced Contextual Task Generation Validation', () => {
       });
 
       // First check if research is triggered
+      const autoResearchDetector = AutoResearchDetector.getInstance();
       const researchEvaluation = await autoResearchDetector.evaluateResearchNeed({
         task: complexDomainTask,
         projectContext: realProjectContext,

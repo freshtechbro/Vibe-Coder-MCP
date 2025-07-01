@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ContextEnrichmentService } from '../../services/context-enrichment-service.js';
-import { FileSearchService, FileReaderService } from '../../../../services/file-search-service/index.js';
 import type { ContextRequest, ContextResult } from '../../services/context-enrichment-service.js';
 
 // Create persistent mock instances
@@ -56,8 +55,8 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('ContextEnrichmentService', () => {
   let contextService: ContextEnrichmentService;
-  let mockFileSearchService: any;
-  let mockFileReaderService: any;
+  let mockFileSearchService: Record<string, unknown>;
+  let mockFileReaderService: Record<string, unknown>;
 
   beforeEach(() => {
     // Clear all mocks but preserve the mock implementations
@@ -83,7 +82,7 @@ describe('ContextEnrichmentService', () => {
     });
 
     // Reset the singleton instance to ensure fresh instance with mocked services
-    (ContextEnrichmentService as any).instance = null;
+    (ContextEnrichmentService as unknown as { instance: unknown }).instance = null;
 
     // Get context service instance after mocks are set up
     contextService = ContextEnrichmentService.getInstance();

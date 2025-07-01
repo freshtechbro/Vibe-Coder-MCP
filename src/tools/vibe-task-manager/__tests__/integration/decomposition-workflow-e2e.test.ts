@@ -5,12 +5,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
-  mockOpenRouterResponse, 
-  queueMockResponses, 
   setTestId, 
   clearMockQueue,
   clearAllMockQueues,
-  MockTemplates,
   MockQueueBuilder
 } from '../../../../testUtils/mockLLM.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';

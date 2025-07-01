@@ -269,7 +269,7 @@ describe('IdGenerator', () => {
     });
 
     it('should reject unknown ID types', () => {
-      const result = idGenerator.validateId('TEST-001', 'unknown' as any);
+      const result = idGenerator.validateId('TEST-001', 'unknown' as Record<string, unknown>);
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('Unknown ID type: unknown');
     });

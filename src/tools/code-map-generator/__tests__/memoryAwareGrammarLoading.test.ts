@@ -4,9 +4,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GrammarManager } from '../cache/grammarManager';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
 
 // Mock fs
 vi.mock('fs/promises', () => ({

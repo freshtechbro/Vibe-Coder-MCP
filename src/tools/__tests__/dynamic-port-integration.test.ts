@@ -59,7 +59,7 @@ vi.mock('../../services/transport-manager/index.js', () => ({
 describe('Downstream Tool Integration with Dynamic Ports', () => {
   let originalEnv: NodeJS.ProcessEnv;
   let testPortBase: number;
-  let mockTransportManager: any;
+  let mockTransportManager: { getAllocatedPorts: ReturnType<typeof vi.fn>; getServiceEndpoints: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     originalEnv = { ...process.env };
@@ -115,7 +115,7 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
   });
 
   describe('Agent Registry Integration', () => {
-    let AgentRegistry: any;
+    let AgentRegistry: unknown;
 
     beforeEach(async () => {
       // Import agent registry
@@ -187,7 +187,7 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
   });
 
   describe('Vibe Task Manager Integration', () => {
-    let getAgentEndpointInfo: any;
+    let getAgentEndpointInfo: ReturnType<typeof vi.fn>;
 
     beforeEach(async () => {
       // For testing, we'll simulate the endpoint info function
@@ -240,7 +240,7 @@ describe('Downstream Tool Integration with Dynamic Ports', () => {
   });
 
   describe('Agent Orchestrator Integration', () => {
-    let AgentOrchestrator: any;
+    let AgentOrchestrator: unknown;
 
     beforeEach(async () => {
       // Import agent orchestrator

@@ -739,7 +739,7 @@ describe('Relevance Scoring Templates', () => {
         'hybrid',
         1000,
         expectedFiles
-      ) as any;
+      ) as Record<string, unknown>;
 
       expect(enhanced.fileScores).toHaveLength(3);
       expect(enhanced.fileScores[0].filePath).toBe('file1.ts');
@@ -775,7 +775,7 @@ describe('Relevance Scoring Templates', () => {
         'hybrid',
         1000,
         expectedFiles
-      ) as any;
+      ) as Record<string, unknown>;
 
       expect(enhanced.fileScores).toHaveLength(2);
       expect(enhanced.fileScores[0].filePath).toBe('file1.ts');
@@ -827,7 +827,7 @@ describe('Relevance Scoring Templates', () => {
         'hybrid',
         1000,
         expectedFiles
-      ) as any;
+      ) as Record<string, unknown>;
 
       // Should not modify complete responses
       expect(enhanced.fileScores).toHaveLength(2);

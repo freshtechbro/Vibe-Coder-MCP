@@ -125,7 +125,7 @@ describe('ConfigValidator', () => {
 
     it('should detect missing LLM configuration', async () => {
       const invalidConfig = { ...mockConfig };
-      delete (invalidConfig as any).llm;
+      delete (invalidConfig as Record<string, unknown>).llm;
 
       const result = await validator.validateConfig(invalidConfig);
 
@@ -161,7 +161,7 @@ describe('ConfigValidator', () => {
     it('should detect invalid MCP transport', async () => {
       const invalidConfig = {
         ...mockConfig,
-        mcp: { ...mockConfig.mcp, transport: 'invalid' as any }
+        mcp: { ...mockConfig.mcp, transport: 'invalid' as Record<string, unknown> }
       };
 
       const result = await validator.validateConfig(invalidConfig);
@@ -207,7 +207,7 @@ describe('ConfigValidator', () => {
           ...mockConfig.taskManager,
           agentSettings: {
             ...mockConfig.taskManager.agentSettings,
-            coordinationStrategy: 'invalid' as any
+            coordinationStrategy: 'invalid' as Record<string, unknown>
           }
         }
       };
@@ -281,7 +281,7 @@ describe('ConfigValidator', () => {
 
     it('should handle configuration validation errors gracefully', async () => {
       // Create a config that will cause an error during validation
-      const problematicConfig = null as any;
+      const problematicConfig = null as Record<string, unknown>;
 
       const result = await validator.validateConfig(problematicConfig);
 
@@ -363,7 +363,7 @@ describe('ConfigValidator', () => {
       const securityConfig = {
         allowedReadDirectory: '/test/read',
         allowedWriteDirectory: '/test/write',
-        securityMode: 'invalid' as any
+        securityMode: 'invalid' as Record<string, unknown>
       };
 
       const result = await validator.validateSecurityConfig(securityConfig);

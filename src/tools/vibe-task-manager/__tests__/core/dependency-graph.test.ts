@@ -217,6 +217,7 @@ describe('OptimizedDependencyGraph', () => {
 
       // Force add the cycle-creating edge: T003 depends on T001
       // This creates: T001 -> T002 -> T003 -> T001 (cycle)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const graphInternal = testGraph as any;
       graphInternal.adjacencyList.get('T001').add('T003'); // T001 points to T003 as dependent (T003 depends on T001)
       graphInternal.reverseIndex.get('T003').add('T001'); // T003 has T001 as dependency
@@ -250,6 +251,7 @@ describe('OptimizedDependencyGraph', () => {
       testGraph.addDependency('T002', 'T003', 'task'); // T002 depends on T003
 
       // Force cycle: T003 depends on T001
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const graphInternal = testGraph as any;
       graphInternal.adjacencyList.get('T001').add('T003'); // T001 points to T003 as dependent (T003 depends on T001)
       graphInternal.reverseIndex.get('T003').add('T001'); // T003 has T001 as dependency
@@ -806,11 +808,13 @@ describe('OptimizedDependencyGraph', () => {
       // Test valid types
       const validTypes = ['task', 'package', 'framework', 'tool', 'import', 'environment'];
       validTypes.forEach(type => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = graph.validateDependencyBeforeAdd('T002', 'T001', type as any);
         expect(result.errors.filter(e => e.type === 'invalid-type')).toHaveLength(0);
       });
 
       // Test invalid type
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const invalidResult = graph.validateDependencyBeforeAdd('T002', 'T001', 'invalid-type' as any);
       expect(invalidResult.isValid).toBe(false);
       expect(invalidResult.errors.some(e => e.type === 'invalid-type')).toBe(true);
@@ -992,6 +996,7 @@ describe('OptimizedDependencyGraph', () => {
       // Corrupt the structure
       const corruptedSerialized = {
         ...serialized,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nodes: null as any
       };
 

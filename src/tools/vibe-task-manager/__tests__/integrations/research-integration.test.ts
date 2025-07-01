@@ -1,12 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ResearchIntegration, ResearchRequest, EnhancedResearchResult } from '../../integrations/research-integration.js';
 import { performResearchQuery } from '../../../../utils/researchHelper.js';
-import { performDirectLlmCall, performFormatAwareLlmCall } from '../../../../utils/llmHelper.js';
+import { performFormatAwareLlmCall } from '../../../../utils/llmHelper.js';
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import {
-  MockTemplates,
-  MockQueueBuilder,
-  PerformanceTestUtils,
   setTestId,
   clearAllMockQueues,
   clearPerformanceCaches
@@ -18,7 +15,6 @@ vi.mock('../../../../utils/researchHelper.js', () => ({
 }));
 
 vi.mock('../../../../utils/llmHelper.js', () => ({
-  performDirectLlmCall: vi.fn(),
   performFormatAwareLlmCall: vi.fn()
 }));
 
@@ -38,10 +34,9 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('ResearchIntegration', () => {
   let service: ResearchIntegration;
-  let mockPerformResearchQuery: any;
-  let mockPerformDirectLlmCall: any;
-  let mockPerformFormatAwareLlmCall: any;
-  let mockGetConfig: any;
+  let mockPerformResearchQuery: ReturnType<typeof vi.fn>;
+  let mockPerformFormatAwareLlmCall: ReturnType<typeof vi.fn>;
+  let mockGetConfig: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     // Enhanced mock setup for performance optimization
@@ -53,13 +48,12 @@ describe('ResearchIntegration', () => {
     setTestId(`research-integration-${Date.now()}-${Math.random()}`);
 
     // Reset singleton
-    (ResearchIntegration as any).instance = undefined;
+    (ResearchIntegration as { instance?: ResearchIntegration }).instance = undefined;
 
     // Setup mocks
-    mockPerformResearchQuery = performResearchQuery as any;
-    mockPerformDirectLlmCall = performDirectLlmCall as any;
-    mockPerformFormatAwareLlmCall = performFormatAwareLlmCall as any;
-    mockGetConfig = getVibeTaskManagerConfig as any;
+    mockPerformResearchQuery = performResearchQuery as ReturnType<typeof vi.fn>;
+    mockPerformFormatAwareLlmCall = performFormatAwareLlmCall as ReturnType<typeof vi.fn>;
+    mockGetConfig = getVibeTaskManagerConfig as ReturnType<typeof vi.fn>;
 
     // Mock config
     mockGetConfig.mockResolvedValue({
@@ -78,12 +72,13 @@ describe('ResearchIntegration', () => {
     process.env.OPENROUTER_API_KEY = 'test-api-key';
 
     // Dispose existing instance if it exists
-    if ((ResearchIntegration as any).instance) {
-      (ResearchIntegration as any).instance.dispose();
+    const researchIntegrationClass = ResearchIntegration as { instance?: ResearchIntegration & { dispose: () => void } };
+    if (researchIntegrationClass.instance) {
+      researchIntegrationClass.instance.dispose();
     }
 
     // Reset singleton instance to ensure fresh state
-    (ResearchIntegration as any).instance = null;
+    researchIntegrationClass.instance = null;
 
     service = ResearchIntegration.getInstance({
       maxConcurrentRequests: 2,
@@ -112,7 +107,7 @@ describe('ResearchIntegration', () => {
     }
 
     // Reset singleton instance
-    (ResearchIntegration as any).instance = null;
+    (ResearchIntegration as { instance?: ResearchIntegration }).instance = null;
 
     // Enhanced cleanup for performance optimization
     vi.clearAllMocks();

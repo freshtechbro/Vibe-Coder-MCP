@@ -7,10 +7,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { parseSourceCode, initializeParser, cleanupParser } from '../../parser.js';
-import languageHandlerRegistry, { LanguageHandlerRegistry } from '../../languageHandlers/registry.js';
+import languageHandlerRegistry from '../../languageHandlers/registry.js';
 import { JavaScriptHandler } from '../../languageHandlers/javascript.js';
 import { PythonHandler } from '../../languageHandlers/python.js';
-import { FunctionInfo } from '../../codeMapModel.js';
 
 // Get the directory name of the current module
 const __filename = fileURLToPath(import.meta.url);

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { performResearchQuery } from '../../../utils/researchHelper.js';
 import { performModuleSelectionCall } from '../../../utils/schemaAwareLlmHelper.js';
-import { moduleSelectionResponseSchema, enhancedModuleSelectionResponseSchema } from '../schemas/moduleSelection.js';
+import { enhancedModuleSelectionResponseSchema } from '../schemas/moduleSelection.js';
 import { YAMLComposer } from '../yaml-composer.js';
 import logger from '../../../logger.js';
 import fs from 'fs-extra';

@@ -90,39 +90,39 @@ describe('IntentPatternEngine', () => {
 
   describe('Entity Extraction', () => {
     it('should extract project name from quotes', () => {
-      const entities = EntityExtractors.projectName('Create project "My App"', [] as any);
+      const entities = EntityExtractors.projectName('Create project "My App"', [] as unknown);
       expect(entities.projectName).toBe('My App');
     });
 
     it('should extract task information', () => {
-      const entities = EntityExtractors.taskInfo('Create a high priority development task', [] as any);
+      const entities = EntityExtractors.taskInfo('Create a high priority development task', [] as unknown);
       expect(entities.priority).toBe('high');
       expect(entities.type).toBe('development');
     });
 
     it('should extract status information', () => {
-      const entities = EntityExtractors.statusInfo('Show completed tasks from today', [] as any);
+      const entities = EntityExtractors.statusInfo('Show completed tasks from today', [] as unknown);
       expect(entities.status).toBe('completed');
       expect(entities.timeframe).toBe('today');
     });
 
     it('should extract agent information', () => {
-      const entities = EntityExtractors.agentInfo('Assign to agent "John"', [] as any);
+      const entities = EntityExtractors.agentInfo('Assign to agent "John"', [] as unknown);
       expect(entities.assignee).toBe('John');
     });
 
     it('should extract general entities like tags', () => {
-      const entities = EntityExtractors.general('Create task #urgent #frontend', [] as any);
+      const entities = EntityExtractors.general('Create task #urgent #frontend', [] as unknown);
       expect(entities.tags).toEqual(['urgent', 'frontend']);
     });
 
     it('should extract project name from PRD parsing commands', () => {
-      const entities = EntityExtractors.projectName('Parse PRD for "E-commerce App"', [] as any);
+      const entities = EntityExtractors.projectName('Parse PRD for "E-commerce App"', [] as unknown);
       expect(entities.projectName).toBe('E-commerce App');
     });
 
     it('should extract tags from artifact commands', () => {
-      const entities = EntityExtractors.general('Parse PRD #urgent #review', [] as any);
+      const entities = EntityExtractors.general('Parse PRD #urgent #review', [] as unknown);
       expect(entities.tags).toEqual(['urgent', 'review']);
     });
   });

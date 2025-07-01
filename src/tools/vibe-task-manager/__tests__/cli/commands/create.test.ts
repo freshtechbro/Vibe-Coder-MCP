@@ -15,9 +15,13 @@ import { getProjectOperations } from '../../../core/operations/project-operation
 import { getTaskOperations } from '../../../core/operations/task-operations.js';
 
 describe('CLI Create Commands', () => {
-  let consoleSpy: any;
-  let mockProjectOperations: any;
-  let mockTaskOperations: any;
+  let consoleSpy: vi.SpyInstance;
+  let mockProjectOperations: {
+    createProject: vi.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  };
+  let mockTaskOperations: {
+    createEpic: vi.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  };
 
   beforeEach(() => {
     setupCommonMocks();

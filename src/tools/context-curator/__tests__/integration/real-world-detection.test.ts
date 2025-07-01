@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextCuratorService } from '../../services/context-curator-service.js';
 import { ContextCuratorConfig } from '../../types/context-curator-types.js';
+import { ProjectTypeAnalysisResult } from '../../types/llm-tasks.js';
 
 /**
  * Real-world codebase detection tests
@@ -64,7 +65,7 @@ describe('Real-World Codebase Detection', () => {
         └── tailwindcss/
       `;
 
-      const result = (service as any).detectProjectType(nextjsCodemap);
+      const result = (service as Record<string, unknown> & { detectProjectType: (codemap: string) => ProjectTypeAnalysisResult }).detectProjectType(nextjsCodemap);
       
       expect(result.projectType).toBe('Web Application');
       expect(result.confidence).toBeGreaterThan(0.6);
@@ -119,7 +120,7 @@ describe('Real-World Codebase Detection', () => {
                     └── psycopg2/
       `;
 
-      const result = (service as any).detectProjectType(djangoCodemap);
+      const result = (service as Record<string, unknown> & { detectProjectType: (codemap: string) => ProjectTypeAnalysisResult }).detectProjectType(djangoCodemap);
       
       expect(result.projectType).toBe('Python Backend');
       expect(result.confidence).toBeGreaterThan(0.7);
@@ -187,7 +188,7 @@ describe('Real-World Codebase Detection', () => {
                 └── api_service_test.dart
       `;
 
-      const result = (service as any).detectProjectType(flutterCodemap);
+      const result = (service as Record<string, unknown> & { detectProjectType: (codemap: string) => ProjectTypeAnalysisResult }).detectProjectType(flutterCodemap);
       
       expect(result.projectType).toBe('Mobile Application');
       expect(result.confidence).toBeGreaterThan(0.6);
@@ -246,7 +247,7 @@ describe('Real-World Codebase Detection', () => {
         └── classes/
       `;
 
-      const result = (service as any).detectProjectType(springBootCodemap);
+      const result = (service as Record<string, unknown> & { detectProjectType: (codemap: string) => ProjectTypeAnalysisResult }).detectProjectType(springBootCodemap);
       
       expect(result.projectType).toBe('Java Backend');
       expect(result.confidence).toBeGreaterThan(0.7);
@@ -292,7 +293,7 @@ describe('Real-World Codebase Detection', () => {
         └── release/
       `;
 
-      const result = (service as any).detectProjectType(rustCodemap);
+      const result = (service as Record<string, unknown> & { detectProjectType: (codemap: string) => ProjectTypeAnalysisResult }).detectProjectType(rustCodemap);
       
       expect(result.projectType).toBe('Rust System Service');
       expect(result.confidence).toBeGreaterThan(0.7);
@@ -380,7 +381,7 @@ describe('Real-World Codebase Detection', () => {
             └── compose/
       `;
 
-      const result = (service as any).detectProjectType(monorepoCodemap);
+      const result = (service as Record<string, unknown> & { detectProjectType: (codemap: string) => ProjectTypeAnalysisResult }).detectProjectType(monorepoCodemap);
       
       expect(result.projectType).toBe('Web Application');
       expect(result.confidence).toBeGreaterThan(0.5);

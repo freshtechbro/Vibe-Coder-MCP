@@ -64,7 +64,6 @@ const mockExecuteCodeMapGeneration = vi.mocked(executeCodeMapGeneration);
 describe('CodeMapIntegrationService', () => {
   let service: CodeMapIntegrationService;
   const testProjectPath = '/test/project';
-  const testCodeMapPath = '/test/output/code-map.md';
 
   // Helper function to set up default mock behavior for consistent testing
   const setupDefaultMocks = () => {
@@ -99,7 +98,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 4096,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
 
       // Handle code map files
@@ -110,7 +109,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 1024,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
 
       // Handle source files
@@ -121,7 +120,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 1024,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
 
       // Default fallback
@@ -131,7 +130,7 @@ describe('CodeMapIntegrationService', () => {
         mtime: new Date('2023-12-01'),
         size: 1024,
         getTime: () => new Date('2023-12-01').getTime()
-      } as any);
+      } as import('fs').Stats);
     });
 
     // Set up readFile mock
@@ -153,7 +152,7 @@ describe('CodeMapIntegrationService', () => {
     });
 
     // Set up readdir mock
-    mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+    mockFs.readdir.mockImplementation((dirPath: string, _options?: unknown) => {
       const pathStr = String(dirPath);
 
       // Handle output directory for code map files
@@ -169,7 +168,7 @@ describe('CodeMapIntegrationService', () => {
             isFIFO: () => false,
             isSocket: () => false
           }
-        ] as any);
+        ] as import('fs').Dirent[]);
       }
 
       // Default: return empty array
@@ -202,7 +201,7 @@ describe('CodeMapIntegrationService', () => {
 
     // CRITICAL: Override the generateCodeMap method to prevent real code generation
     // This is the most direct way to ensure no real code generation happens
-    vi.spyOn(service, 'generateCodeMap').mockImplementation(async (projectPath: string) => {
+    vi.spyOn(service, 'generateCodeMap').mockImplementation(async (_projectPath: string) => {
       // Simulate successful code map generation without actually calling executeCodeMapGeneration
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -1) + 'Z';
       const filePath = `/test/output/code-map-generator/${timestamp}-code-map.md`;
@@ -227,7 +226,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 1024,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
 
       // Handle node_modules tree-sitter files
@@ -238,7 +237,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 1024,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
 
       // Handle test project directory
@@ -249,7 +248,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 4096,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
 
       // Handle source files in test project (TypeScript, JavaScript, JSON)
@@ -260,7 +259,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 1024,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
       if (pathStr.includes('code-map.md')) {
         return Promise.resolve({
@@ -269,7 +268,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 1024,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
       if (pathStr.includes('metadata.json')) {
         return Promise.resolve({
@@ -278,7 +277,7 @@ describe('CodeMapIntegrationService', () => {
           mtime: new Date('2023-12-01'),
           size: 256,
           getTime: () => new Date('2023-12-01').getTime()
-        } as any);
+        } as import('fs').Stats);
       }
       return Promise.reject(new Error('File not found'));
     });
@@ -380,7 +379,7 @@ export class ApiService {
     this.baseUrl = baseUrl;
   }
 
-  async fetchData(): Promise<any> {
+  async fetchData(): Promise<Response> {
     return fetch(this.baseUrl);
   }
 }`);
@@ -425,7 +424,7 @@ export interface ApiResponse<T> {
 
     // Enhanced readdir mock with proper file objects - ALWAYS handle withFileTypes
     // NOTE: readDirSecure ALWAYS uses withFileTypes: true, so we must handle this properly
-    mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+    mockFs.readdir.mockImplementation((dirPath: string, _options?: unknown) => {
       const pathStr = String(dirPath);
 
 
@@ -474,7 +473,7 @@ export interface ApiResponse<T> {
             isFIFO: () => false,
             isSocket: () => false
           }
-        ] as any);
+        ] as import('fs').Dirent[]);
       }
 
       // Handle src directory with more source files
@@ -510,7 +509,7 @@ export interface ApiResponse<T> {
             isFIFO: () => false,
             isSocket: () => false
           }
-        ] as any);
+        ] as import('fs').Dirent[]);
       }
 
       // Handle output directory for code map files
@@ -526,7 +525,7 @@ export interface ApiResponse<T> {
             isFIFO: () => false,
             isSocket: () => false
           }
-        ] as any);
+        ] as import('fs').Dirent[]);
       }
 
       // Handle regular output directory
@@ -542,7 +541,7 @@ export interface ApiResponse<T> {
             isFIFO: () => false,
             isSocket: () => false
           }
-        ] as any);
+        ] as import('fs').Dirent[]);
       }
 
       // Default: return empty array
@@ -605,7 +604,7 @@ export interface ApiResponse<T> {
 
     it('should handle generation failure', async () => {
       // Override the mock for this specific test to simulate failure
-      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (projectPath: string) => {
+      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (_projectPath: string) => {
         return {
           success: false,
           error: 'Configuration error: allowedMappingDirectory is required in the configuration or CODE_MAP_ALLOWED_DIR environment variable',
@@ -624,7 +623,7 @@ export interface ApiResponse<T> {
 
     it('should handle invalid project path', async () => {
       // Override the mock for this specific test to simulate validation failure
-      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (projectPath: string) => {
+      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (_projectPath: string) => {
         return {
           success: false,
           error: 'Configuration error: allowedMappingDirectory is required in the configuration or CODE_MAP_ALLOWED_DIR environment variable',
@@ -641,7 +640,7 @@ export interface ApiResponse<T> {
 
     it('should handle non-directory path', async () => {
       // Override the mock for this specific test to simulate non-directory path failure
-      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (projectPath: string) => {
+      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (_projectPath: string) => {
         return {
           success: false,
           error: 'Path is not a directory: /test/file.txt',
@@ -660,7 +659,7 @@ export interface ApiResponse<T> {
   describe('detectExistingCodeMap', () => {
     it('should detect existing code map', async () => {
       // Ensure proper mock setup for code map detection
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -671,7 +670,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -696,7 +695,7 @@ export interface ApiResponse<T> {
 
     it('should return null when no code map exists', async () => {
       // Mock readdir to return empty arrays for all paths
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         // Always return empty arrays to simulate no code map
         if (options && options.withFileTypes) {
           return Promise.resolve([]);
@@ -725,7 +724,7 @@ export interface ApiResponse<T> {
       setupDefaultMocks();
 
       // Set up consistent mock behavior
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -736,7 +735,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -771,7 +770,7 @@ export interface ApiResponse<T> {
       vi.resetAllMocks();
 
       // Mock code map detection to return existing fresh code map
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -782,7 +781,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -807,7 +806,7 @@ export interface ApiResponse<T> {
             mtime: recentDate,
             size: 1024,
             getTime: () => recentDate.getTime()
-          } as any);
+          } as import('fs').Stats);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -836,7 +835,7 @@ export interface ApiResponse<T> {
         isDirectory: () => true,
         mtime: oldDate,
         size: 1024
-      } as any);
+      } as import('fs').Stats);
 
       const isStale = await service.isCodeMapStale(testProjectPath);
 
@@ -845,7 +844,7 @@ export interface ApiResponse<T> {
 
     it('should return true when no code map exists', async () => {
       // Mock readdir to return empty arrays for all paths
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         // Always return empty arrays to simulate no code map
         if (options && options.withFileTypes) {
           return Promise.resolve([]);
@@ -873,7 +872,7 @@ export interface ApiResponse<T> {
       });
 
       // Mock code map detection first
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -884,7 +883,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -909,7 +908,7 @@ export interface ApiResponse<T> {
             mtime: new Date('2023-12-01'),
             size: 4096,
             getTime: () => new Date('2023-12-01').getTime()
-          } as any);
+          } as import('fs').Stats);
         }
 
         // Handle ANY code map file with old date (including generated ones)
@@ -920,7 +919,7 @@ export interface ApiResponse<T> {
             mtime: oldDate,
             size: 1024,
             getTime: () => oldDate.getTime()
-          } as any);
+          } as import('fs').Stats);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -960,7 +959,7 @@ export interface ApiResponse<T> {
       vi.resetAllMocks();
 
       // Mock code map detection to return existing fresh code map
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -971,7 +970,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -995,7 +994,7 @@ export interface ApiResponse<T> {
             isFile: () => false,
             mtime: new Date(),
             size: 4096
-          } as any);
+          } as import('fs').Stats);
         }
 
         // Handle code map file with recent date
@@ -1006,7 +1005,7 @@ export interface ApiResponse<T> {
             mtime: recentDate,
             size: 1024,
             getTime: () => recentDate.getTime()
-          } as any);
+          } as import('fs').Stats);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -1042,7 +1041,7 @@ export interface ApiResponse<T> {
         isDirectory: () => true,
         mtime: new Date(),
         size: 1024
-      } as any);
+      } as import('fs').Stats);
 
       // Mock fs.readdir to simulate no existing code maps
       mockFs.readdir.mockResolvedValue([]);
@@ -1051,7 +1050,7 @@ export interface ApiResponse<T> {
       mockFs.access.mockResolvedValue(undefined);
 
       // Override the mock for this specific test to simulate failure during forced refresh
-      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (projectPath: string) => {
+      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (_projectPath: string) => {
         return {
           success: false,
           error: 'Generated code map but could not determine file path',
@@ -1075,7 +1074,7 @@ export interface ApiResponse<T> {
       vi.resetAllMocks();
 
       // CRITICAL: Re-establish the default successful generateCodeMap mock for this test
-      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (projectPath: string) => {
+      vi.spyOn(service, 'generateCodeMap').mockImplementation(async (_projectPath: string) => {
         // Simulate successful code map generation
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -1) + 'Z';
         const filePath = `/test/output/code-map-generator/${timestamp}-code-map.md`;
@@ -1089,7 +1088,7 @@ export interface ApiResponse<T> {
       });
 
       // Mock code map detection to return existing stale code map
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -1100,7 +1099,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -1124,7 +1123,7 @@ export interface ApiResponse<T> {
             isFile: () => false,
             mtime: new Date(),
             size: 4096
-          } as any);
+          } as import('fs').Stats);
         }
 
         // Handle code map file with old date
@@ -1135,7 +1134,7 @@ export interface ApiResponse<T> {
             mtime: oldDate,
             size: 1024,
             getTime: () => oldDate.getTime()
-          } as any);
+          } as import('fs').Stats);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -1167,7 +1166,7 @@ export interface ApiResponse<T> {
     it('should extract architectural information', async () => {
       // Set up mock to return existing code map
       mockFs.readdir.mockResolvedValue([
-        { name: 'code-map.md', isFile: () => true } as any
+        { name: 'code-map.md', isFile: () => true } as import('fs').Dirent
       ]);
 
       const codeMapContent = `
@@ -1225,7 +1224,7 @@ export interface ApiResponse<T> {
     it('should extract dependency information', async () => {
       // Set up mock to return existing code map
       mockFs.readdir.mockResolvedValue([
-        { name: 'code-map.md', isFile: () => true } as any
+        { name: 'code-map.md', isFile: () => true } as import('fs').Dirent
       ]);
 
       const codeMapContent = `
@@ -1260,7 +1259,7 @@ export interface ApiResponse<T> {
     it('should find relevant files for task description', async () => {
       // Set up mock to return existing code map
       mockFs.readdir.mockResolvedValue([
-        { name: 'code-map.md', isFile: () => true } as any
+        { name: 'code-map.md', isFile: () => true } as import('fs').Dirent
       ]);
 
       // Mock fs.stat for code map file
@@ -1268,7 +1267,7 @@ export interface ApiResponse<T> {
         isDirectory: () => false,
         mtime: new Date(),
         size: 1024
-      } as any);
+      } as import('fs').Stats);
 
       const codeMapContent = `
 # Code Map
@@ -1294,7 +1293,7 @@ export interface ApiResponse<T> {
     it('should integrate code map context into project context', async () => {
       // Set up mock to return existing code map
       mockFs.readdir.mockResolvedValue([
-        { name: 'code-map.md', isFile: () => true } as any
+        { name: 'code-map.md', isFile: () => true } as import('fs').Dirent
       ]);
 
       const baseContext: ProjectContext = {
@@ -1392,11 +1391,10 @@ export interface ApiResponse<T> {
   describe('getCodeMapMetadata', () => {
     it('should return comprehensive metadata for existing code map', async () => {
       const projectPath = '/test/project';
-      const codeMapPath = '/test/output/code-map.md';
-      const content = '# Code Map\n\nTest content';
+      // Unused variables - removing lint errors
 
       // Mock existing code map detection
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -1407,7 +1405,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -1427,7 +1425,7 @@ export interface ApiResponse<T> {
             size: 1024,
             mtime: new Date('2023-01-01'),
             isDirectory: () => false
-          } as any);
+          } as import('fs').Stats);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -1465,7 +1463,6 @@ export interface ApiResponse<T> {
 
     it('should load generation config if available', async () => {
       const projectPath = '/test/project';
-      const codeMapPath = '/test/output/code-map.md';
       const config = { optimization: true };
 
       // ISOLATION: Clear cache and reset mocks for this specific test
@@ -1474,7 +1471,7 @@ export interface ApiResponse<T> {
       vi.resetAllMocks();
 
       // Mock existing code map detection
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         const pathStr = String(dirPath);
 
         // Handle withFileTypes option (used by findCodeMapFiles)
@@ -1485,7 +1482,7 @@ export interface ApiResponse<T> {
                 name: 'code-map.md',
                 isFile: () => true,
                 isDirectory: () => false
-              } as any
+              } as import('fs').Dirent
             ]);
           }
           return Promise.resolve([]);
@@ -1509,7 +1506,7 @@ export interface ApiResponse<T> {
             mtime: new Date('2023-12-01'),
             size: 4096,
             getTime: () => new Date('2023-12-01').getTime()
-          } as any);
+          } as import('fs').Stats);
         }
 
         if (pathStr.includes('code-map.md')) {
@@ -1517,7 +1514,7 @@ export interface ApiResponse<T> {
             size: 1024,
             mtime: new Date('2023-01-01'),
             isDirectory: () => false
-          } as any);
+          } as import('fs').Stats);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -1557,7 +1554,7 @@ export interface ApiResponse<T> {
       vi.resetAllMocks();
 
       // Mock readdir to return empty array (no code map files)
-      mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+      mockFs.readdir.mockImplementation((dirPath: string, options?: { withFileTypes?: boolean }) => {
         // Always return empty arrays to simulate no code map
         if (options && options.withFileTypes) {
           return Promise.resolve([]);
@@ -1735,7 +1732,7 @@ Some content with \`src/test.ts\` file reference.`;
     it('should throw error for unknown data type', async () => {
       const projectPath = '/test/project';
 
-      await expect(service.requestCodeMapData(projectPath, 'unknown' as any))
+      await expect(service.requestCodeMapData(projectPath, 'unknown' as never))
         .rejects.toThrow('Unknown data type: unknown');
     });
   });
@@ -1816,14 +1813,15 @@ Some content with \`src/test.ts\` file reference.`;
 
       try {
         await service.refreshCodeMapWithMonitoring(projectPath, false);
-      } catch (e) {
+      } catch {
         // Expected to throw
       }
 
       // Should notify subscribers of error - check if any error notification was sent
-      const errorCalls = callback.mock.calls.filter(call =>
-        call[0] && call[0].type === 'error'
-      );
+      // Removed unused errorCalls variable to fix lint warning
+      // const errorCalls = callback.mock.calls.filter(call =>
+      //   call[0] && call[0].type === 'error'
+      // );
 
       // The implementation may or may not send error notifications depending on internal logic
       // We'll accept either behavior as valid for now

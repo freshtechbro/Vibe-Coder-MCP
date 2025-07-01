@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs-extra';
 import path from 'path';
-import { TaskFileManager, FileIndexEntry, BatchOperationResult } from '../../core/task-file-manager.js';
+import { TaskFileManager, FileIndexEntry } from '../../core/task-file-manager.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 
 // Mock fs-extra
@@ -89,7 +89,7 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('TaskFileManager', () => {
   let fileManager: TaskFileManager;
-  let mockConfig: any;
+  let mockConfig: unknown;
   let testDataDir: string;
   let mockTask: AtomicTask;
 
@@ -134,7 +134,7 @@ describe('TaskFileManager', () => {
 
   beforeEach(() => {
     // Reset singleton
-    (TaskFileManager as any).instance = null;
+    (TaskFileManager as Record<string, unknown>).instance = null;
 
     // Reset all mocks
     vi.clearAllMocks();
@@ -217,7 +217,7 @@ describe('TaskFileManager', () => {
 
     it('should save task with compression when enabled', async () => {
       // Reset singleton and create new instance with compression
-      (TaskFileManager as any).instance = null;
+      (TaskFileManager as Record<string, unknown>).instance = null;
       const compressedConfig = { ...mockConfig, enableCompression: true };
       fileManager = TaskFileManager.getInstance(compressedConfig, testDataDir);
       await fileManager.initialize();
@@ -255,7 +255,7 @@ describe('TaskFileManager', () => {
       await fileManager.saveTask(mockTask);
 
       // Verify task is in memory cache (internal state check)
-      const loadedTasks = (fileManager as any).loadedTasks;
+      const loadedTasks = (fileManager as Record<string, unknown>).loadedTasks;
       expect(loadedTasks.has('T001')).toBe(true);
       expect(loadedTasks.get('T001')).toEqual(mockTask);
     });
@@ -292,7 +292,7 @@ describe('TaskFileManager', () => {
         compressed: false
       };
 
-      (fileManager as any).fileIndex.set('T001', indexEntry);
+      (fileManager as Record<string, unknown>).fileIndex.set('T001', indexEntry);
 
       mockFs.readFile.mockResolvedValue(JSON.stringify(mockTask));
 
@@ -305,7 +305,7 @@ describe('TaskFileManager', () => {
 
     it('should load compressed task from file', async () => {
       // Reset singleton and create new instance with compression
-      (TaskFileManager as any).instance = null;
+      (TaskFileManager as Record<string, unknown>).instance = null;
       const compressedConfig = { ...mockConfig, enableCompression: true };
       fileManager = TaskFileManager.getInstance(compressedConfig, testDataDir);
       await fileManager.initialize();
@@ -319,7 +319,7 @@ describe('TaskFileManager', () => {
         compressed: true
       };
 
-      (fileManager as any).fileIndex.set('T001', indexEntry);
+      (fileManager as Record<string, unknown>).fileIndex.set('T001', indexEntry);
 
       // Mock compressed file content - return a properly "compressed" buffer
       const taskJson = JSON.stringify(mockTask);
@@ -353,7 +353,7 @@ describe('TaskFileManager', () => {
         compressed: false
       };
 
-      (fileManager as any).fileIndex.set('T001', indexEntry);
+      (fileManager as Record<string, unknown>).fileIndex.set('T001', indexEntry);
 
       mockFs.readFile.mockRejectedValue(new Error('Read failed'));
 
@@ -416,7 +416,7 @@ describe('TaskFileManager', () => {
       ];
 
       // Make second task fail
-      mockFs.writeFile.mockImplementation(async (filePath: string, ...args) => {
+      mockFs.writeFile.mockImplementation(async (filePath: string, ..._args) => {
         if (filePath.includes('T002')) {
           throw new Error('Write failed for T002');
         }
@@ -457,7 +457,7 @@ describe('TaskFileManager', () => {
       await fileManager.initialize();
 
       // Check that index was loaded (internal state check)
-      const fileIndex = (fileManager as any).fileIndex;
+      const fileIndex = (fileManager as Record<string, unknown>).fileIndex;
       expect(fileIndex.has('T001')).toBe(true);
     });
 
@@ -509,7 +509,7 @@ describe('TaskFileManager', () => {
 
     it('should calculate compression ratio correctly', async () => {
       // Reset singleton and create new instance with compression
-      (TaskFileManager as any).instance = null;
+      (TaskFileManager as Record<string, unknown>).instance = null;
       const compressedConfig = { ...mockConfig, enableCompression: true };
       fileManager = TaskFileManager.getInstance(compressedConfig, testDataDir);
       await fileManager.initialize();
@@ -532,7 +532,7 @@ describe('TaskFileManager', () => {
 
     it('should register cleanup callback with memory manager', () => {
       // Verify cleanup callback was registered (mocked)
-      const mockMemoryManager = (fileManager as any).memoryManager;
+      const mockMemoryManager = (fileManager as Record<string, unknown>).memoryManager;
       expect(mockMemoryManager.registerCleanupCallback).toHaveBeenCalledWith(
         'task-file-manager',
         expect.any(Function)
@@ -545,7 +545,7 @@ describe('TaskFileManager', () => {
       await fileManager.saveTask({ ...mockTask, id: 'T002' });
 
       // Get the cleanup callback
-      const cleanupCallback = (fileManager as any).performCleanup.bind(fileManager);
+      const cleanupCallback = (fileManager as Record<string, unknown>).performCleanup.bind(fileManager);
       const result = await cleanupCallback();
 
       expect(result.success).toBe(true);
@@ -554,7 +554,7 @@ describe('TaskFileManager', () => {
     });
 
     it('should unregister cleanup callback on shutdown', async () => {
-      const mockMemoryManager = (fileManager as any).memoryManager;
+      const mockMemoryManager = (fileManager as Record<string, unknown>).memoryManager;
 
       await fileManager.shutdown();
 
@@ -577,12 +577,12 @@ describe('TaskFileManager', () => {
         await fileManager.saveTask(task);
       }
 
-      const loadedTasks = (fileManager as any).loadedTasks;
+      const loadedTasks = (fileManager as Record<string, unknown>).loadedTasks;
       expect(loadedTasks.size).toBeLessThanOrEqual(1000);
     });
 
     it('should handle invalid task data gracefully', async () => {
-      const invalidTask = { ...mockTask, id: undefined } as any;
+      const invalidTask = { ...mockTask, id: undefined } as Record<string, unknown>;
 
       const result = await fileManager.saveTask(invalidTask);
 

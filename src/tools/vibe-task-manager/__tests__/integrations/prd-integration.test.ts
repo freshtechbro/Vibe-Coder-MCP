@@ -4,9 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs/promises';
-import path from 'path';
 import { PRDIntegrationService } from '../../integrations/prd-integration.js';
-import type { ParsedPRD } from '../../types/artifact-types.js';
 
 // Mock dependencies
 vi.mock('fs/promises');
@@ -28,7 +26,7 @@ describe('PRDIntegrationService', () => {
       isFile: () => true,
       mtime: new Date('2023-12-01'),
       size: 1024
-    } as any);
+    } as Record<string, unknown>);
 
     mockFs.access.mockResolvedValue(undefined);
     mockFs.readFile.mockResolvedValue(mockPRDContent);
@@ -42,7 +40,7 @@ describe('PRDIntegrationService', () => {
         isSymbolicLink: () => false,
         isFIFO: () => false,
         isSocket: () => false
-      } as any
+      } as Record<string, unknown>
     ]);
 
     // Mock environment variables
@@ -107,7 +105,7 @@ describe('PRDIntegrationService', () => {
 
       mockFs.access.mockResolvedValue(undefined);
       mockFs.readdir.mockResolvedValue([
-        { name: 'completely-different-file.md', isFile: () => true } as any
+        { name: 'completely-different-file.md', isFile: () => true } as Record<string, unknown>
       ]);
 
       // Use a project name that won't match "test project"
@@ -130,7 +128,7 @@ describe('PRDIntegrationService', () => {
         isFile: () => true,
         isDirectory: () => false
       };
-      mockFs.readdir.mockResolvedValue([mockFile] as any);
+      mockFs.readdir.mockResolvedValue([mockFile] as Record<string, unknown>);
 
       mockFs.stat.mockImplementation((filePath: string) => {
         if (filePath.includes('test-project-prd.md')) {
@@ -139,7 +137,7 @@ describe('PRDIntegrationService', () => {
             isFile: () => true,
             mtime: new Date('2023-12-01'),
             size: 1024
-          } as any);
+          } as Record<string, unknown>);
         }
         return Promise.reject(new Error('File not found'));
       });
@@ -170,7 +168,7 @@ describe('PRDIntegrationService', () => {
         isFile: () => true,
         mtime: new Date('2023-12-01'),
         size: 1024
-      } as any);
+      } as Record<string, unknown>);
 
       const result = await service.parsePRD(testPRDPath);
 
@@ -206,7 +204,7 @@ describe('PRDIntegrationService', () => {
         isFile: () => true,
         mtime: new Date('2023-12-01'),
         size: 1024
-      } as any);
+      } as Record<string, unknown>);
 
       mockFs.readFile.mockResolvedValue('Invalid PRD content');
 
@@ -227,7 +225,7 @@ describe('PRDIntegrationService', () => {
         isFile: () => true,
         mtime: new Date('2023-12-01'),
         size: 1024
-      } as any);
+      } as Record<string, unknown>);
 
       const metadata = await service.getPRDMetadata(testPRDPath);
 

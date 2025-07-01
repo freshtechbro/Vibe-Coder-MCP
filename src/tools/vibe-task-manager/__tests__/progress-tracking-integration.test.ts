@@ -5,7 +5,7 @@
  * all vibe task manager components and provides meaningful progress updates.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { DecompositionService } from '../services/decomposition-service.js';
 import { ProgressTracker, ProgressEventData, ProgressEvent } from '../services/progress-tracker.js';
 import { getOpenRouterConfig } from '../../../utils/openrouter-config-manager.js';
@@ -16,7 +16,7 @@ import logger from '../../../logger.js';
 describe('Progress Tracking Integration', () => {
   let decompositionService: DecompositionService;
   let progressTracker: ProgressTracker;
-  let config: any;
+  let config: Record<string, unknown>;
 
   // Test project context
   const testProjectContext: ProjectContext = {
@@ -332,7 +332,7 @@ describe('Progress Tracking Integration', () => {
       const monitorInterval = setInterval(() => {
         // In a real implementation, this would check active operations
         // For testing, we'll simulate checking component progress
-        const componentProgress = progressTracker.getComponentProgress('DecompositionService', 'progress-tracking-test');
+        progressTracker.getComponentProgress('DecompositionService', 'progress-tracking-test');
         
         // This is a placeholder - in real implementation it would return actual progress
       }, 100);

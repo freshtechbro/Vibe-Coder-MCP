@@ -35,7 +35,7 @@ describe('Path Injection Security Tests', () => {
     // Clean up temporary directory
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });
@@ -194,7 +194,7 @@ describe('Path Injection Security Tests', () => {
         const result = await validateSecurePath(symlinkFile);
         expect(result.isValid).toBe(false);
         expect(result.error).toContain('Symbolic links are not allowed');
-      } catch (error) {
+      } catch {
         // Skip test if symlinks not supported on this system
         console.log('Skipping symlink test - not supported on this system');
       }

@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 // Mock fs-extra at module level for proper hoisting
 vi.mock('fs-extra', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     // Directory operations
@@ -53,7 +53,6 @@ vi.mock('fs-extra', async (importOriginal) => {
     lstatSync: vi.fn().mockReturnValue({ isFile: () => true, isDirectory: () => false })
   };
 });
-import { IntentRecognitionEngine } from '../../nl/intent-recognizer.js';
 import { RDDEngine } from '../../core/rdd-engine.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
 import { OptimizedDependencyGraph } from '../../core/dependency-graph.js';
@@ -69,7 +68,6 @@ import { queueMockResponses, setTestId } from '../../../../testUtils/mockLLM.js'
 const METICULOUS_TIMEOUT = 300000; // 5 minutes for real API calls
 
 describe.skip('🔬 Meticulous Task Decomposition - Live Test with Real LLM', () => {
-  let intentEngine: IntentRecognitionEngine;
   let rddEngine: RDDEngine;
   let taskScheduler: TaskScheduler;
   let projectContext: ProjectContext;
@@ -91,7 +89,6 @@ describe.skip('🔬 Meticulous Task Decomposition - Live Test with Real LLM', ()
       llm_mapping: config?.llm?.llm_mapping || {}
     };
 
-    intentEngine = new IntentRecognitionEngine();
     rddEngine = new RDDEngine(openRouterConfig);
     taskScheduler = new TaskScheduler({ enableDynamicOptimization: true });
 
@@ -533,7 +530,7 @@ describe.skip('🔬 Meticulous Task Decomposition - Live Test with Real LLM', ()
 
       // Test scheduling with hybrid_optimal algorithm
       const startTime = Date.now();
-      (taskScheduler as any).config.algorithm = 'hybrid_optimal';
+      (taskScheduler as Record<string, unknown>).config.algorithm = 'hybrid_optimal';
 
       const schedule = await taskScheduler.generateSchedule(
         refinedTasks,
@@ -685,7 +682,7 @@ async function saveMeticulousOutputs(
   originalTask: AtomicTask,
   decomposedTasks: AtomicTask[],
   refinedTasks: AtomicTask[],
-  metrics: any
+  metrics: Record<string, unknown>
 ): Promise<void> {
   try {
     // Use the correct Vibe Task Manager output directory pattern

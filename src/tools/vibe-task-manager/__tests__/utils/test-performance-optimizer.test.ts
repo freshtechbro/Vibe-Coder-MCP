@@ -2,7 +2,7 @@
  * Tests for Test Performance Optimizer
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   TestPerformanceMonitor,
   FastMockFactory,

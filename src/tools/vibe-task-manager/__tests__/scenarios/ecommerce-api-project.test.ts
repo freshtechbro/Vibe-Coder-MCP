@@ -27,7 +27,7 @@ describe('🚀 E-Commerce REST API Project - Complete Scenario', () => {
   let taskScheduler: TaskScheduler;
   let projectContext: ProjectContext;
   const projectTasks: AtomicTask[] = [];
-  let executionSchedule: any;
+  let executionSchedule: Record<string, unknown>;
 
   beforeAll(async () => {
     // Initialize Vibe Task Manager components
@@ -259,7 +259,7 @@ describe('🚀 E-Commerce REST API Project - Complete Scenario', () => {
         logger.info({ algorithm }, '📊 Generating schedule with algorithm');
 
         const startTime = Date.now();
-        (taskScheduler as any).config.algorithm = algorithm;
+        (taskScheduler as Record<string, unknown>).config.algorithm = algorithm;
 
         const schedule = await taskScheduler.generateSchedule(
           projectTasks,
@@ -289,7 +289,7 @@ describe('🚀 E-Commerce REST API Project - Complete Scenario', () => {
       }
 
       // Store the best schedule (hybrid_optimal) for execution
-      (taskScheduler as any).config.algorithm = 'hybrid_optimal';
+      (taskScheduler as Record<string, unknown>).config.algorithm = 'hybrid_optimal';
       executionSchedule = await taskScheduler.generateSchedule(
         projectTasks,
         dependencyGraph,
@@ -614,8 +614,8 @@ function createEpicTask(overrides: Partial<AtomicTask>): AtomicTask {
 async function saveScenarioOutputs(
   projectContext: ProjectContext,
   projectTasks: AtomicTask[],
-  executionSchedule: any,
-  finalReport: any
+  executionSchedule: Record<string, unknown>,
+  finalReport: Record<string, unknown>
 ): Promise<void> {
   try {
     // Use the correct Vibe Task Manager output directory pattern

@@ -4,7 +4,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ConfigLoader } from '../../utils/config-loader.js';
 import { 
   ENVIRONMENT_VARIABLES, 
   getEnvironmentValue, 

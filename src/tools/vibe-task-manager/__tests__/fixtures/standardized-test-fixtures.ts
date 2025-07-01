@@ -162,7 +162,7 @@ export const setupStandardizedFileSystemMocks = () => {
     return Promise.resolve('# Default content');
   });
 
-  mockFs.readdir.mockImplementation((dirPath: string, options?: any) => {
+  mockFs.readdir.mockImplementation((dirPath: string, options?: unknown) => {
     const pathStr = String(dirPath);
 
     // Handle output directory for code map files
@@ -236,7 +236,7 @@ export const cleanupStandardizedFixtures = () => {
 /**
  * Setup helper for consistent test initialization
  */
-export const setupStandardizedTest = (testName: string) => {
+export const setupStandardizedTest = (_testName: string) => {
   const mockFs = setupStandardizedFileSystemMocks();
   
   return {

@@ -190,14 +190,14 @@ export class FastMockFactory {
   /**
    * Create fast async mock that resolves immediately
    */
-  static createFastAsyncMock<T = any>(returnValue?: T): any {
+  static createFastAsyncMock<T = unknown>(returnValue?: T): unknown {
     return vi.fn().mockResolvedValue(returnValue);
   }
 
   /**
    * Create fast sync mock that returns immediately
    */
-  static createFastSyncMock<T = any>(returnValue?: T): any {
+  static createFastSyncMock<T = unknown>(returnValue?: T): unknown {
     return vi.fn().mockReturnValue(returnValue);
   }
 
@@ -218,7 +218,7 @@ export class FastMockFactory {
   /**
    * Create fast LLM mock with realistic response structure
    */
-  static createFastLLMMock(responses: any[] = []) {
+  static createFastLLMMock(responses: unknown[] = []) {
     let responseIndex = 0;
     return vi.fn().mockImplementation(() => {
       const response = responses[responseIndex] || { 
@@ -287,10 +287,10 @@ export class TestTimeoutManager {
  * Decorator for automatic performance monitoring
  */
 export function monitorPerformance(category: 'unit' | 'integration' | 'llm' | 'file' | 'custom' = 'unit') {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
+  return function (target: unknown, propertyName: string, descriptor: PropertyDescriptor) {
     const method = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]) {
       const testName = `${target.constructor.name}.${propertyName}`;
       TestPerformanceMonitor.startTest(testName, TestPerformanceMonitor['getThresholdKey'](category));
       
@@ -331,12 +331,12 @@ export async function measureExecutionTime<T>(
  * Batch performance testing utility
  */
 export class BatchPerformanceTester {
-  private tests: Array<{ name: string; fn: () => Promise<any>; category: string }> = [];
+  private tests: Array<{ name: string; fn: () => Promise<unknown>; category: string }> = [];
 
   /**
    * Add a test to the batch
    */
-  addTest(name: string, fn: () => Promise<any>, category: 'unit' | 'integration' | 'llm' | 'file' | 'custom' = 'unit'): this {
+  addTest(name: string, fn: () => Promise<unknown>, category: 'unit' | 'integration' | 'llm' | 'file' | 'custom' = 'unit'): this {
     this.tests.push({ name, fn, category });
     return this;
   }
@@ -352,10 +352,10 @@ export class BatchPerformanceTester {
       
       try {
         await test.fn();
-        const metrics = TestPerformanceMonitor.endTest(test.name, test.category as any);
+        const metrics = TestPerformanceMonitor.endTest(test.name, test.category as 'unit' | 'integration' | 'llm' | 'file' | 'custom');
         results.push(metrics);
       } catch (error) {
-        const metrics = TestPerformanceMonitor.endTest(test.name, test.category as any);
+        const metrics = TestPerformanceMonitor.endTest(test.name, test.category as 'unit' | 'integration' | 'llm' | 'file' | 'custom');
         results.push(metrics);
         logger.error(`Test ${test.name} failed`, { error });
       }

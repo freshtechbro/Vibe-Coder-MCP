@@ -4,8 +4,44 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileCache } from '../fileCache.js';
+import { CacheOptions, CacheMetadata, CacheStats } from '../types.js';
 import path from 'path';
 import os from 'os';
+
+// Interfaces for proper typing
+interface CacheOptions {
+  name: string;
+  cacheDir: string;
+  maxEntries?: number;
+  maxAge?: number;
+  validateOnGet?: boolean;
+  pruneOnStartup?: boolean;
+  pruneInterval?: number;
+  serialize?: (value: unknown) => string;
+  deserialize?: (value: string) => unknown;
+}
+
+interface CacheMetadata {
+  name: string;
+  size: number;
+  createdAt: number;
+  lastUpdated: number;
+  keys: string[];
+  maxEntries: number;
+  maxAge: number;
+  sizeInBytes: number;
+}
+
+interface CacheStats {
+  name: string;
+  size: number;
+  hits: number;
+  misses: number;
+  hitRatio: number;
+  createdAt: number;
+  lastUpdated: number;
+  sizeInBytes: number;
+}
 
 // Mock fs/promises
 const mockFs = {
@@ -67,12 +103,12 @@ vi.mock('../fileCache.js', async (importOriginal) => {
     FileCache: class MockFileCache {
       private name: string;
       private cacheDir: string;
-      private options: any;
-      private metadata: any;
-      private stats: any;
+      private options: CacheOptions;
+      private metadata: CacheMetadata;
+      private stats: CacheStats;
       private initialized: boolean = false;
 
-      constructor(options: any) {
+      constructor(options: CacheOptions) {
         this.name = options.name;
         this.cacheDir = options.cacheDir;
         this.options = {
@@ -116,7 +152,7 @@ vi.mock('../fileCache.js', async (importOriginal) => {
         }
       }
 
-      async get(key: string): Promise<any> {
+      async get(key: string): Promise<unknown> {
         if (key === 'key1') {
           this.stats.hits++;
           return 'value1';
@@ -129,7 +165,7 @@ vi.mock('../fileCache.js', async (importOriginal) => {
         }
       }
 
-      async set(key: string, value: any): Promise<void> {
+      async set(key: string, _value: unknown): Promise<void> {
         if (!this.metadata.keys.includes(key)) {
           this.metadata.keys.push(key);
           this.metadata.size++;
@@ -168,7 +204,7 @@ vi.mock('../fileCache.js', async (importOriginal) => {
         // Simulate pruning
       }
 
-      getStats(): any {
+      getStats(): CacheStats {
         return this.stats;
       }
     }
@@ -196,14 +232,14 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('FileCache', () => {
   let tempDir: string;
-  let cache: FileCache<any>;
+  let cache: FileCache<unknown>;
 
   beforeEach(async () => {
     // Create a temporary directory path for the cache
     tempDir = path.join(os.tmpdir(), `file-cache-test-${Date.now()}`);
 
     // Create a new cache instance
-    cache = new FileCache<any>({
+    cache = new FileCache<unknown>({
       name: 'test-cache',
       cacheDir: tempDir,
       maxEntries: 100,
@@ -245,7 +281,7 @@ describe('FileCache', () => {
   describe('Initialization', () => {
     it('should initialize correctly', async () => {
       // Create a new cache instance
-      const testCache = new FileCache<any>({
+      const testCache = new FileCache<unknown>({
         name: 'test-init-cache',
         cacheDir: tempDir
       });
@@ -273,7 +309,7 @@ describe('FileCache', () => {
 
     it('should create new metadata if none exists', async () => {
       // Create a new cache instance
-      const newCache = new FileCache<any>({
+      const newCache = new FileCache<unknown>({
         name: 'new-cache',
         cacheDir: tempDir
       });
@@ -298,7 +334,7 @@ describe('FileCache', () => {
 
     it('should prune on startup if enabled', async () => {
       // Create a mock cache with a spy on the prune method
-      const mockCache = new FileCache<any>({
+      const mockCache = new FileCache<unknown>({
         name: 'prune-cache',
         cacheDir: tempDir
       });
@@ -485,7 +521,7 @@ describe('FileCache', () => {
 
     it('should prune expired entries', async () => {
       // Create a mock cache with a spy on the prune method
-      const mockCache = new FileCache<any>({
+      const mockCache = new FileCache<unknown>({
         name: 'prune-cache',
         cacheDir: tempDir
       });
@@ -507,7 +543,7 @@ describe('FileCache', () => {
       fs.unlink.mockClear();
 
       // Create a cache with a small maxEntries
-      const smallCache = new FileCache<any>({
+      const smallCache = new FileCache<unknown>({
         name: 'small-cache',
         cacheDir: tempDir,
         maxEntries: 2
@@ -550,7 +586,7 @@ describe('FileCache', () => {
 
     it('should track hit/miss ratio', async () => {
       // Create a mock cache with specific hit/miss stats
-      const mockCache = new FileCache<any>({
+      const mockCache = new FileCache<unknown>({
         name: 'hit-miss-cache',
         cacheDir: tempDir
       });
@@ -583,7 +619,7 @@ describe('FileCache', () => {
       fs.writeFile.mockClear();
 
       // Create a cache with custom serializer/deserializer
-      const customCache = new FileCache<any>({
+      const customCache = new FileCache<unknown>({
         name: 'custom-cache',
         cacheDir: tempDir,
         serialize: (data) => JSON.stringify(data, null, 2),

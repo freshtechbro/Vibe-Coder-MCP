@@ -302,7 +302,7 @@ describe('RecursionGuard', () => {
     });
 
     it('should provide call stack information', async () => {
-      let stackDuringCall: any[] = [];
+      let stackDuringCall: unknown[] = [];
       
       await RecursionGuard.executeWithRecursionGuard(
         'stackTest',

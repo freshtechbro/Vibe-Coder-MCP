@@ -222,7 +222,6 @@ describe('Complete Recursion Prevention Solution - Integration Tests', () => {
     });
 
     it('should handle concurrent recursive calls safely', async () => {
-      const results: string[] = [];
 
       const concurrentRecursiveMethod = async (id: string, depth: number): Promise<string> => {
         const result = await RecursionGuard.executeWithRecursionGuard(

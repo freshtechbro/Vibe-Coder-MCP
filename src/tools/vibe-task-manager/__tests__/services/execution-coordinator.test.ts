@@ -10,13 +10,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ExecutionCoordinator, DEFAULT_EXECUTION_CONFIG, Agent, ExecutionConfig } from '../../services/execution-coordinator.js';
+import { ExecutionCoordinator, Agent, ExecutionConfig } from '../../services/execution-coordinator.js';
 import { TaskScheduler } from '../../services/task-scheduler.js';
 import { OptimizedDependencyGraph } from '../../core/dependency-graph.js';
-import { AtomicTask, TaskPriority, TaskStatus } from '../../types/task.js';
-import { ServiceLifecycleManager } from '../../services/service-lifecycle-manager.js';
+import { AtomicTask } from '../../types/task.js';
 import { cleanupTestServices } from '../utils/service-test-helper.js';
-import { AgentOrchestrator } from '../../services/agent-orchestrator.js';
+import { AgentOrchestrator, AgentCommunicationChannel } from '../../services/agent-orchestrator.js';
+import { ConcurrentAccessManager } from '../../security/concurrent-access.js';
 
 // Mock logger
 vi.mock('../../../logger.js', () => ({
@@ -39,7 +39,7 @@ function setupCommunicationMocks(
   })
 ) {
   const orchestrator = AgentOrchestrator.getInstance();
-  const originalChannel = (orchestrator as any).communicationChannel;
+  const originalChannel = (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel;
 
   // Create mock channel with proper method implementations
   const mockChannel = {
@@ -68,13 +68,13 @@ function setupCommunicationMocks(
   mockChannel.receiveResponse.mockResolvedValue(receiveResponseResult);
 
   // Replace the communication channel
-  (orchestrator as any).communicationChannel = mockChannel;
+  (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = mockChannel;
 
   return {
     originalChannel,
     mockChannel,
     restore: () => {
-      (orchestrator as any).communicationChannel = originalChannel;
+      (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = originalChannel;
       // Also clear the mocks to prevent interference
       mockChannel.sendTask.mockClear();
       mockChannel.receiveResponse.mockClear();
@@ -108,7 +108,7 @@ describe('ExecutionCoordinator', () => {
     coordinator = new ExecutionCoordinator(taskScheduler, testConfig);
 
     // Clear any existing locks from previous tests
-    const accessManager = (coordinator as any).accessManager;
+    const accessManager = (coordinator as unknown as { accessManager: ConcurrentAccessManager }).accessManager;
     if (accessManager && typeof accessManager.clearAllLocks === 'function') {
       await accessManager.clearAllLocks();
     }
@@ -400,7 +400,7 @@ describe('ExecutionCoordinator', () => {
         const orchestrator = AgentOrchestrator.getInstance();
 
         // Store original channel
-        const originalChannel = (orchestrator as any).communicationChannel;
+        const originalChannel = (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel;
 
         // Set up error mock directly
         const mockChannel = {
@@ -419,7 +419,7 @@ describe('ExecutionCoordinator', () => {
         };
 
         // Apply the mock
-        (orchestrator as any).communicationChannel = mockChannel;
+        (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = mockChannel;
 
         const execution = await newCoordinator.executeTask(scheduledTask!);
 
@@ -428,7 +428,7 @@ describe('ExecutionCoordinator', () => {
         expect(execution.result?.error).toContain('Agent not found - cannot send task');
 
         // Restore original channel
-        (orchestrator as any).communicationChannel = originalChannel;
+        (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = originalChannel;
       } finally {
         await newCoordinator.dispose();
         newScheduler.dispose();
@@ -556,7 +556,7 @@ describe('ExecutionCoordinator', () => {
 
       // Setup communication mocks with a brief delay to track active execution
       const orchestrator = AgentOrchestrator.getInstance();
-      const originalChannel = (orchestrator as any).communicationChannel;
+      const originalChannel = (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel;
 
       const mockChannel = {
         ...originalChannel,
@@ -572,7 +572,7 @@ describe('ExecutionCoordinator', () => {
         }))
       };
 
-      (orchestrator as any).communicationChannel = mockChannel;
+      (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = mockChannel;
 
       try {
         // Start execution but don't wait for completion
@@ -588,7 +588,7 @@ describe('ExecutionCoordinator', () => {
         // Wait for completion
         await executionPromise;
       } finally {
-        (orchestrator as any).communicationChannel = originalChannel;
+        (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = originalChannel;
       }
     }, 5000); // 5 second timeout
 
@@ -680,10 +680,10 @@ describe('ExecutionCoordinator', () => {
 
       // Mock the agent communication to delay execution significantly
       const orchestrator = AgentOrchestrator.getInstance();
-      const originalChannel = (orchestrator as any).communicationChannel;
+      const originalChannel = (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel;
 
       // Mock delayed task execution with longer delays to ensure we can catch it
-      (orchestrator as any).communicationChannel = {
+      (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = {
         ...originalChannel,
         sendTask: vi.fn().mockImplementation(async () => {
           await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay for sendTask
@@ -726,7 +726,7 @@ describe('ExecutionCoordinator', () => {
         });
       } finally {
         // Restore original channel
-        (orchestrator as any).communicationChannel = originalChannel;
+        (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = originalChannel;
         await newCoordinator.dispose();
         newScheduler.dispose();
       }
@@ -801,10 +801,10 @@ describe('ExecutionCoordinator', () => {
 
       // Mock the communication channel to succeed
       const orchestrator = AgentOrchestrator.getInstance();
-      const originalChannel = (orchestrator as any).communicationChannel;
+      const originalChannel = (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel;
 
       // Mock successful task sending and response
-      (orchestrator as any).communicationChannel = {
+      (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = {
         ...originalChannel,
         sendTask: vi.fn().mockResolvedValue(true),
         receiveResponse: vi.fn().mockResolvedValue(JSON.stringify({
@@ -824,7 +824,7 @@ describe('ExecutionCoordinator', () => {
       expect(retriedExecution).toBeNull();
 
       // Restore original method
-      (orchestrator as any).communicationChannel = originalChannel;
+      (orchestrator as unknown as { communicationChannel: AgentCommunicationChannel }).communicationChannel = originalChannel;
     }, 2000); // 2 second timeout
   });
 
@@ -972,7 +972,7 @@ describe('ExecutionCoordinator', () => {
       agent.metadata.lastHeartbeat = new Date(Date.now() - 120000); // 2 minutes ago
 
       // Trigger resource monitoring
-      (coordinator as any).monitorResources();
+      (coordinator as unknown as { monitorResources: () => void }).monitorResources();
 
       expect(agent.status).toBe('offline');
     });

@@ -1,7 +1,6 @@
 import { vi } from 'vitest';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
 import { ToolExecutionContext } from '../../../../services/routing/toolRegistry.js';
-import { OpenRouterConfigManager } from '../../../../utils/openrouter-config-manager.js';
 
 /**
  * Test utilities and setup for Vibe Task Manager tests

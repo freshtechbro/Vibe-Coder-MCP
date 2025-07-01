@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { FilesystemSecurity, SecurityCheckResult } from '../../security/filesystem-security.js';
+import { FilesystemSecurity } from '../../security/filesystem-security.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { tmpdir } from 'os';
@@ -161,8 +161,6 @@ describe('FilesystemSecurity', () => {
     });
 
     it('should update configuration', () => {
-      const originalConfig = fsecurity.getConfig();
-      
       fsecurity.updateConfig({
         enableExtensionFiltering: false,
         additionalSafeExtensions: ['.custom']

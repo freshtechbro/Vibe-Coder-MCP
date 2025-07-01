@@ -92,7 +92,7 @@ describe('TimeoutManager', () => {
     it('should use fallback values when not initialized', () => {
       const uninitializedManager = TimeoutManager.getInstance();
       // Reset to uninitialized state
-      (uninitializedManager as any).config = null;
+      (uninitializedManager as Record<string, unknown>).config = null;
 
       expect(uninitializedManager.getTimeout('taskExecution')).toBe(300000);
       expect(uninitializedManager.getTimeout('llmRequest')).toBe(60000);
@@ -125,7 +125,7 @@ describe('TimeoutManager', () => {
 
     it('should return fallback retry config when not initialized', () => {
       const uninitializedManager = TimeoutManager.getInstance();
-      (uninitializedManager as any).config = null;
+      (uninitializedManager as Record<string, unknown>).config = null;
 
       const retryConfig = uninitializedManager.getRetryConfig();
 
@@ -341,7 +341,7 @@ describe('TimeoutManager', () => {
 
     it('should return invalid when not initialized', () => {
       const uninitializedManager = TimeoutManager.getInstance();
-      (uninitializedManager as any).config = null;
+      (uninitializedManager as Record<string, unknown>).config = null;
 
       const result = uninitializedManager.validateTimeouts();
 

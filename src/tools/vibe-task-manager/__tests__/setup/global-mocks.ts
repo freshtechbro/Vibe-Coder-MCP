@@ -24,7 +24,7 @@ import { vi } from 'vitest';
 export async function setupGlobalMocks(): Promise<void> {
   // Setup fs-extra mock with comprehensive methods
   vi.mock('fs-extra', async (importOriginal) => {
-    const actual = await importOriginal() as any;
+    const actual = await importOriginal() as Record<string, unknown>;
     return {
       ...actual,
       // Directory operations
@@ -170,11 +170,11 @@ export async function cleanupGlobalMocks(): Promise<void> {
 /**
  * Queue multiple mock responses for LLM calls
  */
-export function queueMockResponses(responses: Array<{ success: boolean; data?: any; error?: string }>): void {
+export function queueMockResponses(responses: Array<{ success: boolean; data?: unknown; error?: string }>): void {
   const mockQueue = responses.slice(); // Create a copy
   let responseIndex = 0;
 
-  const axiosPost = vi.fn().mockImplementation(async (url: string, data?: any) => {
+  const axiosPost = vi.fn().mockImplementation(async (_url: string, _data?: unknown) => {
     const response = mockQueue[responseIndex] || mockQueue[mockQueue.length - 1] || { success: true, data: {} };
     responseIndex = Math.min(responseIndex + 1, mockQueue.length - 1);
 
@@ -215,8 +215,8 @@ export function queueMockResponses(responses: Array<{ success: boolean; data?: a
 /**
  * Mock single OpenRouter response
  */
-export function mockOpenRouterResponse(response: { success: boolean; data?: any; error?: string }): void {
-  const axiosPost = vi.fn().mockImplementation(async (url: string, data?: any) => {
+export function mockOpenRouterResponse(response: { success: boolean; data?: unknown; error?: string }): void {
+  const axiosPost = vi.fn().mockImplementation(async (_url: string, _data?: unknown) => {
     if (response.success) {
       return {
         data: {

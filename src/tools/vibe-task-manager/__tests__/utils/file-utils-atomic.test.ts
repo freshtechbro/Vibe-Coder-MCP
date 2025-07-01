@@ -4,7 +4,7 @@ import { FileUtils } from '../../utils/file-utils.js';
 
 // Mock fs-extra with comprehensive methods
 vi.mock('fs-extra', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     ensureDir: vi.fn().mockResolvedValue(undefined),
@@ -23,7 +23,7 @@ vi.mock('fs-extra', async (importOriginal) => {
     outputJson: vi.fn().mockResolvedValue(undefined)
   };
 });
-const mockFs = fs as any;
+const mockFs = fs as Record<string, unknown>;
 
 // Mock logger
 vi.mock('../../../../logger.js', () => ({

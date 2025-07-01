@@ -11,7 +11,6 @@ import {
   TEST_CODE_MAP_CONTENT,
   createTestCodeMapInfo,
   createTestFileStats,
-  STANDARD_TEST_CONFIG,
   cleanupStandardizedFixtures
 } from './standardized-test-fixtures.js';
 
@@ -26,7 +25,7 @@ export interface TestFixtureOptions {
 
 export class TestFixtureManager {
   private static instance: TestFixtureManager | null = null;
-  private activeMocks = new Map<string, any>();
+  private activeMocks = new Map<string, unknown>();
   private cleanupFunctions: Array<() => void> = [];
 
   static getInstance(): TestFixtureManager {
@@ -91,7 +90,7 @@ export class TestFixtureManager {
   /**
    * Setup file system mocks with specific behavior
    */
-  private setupFileSystemMocks(behavior: string, paths: typeof TEST_PATHS, dates: typeof TEST_DATES) {
+  private setupFileSystemMocks(behavior: string, _paths: typeof TEST_PATHS, _dates: typeof TEST_DATES) {
     const mockFs = setupStandardizedFileSystemMocks();
 
     // Customize behavior based on test requirements
@@ -229,9 +228,9 @@ export class TestFixtureManager {
   /**
    * Cleanup specific test
    */
-  private cleanupTest(testName: string): void {
+  private cleanupTest(_testName: string): void {
     // Remove test-specific mocks
-    for (const [key, mock] of this.activeMocks) {
+    for (const [, mock] of this.activeMocks) {
       if (mock && typeof mock.mockRestore === 'function') {
         mock.mockRestore();
       }
@@ -273,9 +272,9 @@ export interface TestFixtureSetup {
   paths: typeof TEST_PATHS;
   dates: typeof TEST_DATES;
   mocks: {
-    fs?: any;
-    llm?: any;
-    transport?: any;
+    fs?: unknown;
+    llm?: unknown;
+    transport?: unknown;
   };
   cleanup: () => void;
 }

@@ -22,7 +22,7 @@ vi.mock('../../../../logger.js', () => ({
 }));
 
 describe('StorageInitializer', () => {
-  let mockFileUtils: any;
+  let mockFileUtils: Record<string, unknown>;
   const testDataDir = '/test/data';
 
   beforeEach(async () => {

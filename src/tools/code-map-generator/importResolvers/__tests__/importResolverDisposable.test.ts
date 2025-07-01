@@ -2,15 +2,11 @@
  * Tests for the disposable pattern in import resolvers.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DependencyCruiserAdapter } from '../dependencyCruiserAdapter';
 import { ExtendedPythonImportResolver } from '../extendedPythonImportResolver';
-import { ClangdAdapter } from '../clangdAdapter';
-import { SemgrepAdapter } from '../semgrepAdapter';
 import { ImportResolverFactory } from '../importResolverFactory';
 import * as fs from 'fs';
-import path from 'path';
-import os from 'os';
 
 // Mock fs
 vi.mock('fs', async (importOriginal) => {
@@ -49,6 +45,10 @@ vi.mock('util', () => ({
   promisify: vi.fn().mockImplementation(() => vi.fn().mockResolvedValue({ stdout: '{}' })),
 }));
 
+// Helper function to access private properties in tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const accessPrivate = (obj: unknown): unknown => obj;
+
 describe('Import Resolver Disposable Pattern', () => {
   const allowedDir = '/test/allowed';
   const outputDir = '/test/output';
@@ -63,18 +63,21 @@ describe('Import Resolver Disposable Pattern', () => {
       const adapter = new DependencyCruiserAdapter(allowedDir, outputDir);
 
       // Create a temp file to track
-      (adapter as any).tempFiles = ['/test/output/temp1.json', '/test/output/temp2.json'];
+      accessPrivate(adapter).tempFiles = ['/test/output/temp1.json', '/test/output/temp2.json'];
 
       // Mock fs.existsSync to return true for our temp files
       vi.mocked(fs.existsSync).mockImplementation((filePath) => {
         return filePath === '/test/output/temp1.json' || filePath === '/test/output/temp2.json';
       });
 
+      // Reset mock before testing dispose
+      vi.mocked(fs.unlinkSync).mockClear();
+
       // Call dispose
       adapter.dispose();
 
       // Verify cache is cleared
-      expect((adapter as any).cache.size).toBe(0);
+      expect(accessPrivate(adapter).cache.size).toBe(0);
 
       // Verify temp files are deleted
       expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
@@ -89,18 +92,21 @@ describe('Import Resolver Disposable Pattern', () => {
       const resolver = new ExtendedPythonImportResolver(allowedDir, outputDir);
 
       // Create a temp file to track
-      (resolver as any).tempFiles = ['/test/output/temp1.py', '/test/output/temp2.py'];
+      accessPrivate(resolver).tempFiles = ['/test/output/temp1.py', '/test/output/temp2.py'];
 
       // Mock fs.existsSync to return true for our temp files
       vi.mocked(fs.existsSync).mockImplementation((filePath) => {
         return filePath === '/test/output/temp1.py' || filePath === '/test/output/temp2.py';
       });
 
+      // Reset mock before testing dispose
+      vi.mocked(fs.unlinkSync).mockClear();
+
       // Call dispose
       resolver.dispose();
 
       // Verify cache is cleared
-      expect((resolver as any).cache.size).toBe(0);
+      expect(accessPrivate(resolver).cache.size).toBe(0);
 
       // Verify temp files are deleted
       expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
@@ -108,8 +114,8 @@ describe('Import Resolver Disposable Pattern', () => {
       expect(fs.unlinkSync).toHaveBeenCalledWith('/test/output/temp2.py');
 
       // Verify environment variables are reset
-      expect((resolver as any).sitePackagesPath).toBeNull();
-      expect((resolver as any).pythonPath).toBeNull();
+      expect(accessPrivate(resolver).sitePackagesPath).toBeNull();
+      expect(accessPrivate(resolver).pythonPath).toBeNull();
     });
   });
 
@@ -129,10 +135,10 @@ describe('Import Resolver Disposable Pattern', () => {
       const mockSemgrepAdapter = { dispose: vi.fn() };
 
       // Set mock adapters
-      (factory as any).dependencyCruiserAdapter = mockDependencyCruiserAdapter;
-      (factory as any).pythonImportResolver = mockPythonImportResolver;
-      (factory as any).clangdAdapter = mockClangdAdapter;
-      (factory as any).semgrepAdapter = mockSemgrepAdapter;
+      accessPrivate(factory).dependencyCruiserAdapter = mockDependencyCruiserAdapter;
+      accessPrivate(factory).pythonImportResolver = mockPythonImportResolver;
+      accessPrivate(factory).clangdAdapter = mockClangdAdapter;
+      accessPrivate(factory).semgrepAdapter = mockSemgrepAdapter;
 
       // Call dispose
       factory.dispose();
@@ -144,10 +150,10 @@ describe('Import Resolver Disposable Pattern', () => {
       expect(mockSemgrepAdapter.dispose).toHaveBeenCalled();
 
       // Verify all adapters are set to null
-      expect((factory as any).dependencyCruiserAdapter).toBeNull();
-      expect((factory as any).pythonImportResolver).toBeNull();
-      expect((factory as any).clangdAdapter).toBeNull();
-      expect((factory as any).semgrepAdapter).toBeNull();
+      expect(accessPrivate(factory).dependencyCruiserAdapter).toBeNull();
+      expect(accessPrivate(factory).pythonImportResolver).toBeNull();
+      expect(accessPrivate(factory).clangdAdapter).toBeNull();
+      expect(accessPrivate(factory).semgrepAdapter).toBeNull();
     });
 
     it('should clean up unused adapters after timeout', async () => {
@@ -165,27 +171,27 @@ describe('Import Resolver Disposable Pattern', () => {
       const mockPythonImportResolver = { dispose: vi.fn() };
 
       // Set mock adapters
-      (factory as any).dependencyCruiserAdapter = mockDependencyCruiserAdapter;
-      (factory as any).pythonImportResolver = mockPythonImportResolver;
+      accessPrivate(factory).dependencyCruiserAdapter = mockDependencyCruiserAdapter;
+      accessPrivate(factory).pythonImportResolver = mockPythonImportResolver;
 
       // Set last used timestamps (one recent, one old)
       const now = Date.now();
-      (factory as any).adapterLastUsed.set('dependencyCruiser', now);
-      (factory as any).adapterLastUsed.set('pythonImportResolver', now - 20 * 60 * 1000); // 20 minutes ago
+      accessPrivate(factory).adapterLastUsed.set('dependencyCruiser', now);
+      accessPrivate(factory).adapterLastUsed.set('pythonImportResolver', now - 20 * 60 * 1000); // 20 minutes ago
 
       // Set TTL to 15 minutes
-      (factory as any).ADAPTER_TTL = 15 * 60 * 1000;
+      accessPrivate(factory).ADAPTER_TTL = 15 * 60 * 1000;
 
       // Call cleanupUnusedAdapters
-      (factory as any).cleanupUnusedAdapters();
+      accessPrivate(factory).cleanupUnusedAdapters();
 
       // Verify only old adapter is disposed
       expect(mockDependencyCruiserAdapter.dispose).not.toHaveBeenCalled();
       expect(mockPythonImportResolver.dispose).toHaveBeenCalled();
 
       // Verify only old adapter is set to null
-      expect((factory as any).dependencyCruiserAdapter).not.toBeNull();
-      expect((factory as any).pythonImportResolver).toBeNull();
+      expect(accessPrivate(factory).dependencyCruiserAdapter).not.toBeNull();
+      expect(accessPrivate(factory).pythonImportResolver).toBeNull();
 
       vi.useRealTimers();
     });

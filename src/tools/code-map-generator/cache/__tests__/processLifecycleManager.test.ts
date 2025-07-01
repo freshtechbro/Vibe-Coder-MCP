@@ -3,9 +3,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as os from 'os';
 import { ProcessLifecycleManager } from '../processLifecycleManager.js';
 import { MemoryManager } from '../memoryManager.js';
 import { ResourceTracker } from '../resourceTracker.js';
+
+// Mock the os module
+vi.mock('os', () => ({
+  cpus: vi.fn()
+}));
 
 // Mock the FileCache class
 vi.mock('../fileCache.js', () => ({
@@ -172,8 +178,7 @@ describe('ProcessLifecycleManager', () => {
 
   it('should check process health', () => {
     // Mock the os.cpus function
-    const os = require('os');
-    os.cpus = vi.fn().mockReturnValue([{}, {}, {}, {}]); // 4 CPUs
+    vi.mocked(os.cpus).mockReturnValue([{}, {}, {}, {}] as os.CpuInfo[]); // 4 CPUs
 
     // Check health
     const health = manager.checkProcessHealth();
@@ -186,9 +191,9 @@ describe('ProcessLifecycleManager', () => {
     expect(health.activeJobs).toBe(0);
   });
 
-  it.skip('should handle degraded memory', () => {
+  it.skip('should handle degraded memory', async () => {
     // Mock getMemoryStats to return high memory usage
-    const parserModule = require('../../parser.js');
+    const parserModule = await import('../../parser.js');
     const originalGetMemoryStats = parserModule.getMemoryStats;
 
     parserModule.getMemoryStats = vi.fn().mockReturnValue({
@@ -218,9 +223,9 @@ describe('ProcessLifecycleManager', () => {
     parserModule.getMemoryStats = originalGetMemoryStats;
   });
 
-  it.skip('should handle critical memory', () => {
+  it.skip('should handle critical memory', async () => {
     // Mock getMemoryStats to return critical memory usage
-    const parserModule = require('../../parser.js');
+    const parserModule = await import('../../parser.js');
     const originalGetMemoryStats = parserModule.getMemoryStats;
 
     parserModule.getMemoryStats = vi.fn().mockReturnValue({
@@ -273,8 +278,7 @@ describe('ProcessLifecycleManager', () => {
 
   it('should notify health listeners', () => {
     // Mock the os.cpus function
-    const os = require('os');
-    os.cpus = vi.fn().mockReturnValue([{}, {}, {}, {}]); // 4 CPUs
+    vi.mocked(os.cpus).mockReturnValue([{}, {}, {}, {}] as os.CpuInfo[]); // 4 CPUs
 
     // Create a mock listener
     const listener = vi.fn();

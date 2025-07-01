@@ -92,7 +92,7 @@ describe('MetadataCache', () => {
     };
 
     vi.mocked(fs.readFile).mockResolvedValue(content);
-    vi.mocked(fs.stat).mockResolvedValue(stats as any);
+    vi.mocked(fs.stat).mockResolvedValue(stats as import('fs').Stats);
 
     // Create metadata
     const metadata = await MetadataCache.createSourceCodeMetadata(filePath);

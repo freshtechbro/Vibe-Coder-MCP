@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AtomicTaskDetector, AtomicityAnalysis } from '../../core/atomic-detector.js';
+import { AtomicTaskDetector } from '../../core/atomic-detector.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { AtomicTask, TaskPriority, TaskType, TaskStatus } from '../../types/task.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
@@ -7,7 +7,6 @@ import { createMockConfig } from '../utils/test-setup.js';
 import {
   mockOpenRouterResponse,
   MockTemplates,
-  MockQueueBuilder,
   PerformanceTestUtils,
   setTestId,
   clearAllMockQueues,

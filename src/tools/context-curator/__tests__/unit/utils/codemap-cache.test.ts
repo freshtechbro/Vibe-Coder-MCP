@@ -3,7 +3,7 @@
  * Tests intelligent caching functionality for Context Curator
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { CodemapCacheManager } from '../../../utils/codemap-cache.js';
@@ -52,7 +52,7 @@ describe('CodemapCacheManager', () => {
     it('should return null when codemap directory does not exist', async () => {
       const mockError = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
       mockError.code = 'ENOENT';
-      (fs.access as any).mockRejectedValue(mockError);
+      (fs.access as Mock).mockRejectedValue(mockError);
 
       const result = await CodemapCacheManager.findRecentCodemap(60, mockOutputDir);
 
@@ -61,8 +61,8 @@ describe('CodemapCacheManager', () => {
     });
 
     it('should return null when no codemap files exist', async () => {
-      (fs.access as any).mockResolvedValue(undefined);
-      (fs.readdir as any).mockResolvedValue(['other-file.txt', 'not-a-codemap.md']);
+      (fs.access as Mock).mockResolvedValue(undefined);
+      (fs.readdir as Mock).mockResolvedValue(['other-file.txt', 'not-a-codemap.md']);
 
       const result = await CodemapCacheManager.findRecentCodemap(60, mockOutputDir);
 
@@ -71,11 +71,10 @@ describe('CodemapCacheManager', () => {
     });
 
     it('should return null when codemap files are too old', async () => {
-      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
       const oldFilename = '2025-01-01T10-00-00-000Z-code-map.md';
 
-      (fs.access as any).mockResolvedValue(undefined);
-      (fs.readdir as any).mockResolvedValue([oldFilename]);
+      (fs.access as Mock).mockResolvedValue(undefined);
+      (fs.readdir as Mock).mockResolvedValue([oldFilename]);
 
       const result = await CodemapCacheManager.findRecentCodemap(60, mockOutputDir); // 1 hour max age
 
@@ -87,9 +86,9 @@ describe('CodemapCacheManager', () => {
       const recentFilename = recentTimestamp.toISOString().replace(/[:.]/g, '-') + '-code-map.md';
       const mockContent = '# Code Map\n\nThis is a test codemap content.';
 
-      (fs.access as any).mockResolvedValue(undefined);
-      (fs.readdir as any).mockResolvedValue([recentFilename]);
-      (fs.readFile as any).mockResolvedValue(mockContent);
+      (fs.access as Mock).mockResolvedValue(undefined);
+      (fs.readdir as Mock).mockResolvedValue([recentFilename]);
+      (fs.readFile as Mock).mockResolvedValue(mockContent);
 
       const result = await CodemapCacheManager.findRecentCodemap(60, mockOutputDir);
 
@@ -107,9 +106,9 @@ describe('CodemapCacheManager', () => {
       const newerFilename = newerTimestamp.toISOString().replace(/[:.]/g, '-') + '-code-map.md';
       const mockContent = '# Code Map\n\nNewest codemap content.';
 
-      (fs.access as any).mockResolvedValue(undefined);
-      (fs.readdir as any).mockResolvedValue([olderFilename, newerFilename]);
-      (fs.readFile as any).mockResolvedValue(mockContent);
+      (fs.access as Mock).mockResolvedValue(undefined);
+      (fs.readdir as Mock).mockResolvedValue([olderFilename, newerFilename]);
+      (fs.readFile as Mock).mockResolvedValue(mockContent);
 
       const result = await CodemapCacheManager.findRecentCodemap(120, mockOutputDir); // 2 hour max age
 
@@ -122,8 +121,8 @@ describe('CodemapCacheManager', () => {
       process.env.VIBE_CODER_OUTPUT_DIR = '/env/output';
       const expectedDir = path.join('/env/output', 'code-map-generator');
 
-      (fs.access as any).mockResolvedValue(undefined);
-      (fs.readdir as any).mockResolvedValue([]);
+      (fs.access as Mock).mockResolvedValue(undefined);
+      (fs.readdir as Mock).mockResolvedValue([]);
 
       await CodemapCacheManager.findRecentCodemap(60);
 
@@ -134,17 +133,17 @@ describe('CodemapCacheManager', () => {
       const recentTimestamp = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
       const recentFilename = recentTimestamp.toISOString().replace(/[:.]/g, '-') + '-code-map.md';
 
-      (fs.access as any).mockResolvedValue(undefined);
-      (fs.readdir as any).mockResolvedValue([recentFilename]);
+      (fs.access as Mock).mockResolvedValue(undefined);
+      (fs.readdir as Mock).mockResolvedValue([recentFilename]);
 
       // First two attempts fail, third succeeds
-      (fs.access as any)
+      (fs.access as Mock)
         .mockResolvedValueOnce(undefined) // Directory access
         .mockRejectedValueOnce(new Error('File locked')) // First file access
         .mockRejectedValueOnce(new Error('File locked')) // Second file access
         .mockResolvedValueOnce(undefined); // Third file access
 
-      (fs.readFile as any).mockResolvedValue('# Code Map\n\nContent');
+      (fs.readFile as Mock).mockResolvedValue('# Code Map\n\nContent');
 
       const result = await CodemapCacheManager.findRecentCodemap(60, mockOutputDir);
 
@@ -200,7 +199,7 @@ describe('CodemapCacheManager', () => {
 
   describe('getCacheStats', () => {
     it('should return empty stats when no codemaps exist', async () => {
-      (fs.readdir as any).mockResolvedValue([]);
+      (fs.readdir as Mock).mockResolvedValue([]);
 
       const stats = await CodemapCacheManager.getCacheStats(mockOutputDir);
 
@@ -220,8 +219,8 @@ describe('CodemapCacheManager', () => {
         '2025-01-01T12-00-00-000Z-code-map.md'
       ];
       
-      (fs.readdir as any).mockResolvedValue(files);
-      (fs.stat as any).mockResolvedValue({ size: 1000 });
+      (fs.readdir as Mock).mockResolvedValue(files);
+      (fs.stat as Mock).mockResolvedValue({ size: 1000 });
 
       const stats = await CodemapCacheManager.getCacheStats(mockOutputDir);
 
@@ -233,7 +232,7 @@ describe('CodemapCacheManager', () => {
     });
 
     it('should handle file system errors gracefully', async () => {
-      (fs.readdir as any).mockRejectedValue(new Error('Permission denied'));
+      (fs.readdir as Mock).mockRejectedValue(new Error('Permission denied'));
 
       const stats = await CodemapCacheManager.getCacheStats(mockOutputDir);
 

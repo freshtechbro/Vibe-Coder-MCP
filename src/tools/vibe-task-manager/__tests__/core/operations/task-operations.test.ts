@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
-import { TaskOperations, CreateTaskParams, UpdateTaskParams } from '../../../core/operations/task-operations.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TaskOperations, CreateTaskParams } from '../../../core/operations/task-operations.js';
 import { AtomicTask, TaskStatus, TaskPriority, TaskType } from '../../../types/task.js';
 
 // Mock dependencies
@@ -13,11 +13,11 @@ vi.mock('../../../../logger.js');
 
 describe('TaskOperations Integration Tests', () => {
   let taskOps: TaskOperations;
-  let mockStorageManager: any;
-  let mockAccessManager: any;
-  let mockDataSanitizer: any;
-  let mockIdGenerator: any;
-  let mockEpicValidator: any;
+  let mockStorageManager: unknown;
+  let mockAccessManager: unknown;
+  let mockDataSanitizer: unknown;
+  let mockIdGenerator: unknown;
+  let mockEpicValidator: unknown;
 
   beforeEach(async () => {
     // Reset all mocks

@@ -7,21 +7,28 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextCuratorService } from '../../../services/context-curator-service.js';
-import { ConfigLoader } from '../../../../shared/config/config-loader.js';
-import { LLMIntegrationService } from '../../../services/llm-integration.js';
+import { ContextCuratorConfigLoader } from '../../../services/config-loader.js';
+import { ContextCuratorLLMService } from '../../../services/llm-integration.js';
+import { LanguageAnalysisResult, ProjectTypeAnalysisResult } from '../../../types/llm-tasks.js';
+
+// Helper type to access private methods for testing
+type ServiceWithPrivateMethods = ContextCuratorService & {
+  detectPrimaryLanguages: (codemap: string) => Promise<LanguageAnalysisResult>;
+  detectProjectType: (codemap: string) => ProjectTypeAnalysisResult;
+};
 
 describe('Enhanced Phase 2 Analysis', () => {
   let service: ContextCuratorService;
-  let mockConfigLoader: ConfigLoader;
-  let mockLLMService: LLMIntegrationService;
+  let mockConfigLoader: ContextCuratorConfigLoader;
+  let mockLLMService: ContextCuratorLLMService;
 
   beforeEach(() => {
     mockConfigLoader = {
       loadConfig: () => Promise.resolve({ success: true, config: {} }),
       getLLMModel: () => 'test-model'
-    } as any;
+    } as unknown as ContextCuratorConfigLoader;
 
-    mockLLMService = {} as any;
+    mockLLMService = {} as unknown as ContextCuratorLLMService;
     service = new ContextCuratorService(mockConfigLoader, mockLLMService);
   });
 
@@ -42,7 +49,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── package.json
       `;
 
-      const result = await (service as any).detectPrimaryLanguages(codemap);
+      const result = await (service as ServiceWithPrivateMethods).detectPrimaryLanguages(codemap);
       
       expect(result.languages).toContain('TypeScript');
       expect(result.languages).toContain('JavaScript');
@@ -72,7 +79,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── express/
       `;
 
-      const result = await (service as any).detectPrimaryLanguages(codemap);
+      const result = await (service as ServiceWithPrivateMethods).detectPrimaryLanguages(codemap);
       
       expect(result.frameworkIndicators).toContain('React');
       // Note: Next.js detection requires 'next.js' or 'nextjs' in content
@@ -93,7 +100,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         build.gradle
       `;
 
-      const result = await (service as any).detectPrimaryLanguages(codemap);
+      const result = await (service as ServiceWithPrivateMethods).detectPrimaryLanguages(codemap);
       
       expect(result.buildSystemIndicators).toContain('npm');
       expect(result.buildSystemIndicators).toContain('Yarn');
@@ -113,7 +120,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── config.abc
       `;
 
-      const result = await (service as any).detectPrimaryLanguages(codemap);
+      const result = await (service as ServiceWithPrivateMethods).detectPrimaryLanguages(codemap);
       
       expect(result).toBeDefined();
       expect(result.totalFilesAnalyzed).toBeGreaterThan(0);
@@ -139,7 +146,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── next/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection returns broader, more accurate categories
       expect(result.projectType).toBe('Web Application');
@@ -165,7 +172,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── nuxt/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection returns broader, more accurate categories
       expect(result.projectType).toBe('Web Application');
@@ -194,7 +201,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── mongoose/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection returns broader, more accurate categories
       expect(result.projectType).toBe('Web Application');
@@ -220,7 +227,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── django/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection uses package manager detection
       expect(result.projectType).toBe('Python Backend');
@@ -248,7 +255,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── react-navigation/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection returns broader, more accurate categories
       expect(result.projectType).toBe('Web Application');
@@ -271,7 +278,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── flutter_test/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection detects YAML-based projects (pubspec.yaml is YAML)
       expect(result.projectType).toBe('YAML Application');
@@ -295,7 +302,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── tensorflow/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection prioritizes package manager (Python Backend is more specific)
       expect(result.projectType).toBe('Python Backend');
@@ -321,7 +328,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── Jenkinsfile
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Enhanced detection detects containerized applications
       expect(result.projectType).toBe('Containerized App');
@@ -344,7 +351,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── webpack/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
       
       expect(result.projectType).toBeDefined();
       expect(result.confidence).toBeGreaterThan(0);
@@ -383,7 +390,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── kubernetes/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
       
       expect(result.projectType).toBeDefined();
       expect(result.secondaryTypes).toBeDefined();
@@ -422,7 +429,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── android/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       expect(result.projectType).toBeDefined();
       expect(result.secondaryTypes).toBeDefined();
@@ -449,7 +456,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── typescript/
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Should NOT detect as Android despite android/kotlin keywords
       expect(result.projectType).not.toBe('Android Native');
@@ -480,7 +487,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── main.go
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       expect(result.projectType).toBeDefined();
       expect(result.confidence).toBeGreaterThan(0.3);
@@ -501,7 +508,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── variables.tf
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Should detect containerized applications (Docker is more prominent)
       expect(result.projectType).toBe('Containerized App');
@@ -517,7 +524,7 @@ describe('Enhanced Phase 2 Analysis', () => {
             └── mystery.def
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       expect(result.projectType).toBe('General Application');
       expect(result.confidence).toBeLessThan(0.7);
@@ -535,7 +542,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         └── LaunchScreen.storyboard
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       // Should detect mobile application (broader category is more accurate)
       expect(result.projectType).toBe('Mobile Application');
@@ -559,7 +566,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         requirements.txt
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       expect(result.projectType).toBe('Python Backend');
       expect(result.confidence).toBeGreaterThan(0.4);
@@ -579,7 +586,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         package.json
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       expect(result.projectType).toBe('TSX Application');
       expect(result.confidence).toBeGreaterThan(0.5);
@@ -603,7 +610,7 @@ describe('Enhanced Phase 2 Analysis', () => {
         docker-compose.yml
       `;
 
-      const result = (service as any).detectProjectType(codemap);
+      const result = (service as ServiceWithPrivateMethods).detectProjectType(codemap);
 
       expect(result.projectType).toBeDefined();
       expect(result.secondaryTypes.length).toBeGreaterThan(1);

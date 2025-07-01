@@ -43,7 +43,7 @@ vi.mock('../../sse-notifier/index.js', () => ({
 }));
 
 describe('Transport Manager Dynamic Port Allocation', () => {
-  let testServers: any[] = [];
+  let testServers: { close: () => Promise<void> | void }[] = [];
   let originalEnv: NodeJS.ProcessEnv;
   let testPortBase: number;
 
@@ -96,7 +96,7 @@ describe('Transport Manager Dynamic Port Allocation', () => {
     // Stop transport manager
     try {
       await transportManager.stopAll();
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });
@@ -216,7 +216,7 @@ describe('Transport Manager Dynamic Port Allocation', () => {
     it('should continue with available transports when some fail', async () => {
       // Mock WebSocket service to fail
       const { websocketServer } = await import('../../websocket-server/index.js');
-      (websocketServer.start as any).mockRejectedValueOnce(new Error('WebSocket startup failed'));
+      (websocketServer.start as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('WebSocket startup failed'));
 
       await transportManager.startAll();
       
@@ -234,8 +234,8 @@ describe('Transport Manager Dynamic Port Allocation', () => {
       const { websocketServer } = await import('../../websocket-server/index.js');
       const { httpAgentAPI } = await import('../../http-agent-api/index.js');
 
-      (websocketServer.start as any).mockRejectedValue(new Error('WebSocket failed'));
-      (httpAgentAPI.start as any).mockRejectedValue(new Error('HTTP failed'));
+      (websocketServer.start as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('WebSocket failed'));
+      (httpAgentAPI.start as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('HTTP failed'));
 
       await transportManager.startAll();
       
@@ -257,7 +257,7 @@ describe('Transport Manager Dynamic Port Allocation', () => {
 
       // Clear previous calls and set up specific mock behavior
       vi.clearAllMocks();
-      (websocketServer.start as any)
+      (websocketServer.start as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('Port in use'))
         .mockResolvedValue(undefined); // Succeed on subsequent calls
 
@@ -267,13 +267,13 @@ describe('Transport Manager Dynamic Port Allocation', () => {
       expect(status.startedServices).toContain('websocket');
 
       // Should have been called at least twice (initial + retry)
-      expect((websocketServer.start as any).mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect((websocketServer.start as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should give up after maximum retries', async () => {
       // Mock service to always fail
       const { websocketServer } = await import('../../websocket-server/index.js');
-      (websocketServer.start as any).mockRejectedValue(new Error('Always fails'));
+      (websocketServer.start as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Always fails'));
 
       await transportManager.startAll();
       
@@ -281,7 +281,7 @@ describe('Transport Manager Dynamic Port Allocation', () => {
       expect(status.startedServices).not.toContain('websocket');
       
       // Should have been called multiple times (initial + retries)
-      expect((websocketServer.start as any).mock.calls.length).toBeGreaterThan(1);
+      expect((websocketServer.start as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
     });
   });
 
@@ -307,7 +307,7 @@ describe('Transport Manager Dynamic Port Allocation', () => {
 
       // Clear mocks and set up failure behavior
       vi.clearAllMocks();
-      (websocketServer.start as any).mockRejectedValue(new Error('Always fails'));
+      (websocketServer.start as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Always fails'));
 
       // Reset the transport manager to clear any previous state
       await transportManager.stopAll();

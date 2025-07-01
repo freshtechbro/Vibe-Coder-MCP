@@ -238,7 +238,7 @@ describe('File Discovery Templates', () => {
       const searchStrategyProperty = FILE_DISCOVERY_RESPONSE_SCHEMA.properties.searchStrategy;
       expect(searchStrategyProperty.type).toBe('string');
       expect(searchStrategyProperty.enum).toEqual([
-        'semantic_similarity', 'keyword_matching', 'semantic_and_keyword', 'structural_analysis'
+        'semantic_similarity', 'keyword_matching', 'semantic_and_keyword', 'structural_analysis', 'multi_strategy'
       ]);
     });
 

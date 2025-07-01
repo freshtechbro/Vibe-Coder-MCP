@@ -1,8 +1,11 @@
 // src/services/sse-notifier/sse-notifier.test.ts
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { sseNotifier } from './index.js'; // Import the singleton instance
 import { JobStatus } from '../job-manager/index.js'; // Import JobStatus enum
 import { Response } from 'express'; // Import Response type for mocking
+
+// Define type for mock response with close listener
+type MockResponseWithCloseListener = Partial<Response> & { _closeListener?: () => void };
 
 // Mock the logger
 vi.mock('../../logger.js', () => ({
@@ -22,7 +25,7 @@ const createMockResponse = (): Partial<Response> => ({
   on: vi.fn((event, listener) => {
     if (event === 'close') {
       // Store the listener to simulate the close event later
-      (mockResponse as any)._closeListener = listener;
+      (mockResponse as MockResponseWithCloseListener)._closeListener = listener;
     }
     return mockResponse as Response; // Return self for chaining
   }),
@@ -31,7 +34,7 @@ const createMockResponse = (): Partial<Response> => ({
   // Add other methods/properties if SseNotifier uses them
 });
 
-let mockResponse: Partial<Response> & { _closeListener?: () => void };
+let mockResponse: MockResponseWithCloseListener;
 
 describe('SseNotifier Singleton', () => {
   // We are testing the singleton instance directly
@@ -44,15 +47,15 @@ describe('SseNotifier Singleton', () => {
     vi.clearAllMocks();
     // TODO: Consider adding a reset method to SseNotifier for testing if needed
     // e.g., sseNotifier.resetForTesting(); or manually clear internal clients map
-    (sseNotifier as any).connections.clear(); // Clear connections before each test
+    (sseNotifier as unknown as { connections: Map<string, Response> }).connections.clear(); // Clear connections before each test
   });
 
   it('should register a new connection', () => {
     const sessionId = 'session-1';
     sseNotifier.registerConnection(sessionId, mockResponse as Response);
     // Check internal state if possible/necessary, or test via sendProgress
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(true);
-    expect((sseNotifier as any).clients.get(sessionId)).toBe(mockResponse);
+    expect((sseNotifier as unknown as { connections: Map<string, Response> }).connections.has(sessionId)).toBe(true);
+    expect((sseNotifier as unknown as { connections: Map<string, Response> }).connections.get(sessionId)).toBe(mockResponse);
     // Check if initial headers/keep-alive message was sent
     expect(mockResponse.write).toHaveBeenCalledWith('event: connection\ndata: established\n\n');
   });
@@ -61,13 +64,13 @@ describe('SseNotifier Singleton', () => {
     const sessionId = 'session-1';
     sseNotifier.registerConnection(sessionId, mockResponse as Response);
     sseNotifier.unregisterConnection(sessionId);
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(false);
+    expect((sseNotifier as unknown as { connections: Map<string, Response> }).connections.has(sessionId)).toBe(false);
   });
 
   it('should automatically unregister when the connection closes', () => {
     const sessionId = 'session-1';
     sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(true);
+    expect((sseNotifier as unknown as { connections: Map<string, Response> }).connections.has(sessionId)).toBe(true);
 
     // Simulate the 'close' event
     if (mockResponse._closeListener) {
@@ -76,7 +79,7 @@ describe('SseNotifier Singleton', () => {
       throw new Error("Close listener was not registered by mock");
     }
 
-    expect((sseNotifier as any).clients.has(sessionId)).toBe(false);
+    expect((sseNotifier as unknown as { connections: Map<string, Response> }).connections.has(sessionId)).toBe(false);
   });
 
   it('should send progress updates to a registered connection', () => {
@@ -105,11 +108,11 @@ describe('SseNotifier Singleton', () => {
     sseNotifier.registerConnection(sessionId, mockResponse as Response);
 
     // Create an object that cannot be stringified (circular reference)
-    const circularData: any = { jobId: 'job-circ' };
+    const circularData: { jobId: string; self?: unknown } = { jobId: 'job-circ' };
     circularData.self = circularData;
 
     // Expect sendProgress not to throw, but log an error (mock logger check)
-    expect(() => sseNotifier.sendProgress(sessionId, 'job-circ', JobStatus.FAILED, circularData)).not.toThrow();
+    expect(() => sseNotifier.sendProgress(sessionId, 'job-circ', JobStatus.FAILED, 'Test circular data handling')).not.toThrow();
 
     // Check that write was NOT called with the bad data, but the initial connection message might still be there
     expect(mockResponse.write).toHaveBeenCalledTimes(1); // Only the initial connection message
@@ -120,8 +123,8 @@ describe('SseNotifier Singleton', () => {
   it('should not send progress if the connection is already closed (writableEnded)', () => {
     const sessionId = 'session-1';
     sseNotifier.registerConnection(sessionId, mockResponse as Response);
-    // Simulate closed connection - Cast to 'any' to set property on mock
-    (mockResponse as any).writableEnded = true;
+    // Simulate closed connection - Cast to mock type to set property
+    (mockResponse as MockResponseWithCloseListener & { writableEnded: boolean }).writableEnded = true;
 
     sseNotifier.sendProgress(sessionId, 'job-1', JobStatus.COMPLETED, 'Done');
 

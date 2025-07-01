@@ -53,7 +53,7 @@ describe('ExtendedPythonImportResolver', () => {
     };
 
     vi.mocked(parseSourceCode).mockResolvedValue({
-      ast: mockAst as any,
+      ast: mockAst as Record<string, unknown>,
       language: 'python'
     });
 
@@ -82,7 +82,7 @@ from .subpackage import module2
     // Create a mock AST with import nodes
     const mockAst = {
       rootNode: {
-        descendantsOfType: (types: string[]) => {
+        descendantsOfType: (_types: string[]) => {
           // Return mock import nodes based on the file content
           return [
             // import os
@@ -127,7 +127,7 @@ from .subpackage import module2
                 }
                 return null;
               },
-              descendantsOfType: (types: string[]) => {
+              descendantsOfType: (_types: string[]) => {
                 if (types.includes('identifier')) {
                   return [
                     {
@@ -149,16 +149,16 @@ from .subpackage import module2
           ];
         }
       }
-    } as any;
+    } as Record<string, unknown>;
 
     // Mock the parseSourceCode function to return our mock AST
     vi.mocked(parseSourceCode).mockResolvedValue({
       ast: mockAst,
       language: 'python'
-    } as any);
+    } as Record<string, unknown>);
 
     // Mock existsSync to simulate file existence checks
-    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+    vi.mocked(fs.existsSync).mockImplementation((path: string) => {
       // Return true for standard library modules
       if (path.includes('os.py') || path.includes('sys.py') || path.includes('datetime')) {
         return true;
@@ -220,7 +220,7 @@ from .subpackage import module2
     };
 
     vi.mocked(parseSourceCode).mockResolvedValue({
-      ast: mockAst as any,
+      ast: mockAst as Record<string, unknown>,
       language: 'python'
     });
 

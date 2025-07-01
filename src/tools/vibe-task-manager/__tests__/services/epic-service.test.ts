@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EpicService, CreateEpicParams, UpdateEpicParams, EpicQueryParams, getEpicService } from '../../services/epic-service.js';
 import { Epic, AtomicTask, TaskStatus, TaskPriority, TaskType } from '../../types/task.js';
-import { FileOperationResult } from '../../utils/file-utils.js';
 
 // Mock storage manager
 vi.mock('../../core/storage/storage-manager.js', () => ({
@@ -30,9 +29,9 @@ vi.mock('../../../../logger.js', () => ({
 
 describe('EpicService', () => {
   let epicService: EpicService;
-  let mockStorageManager: any;
-  let mockTaskOperations: any;
-  let mockIdGenerator: any;
+  let mockStorageManager: Record<string, unknown>;
+  let mockTaskOperations: Record<string, unknown>;
+  let mockIdGenerator: Record<string, unknown>;
 
   const mockEpic: Epic = {
     id: 'E001',
@@ -76,7 +75,7 @@ describe('EpicService', () => {
 
   beforeEach(async () => {
     // Clear singleton instance
-    (EpicService as any).instance = undefined;
+    (EpicService as unknown as { instance: unknown }).instance = undefined;
     epicService = EpicService.getInstance();
 
     // Setup mocks
@@ -521,7 +520,7 @@ describe('EpicService', () => {
         metadata: { filePath: 'test', operation: 'get', timestamp: new Date() }
       });
 
-      tasksInEpic.forEach((task, index) => {
+      tasksInEpic.forEach((task, _index) => {
         mockTaskOperations.getTask.mockResolvedValueOnce({
           success: true,
           data: task,
@@ -615,7 +614,7 @@ describe('EpicService', () => {
         dependencies: 'not-array' // Invalid: not array
       };
 
-      const result = await epicService.createEpic(invalidParams as any);
+      const result = await epicService.createEpic(invalidParams as unknown);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('validation failed');
@@ -631,7 +630,7 @@ describe('EpicService', () => {
         dependencies: 'not-array' // Invalid: not array
       };
 
-      const result = await epicService.updateEpic('E001', invalidParams as any);
+      const result = await epicService.updateEpic('E001', invalidParams as unknown);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('validation failed');

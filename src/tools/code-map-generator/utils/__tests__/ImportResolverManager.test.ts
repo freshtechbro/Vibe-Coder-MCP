@@ -140,7 +140,7 @@ describe('ImportResolverManager', () => {
     // Simulate an error by making the spy throw an error
     // We'll just verify that the method was called
 
-    const result = manager.resolveImport(
+    manager.resolveImport(
       './module',
       '/path/to/file.js',
       'javascript',

@@ -53,7 +53,7 @@ vi.mock('../../../logger.js', () => ({
 
 describe('ProjectAnalyzer', () => {
   let projectAnalyzer: ProjectAnalyzer;
-  let mockReadDirSecure: any;
+  let mockReadDirSecure: Record<string, unknown>;
 
   beforeEach(async () => {
     projectAnalyzer = ProjectAnalyzer.getInstance();

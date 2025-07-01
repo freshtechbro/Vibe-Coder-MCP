@@ -6,7 +6,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createServer } from 'net';
 import { PortAllocator, PortRange } from '../port-allocator.js';
 
 // Mock logger to avoid console output during tests
@@ -36,7 +35,7 @@ vi.mock('net', () => {
           // Use setTimeout to ensure proper async behavior and check current state
           setTimeout(() => {
             if (mockPortState.portsInUse.has(port)) {
-              const error = new Error('EADDRINUSE') as any;
+              const error = new Error('EADDRINUSE') as NodeJS.ErrnoException & { port: number };
               error.code = 'EADDRINUSE';
               error.port = port;
               

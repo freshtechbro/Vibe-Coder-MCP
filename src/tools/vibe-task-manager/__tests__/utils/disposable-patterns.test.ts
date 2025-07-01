@@ -4,8 +4,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  IDisposable,
-  IEnhancedDisposable,
   ResourceManager,
   DisposableService,
   DisposableWrapper,
@@ -109,7 +107,7 @@ describe('Disposable Patterns', () => {
         return this.createTimer(() => {}, 1000);
       }
 
-      public registerTestResource(resource: any): void {
+      public registerTestResource(resource: unknown): void {
         this.registerResource(resource);
       }
     }
@@ -119,7 +117,7 @@ describe('Disposable Patterns', () => {
       const mockResource = { dispose: vi.fn() };
 
       service.registerTestResource(mockResource);
-      const timer = service.createTestTimer();
+      service.createTestTimer();
 
       expect(service.isDisposed()).toBe(false);
 

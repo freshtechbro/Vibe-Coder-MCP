@@ -11,7 +11,7 @@ import { ContextEnrichmentService } from '../../services/context-enrichment-serv
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
-import { createMockConfig, createMockContext } from '../utils/test-setup.js';
+import { createMockConfig } from '../utils/test-setup.js';
 
 // Mock the RDD engine
 vi.mock('../../core/rdd-engine.js', () => ({
@@ -41,7 +41,7 @@ vi.mock('fs-extra', () => {
   };
 });
 
-const mockFs = fs as any;
+const mockFs = fs as Record<string, unknown>;
 
 // Mock the context enrichment service
 vi.mock('../../services/context-enrichment-service.js', () => ({
@@ -55,7 +55,7 @@ describe('Decomposition Service Context Integration', () => {
   let mockConfig: OpenRouterConfig;
   let mockTask: AtomicTask;
   let mockContext: ProjectContext;
-  let mockContextService: any;
+  let mockContextService: unknown;
 
   beforeEach(() => {
     // Clear all mocks before each test
@@ -107,7 +107,7 @@ describe('Decomposition Service Context Integration', () => {
     const mockEngine = {
       decomposeTask: vi.fn()
     };
-    (decompositionService as any).engine = mockEngine;
+    (decompositionService as Record<string, unknown>).engine = mockEngine;
 
     // Create mock task
     mockTask = {
@@ -223,7 +223,7 @@ export class AuthService { login() {} }
       mockContextService.createContextSummary.mockResolvedValue(mockContextSummary);
 
       // Setup mock RDD engine response
-      const mockRDDEngine = (decompositionService as any).engine;
+      const mockRDDEngine = (decompositionService as Record<string, unknown>).engine;
       mockRDDEngine.decomposeTask.mockResolvedValue({
         success: true,
         isAtomic: false,
@@ -298,7 +298,7 @@ export class AuthService { login() {} }
       mockContextService.createContextSummary.mockResolvedValue('No relevant files found');
 
       // Setup mock RDD engine response
-      const mockRDDEngine = (decompositionService as any).engine;
+      const mockRDDEngine = (decompositionService as Record<string, unknown>).engine;
       mockRDDEngine.decomposeTask.mockResolvedValue({
         success: true,
         isAtomic: true,
@@ -354,7 +354,7 @@ export class AuthService { login() {} }
 
       mockContextService.createContextSummary.mockResolvedValue('No relevant files found');
 
-      const mockRDDEngine = (decompositionService as any).engine;
+      const mockRDDEngine = (decompositionService as Record<string, unknown>).engine;
       mockRDDEngine.decomposeTask.mockResolvedValue({
         success: true,
         isAtomic: true,
@@ -398,7 +398,7 @@ export class AuthService { login() {} }
 
       mockContextService.createContextSummary.mockResolvedValue('No relevant files found');
 
-      const mockRDDEngine = (decompositionService as any).engine;
+      const mockRDDEngine = (decompositionService as Record<string, unknown>).engine;
       mockRDDEngine.decomposeTask.mockResolvedValue({
         success: true,
         isAtomic: false,

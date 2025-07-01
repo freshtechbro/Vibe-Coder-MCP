@@ -7,7 +7,7 @@ import { extractJSImports, isLikelyImport, tryExtractImportPath, extractImported
 // Removed unused import
 import { SyntaxNode } from '../../parser.js';
 // @ts-expect-error - Mock syntax node module doesn't have type definitions
-import { createMockSyntaxNode, MockSyntaxNode } from '../../__tests__/mocks/mockSyntaxNode.js';
+import { createMockSyntaxNode } from '../../__tests__/mocks/mockSyntaxNode.js';
 
 // Mock the logger
 vi.mock('../../../../logger.js', () => ({
@@ -200,7 +200,7 @@ describe('extractImportedItemsFromES6Import', () => {
     const node = createMockSyntaxNode('import_statement', 'import { useState, useEffect } from "react"');
 
     // Extract imported items - this should not throw an error
-    const items = extractImportedItemsFromES6Import(node as unknown as SyntaxNode, 'import { useState, useEffect } from "react"');
+    extractImportedItemsFromES6Import(node as unknown as SyntaxNode, 'import { useState, useEffect } from "react"');
 
     // Verify that the function doesn't crash and returns a valid result (undefined is acceptable for mocked nodes)
     expect(() => extractImportedItemsFromES6Import(node as unknown as SyntaxNode, 'import { useState, useEffect } from "react"')).not.toThrow();
@@ -212,7 +212,7 @@ describe('extractImportedItemsFromES6Import', () => {
     const node = createMockSyntaxNode('import_statement', 'import * as React from "react"');
 
     // Extract imported items - this should not throw an error
-    const items = extractImportedItemsFromES6Import(node as unknown as SyntaxNode, 'import * as React from "react"');
+    extractImportedItemsFromES6Import(node as unknown as SyntaxNode, 'import * as React from "react"');
 
     // Verify that the function doesn't crash and returns a valid result (undefined is acceptable for mocked nodes)
     expect(() => extractImportedItemsFromES6Import(node as unknown as SyntaxNode, 'import * as React from "react"')).not.toThrow();

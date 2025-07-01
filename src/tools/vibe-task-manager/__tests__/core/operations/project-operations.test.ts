@@ -41,7 +41,7 @@ vi.mock('../../../utils/id-generator.js', () => ({
 
 describe('ProjectOperations', () => {
   let projectOperations: ProjectOperations;
-  let mockStorageManager: any;
+  let mockStorageManager: unknown;
 
   beforeEach(async () => {
     setupCommonMocks();
@@ -107,7 +107,7 @@ describe('ProjectOperations', () => {
       })
     };
 
-    vi.mocked(getIdGenerator).mockReturnValue(mockIdGenerator as any);
+    vi.mocked(getIdGenerator).mockReturnValue(mockIdGenerator as unknown);
 
     projectOperations = ProjectOperations.getInstance();
   });
@@ -304,7 +304,7 @@ describe('ProjectOperations', () => {
     });
 
     it('should reject invalid status', async () => {
-      const invalidParams = { ...validUpdateParams, status: 'invalid_status' as any };
+      const invalidParams = { ...validUpdateParams, status: 'invalid_status' as unknown };
 
       const result = await projectOperations.updateProject('PID-TEST-001', invalidParams);
 

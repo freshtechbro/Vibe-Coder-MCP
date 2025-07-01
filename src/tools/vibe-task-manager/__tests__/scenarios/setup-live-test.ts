@@ -42,7 +42,7 @@ export async function setupLiveTestEnvironment(): Promise<void> {
         const content = await fs.readFile(indexFile, 'utf-8');
         JSON.parse(content); // This will throw if invalid
       }
-    } catch (error) {
+    } catch {
       console.log(`🔧 Cleaning up corrupted file: ${path.basename(indexFile)}`);
       await fs.unlink(indexFile).catch(() => {}); // Ignore if file doesn't exist
     }

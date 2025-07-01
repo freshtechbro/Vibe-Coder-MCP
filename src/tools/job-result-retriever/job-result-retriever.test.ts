@@ -48,52 +48,60 @@ describe('getJobResult Tool Executor', () => {
 
   it('should return "Job not found" if jobManager.getJob returns undefined', async () => {
     const jobId = 'non-existent-job';
-    (jobManager.getJob as any).mockReturnValue(undefined); // Cast to any
+    const mockGetJob = jobManager.getJob as unknown as ReturnType<typeof vi.fn>;
+    mockGetJob.mockReturnValue(undefined);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(mockGetJob).toHaveBeenCalledWith(jobId);
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(`Job with ID "${jobId}" not found.`);
-    expect(result.errorDetails && (result.errorDetails as any).type).toBe('JobNotFoundError'); // Check existence before access
+    const resultWithContent = result as { content: Array<{ text: string }> };
+    expect(resultWithContent.content[0]?.text).toContain(`Job with ID "${jobId}" not found.`);
+    const resultWithError = result as { errorDetails?: { type: string } };
+    expect(resultWithError.errorDetails?.type).toBe('JobNotFoundError');
   });
 
   it('should return PENDING status if the job is pending', async () => {
     const jobId = 'pending-job';
     const mockJob: Partial<Job> = { id: jobId, status: JobStatus.PENDING };
-    (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+    const mockGetJob = jobManager.getJob as unknown as ReturnType<typeof vi.fn>;
+    mockGetJob.mockReturnValue(mockJob);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(mockGetJob).toHaveBeenCalledWith(jobId);
     expect(result.isError).toBe(false); // Not an error, just status update
-    expect(result.content[0]?.text).toContain(`Job "${jobId}" is currently ${JobStatus.PENDING}.`);
+    const resultWithContent = result as { content: Array<{ text: string }> };
+    expect(resultWithContent.content[0]?.text).toContain(`Job "${jobId}" is currently ${JobStatus.PENDING}.`);
   });
 
   it('should return RUNNING status and progress message if the job is running', async () => {
     const jobId = 'running-job';
     const progressMessage = 'Processing step 2...';
     const mockJob: Partial<Job> = { id: jobId, status: JobStatus.RUNNING, progressMessage };
-    (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+    const mockGetJob = jobManager.getJob as unknown as ReturnType<typeof vi.fn>;
+    mockGetJob.mockReturnValue(mockJob);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(mockGetJob).toHaveBeenCalledWith(jobId);
     expect(result.isError).toBe(false);
-    expect(result.content[0]?.text).toContain(`Job "${jobId}" is currently ${JobStatus.RUNNING}.`);
-    expect(result.content[0]?.text).toContain(`Progress: ${progressMessage}`);
+    const resultWithContent = result as { content: Array<{ text: string }> };
+    expect(resultWithContent.content[0]?.text).toContain(`Job "${jobId}" is currently ${JobStatus.RUNNING}.`);
+    expect(resultWithContent.content[0]?.text).toContain(`Progress: ${progressMessage}`);
   });
 
    it('should return RUNNING status without progress message if none is set', async () => {
      const jobId = 'running-job-no-msg';
      const mockJob: Partial<Job> = { id: jobId, status: JobStatus.RUNNING };
-     (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+     (jobManager.getJob as ReturnType<typeof vi.fn>).mockReturnValue(mockJob);
 
      const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-     expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+     expect(jobManager.getJob as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(jobId);
      expect(result.isError).toBe(false);
-     expect(result.content[0]?.text).toContain(`Job "${jobId}" is currently ${JobStatus.RUNNING}.`);
+     const resultWithContent = result as { content: Array<{ text: string }> };
+     expect(resultWithContent.content[0]?.text).toContain(`Job "${jobId}" is currently ${JobStatus.RUNNING}.`);
      expect(result.content[0]?.text).not.toContain(`Progress:`);
    });
 
@@ -101,11 +109,11 @@ describe('getJobResult Tool Executor', () => {
     const jobId = 'completed-job';
     const finalResultData: CallToolResult = { content: [{ type: 'text', text: 'Final success data!' }], isError: false };
     const mockJob: Partial<Job> = { id: jobId, status: JobStatus.COMPLETED, result: finalResultData };
-    (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+    (jobManager.getJob as ReturnType<typeof vi.fn>).mockReturnValue(mockJob);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(jobManager.getJob as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(jobId);
     // The result of getJobResult *is* the final result from the job
     expect(result).toEqual(finalResultData);
   });
@@ -114,11 +122,11 @@ describe('getJobResult Tool Executor', () => {
     const jobId = 'failed-job';
     const finalErrorData: CallToolResult = { content: [{ type: 'text', text: 'Job failed message' }], isError: true, errorDetails: { type: 'ToolError', message: 'Something went wrong' } };
     const mockJob: Partial<Job> = { id: jobId, status: JobStatus.FAILED, result: finalErrorData };
-    (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+    (jobManager.getJob as ReturnType<typeof vi.fn>).mockReturnValue(mockJob);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(jobManager.getJob as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(jobId);
     // The result of getJobResult *is* the final error result from the job
     expect(result).toEqual(finalErrorData);
   });
@@ -126,27 +134,29 @@ describe('getJobResult Tool Executor', () => {
   it('should return an error if a COMPLETED job has no result stored', async () => {
     const jobId = 'completed-no-result-job';
     const mockJob: Partial<Job> = { id: jobId, status: JobStatus.COMPLETED, result: undefined }; // Missing result
-    (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+    (jobManager.getJob as ReturnType<typeof vi.fn>).mockReturnValue(mockJob);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(jobManager.getJob as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(jobId);
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(`Job "${jobId}" is ${JobStatus.COMPLETED} but has no result stored.`);
-    expect(result.errorDetails && (result.errorDetails as any).type).toBe('MissingJobResultError'); // Check existence before access
+    const resultWithContent = result as { content: Array<{ text: string }>; errorDetails?: { type: string } };
+    expect(resultWithContent.content[0]?.text).toContain(`Job "${jobId}" is ${JobStatus.COMPLETED} but has no result stored.`);
+    expect(resultWithContent.errorDetails?.type).toBe('MissingJobResultError');
   });
 
   it('should return an error if a FAILED job has no result stored', async () => {
     const jobId = 'failed-no-result-job';
     const mockJob: Partial<Job> = { id: jobId, status: JobStatus.FAILED, result: undefined }; // Missing result
-    (jobManager.getJob as any).mockReturnValue(mockJob); // Cast to any
+    (jobManager.getJob as ReturnType<typeof vi.fn>).mockReturnValue(mockJob);
 
     const result = await getJobResult({ jobId }, mockConfig, mockContext);
 
-    expect(jobManager.getJob).toHaveBeenCalledWith(jobId);
+    expect(jobManager.getJob as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(jobId);
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(`Job "${jobId}" is ${JobStatus.FAILED} but has no result stored.`);
-     expect(result.errorDetails && (result.errorDetails as any).type).toBe('MissingJobResultError'); // Check existence before access
+    const resultWithContent = result as { content: Array<{ text: string }>; errorDetails?: { type: string } };
+    expect(resultWithContent.content[0]?.text).toContain(`Job "${jobId}" is ${JobStatus.FAILED} but has no result stored.`);
+    expect(resultWithContent.errorDetails?.type).toBe('MissingJobResultError');
   });
 
 });
