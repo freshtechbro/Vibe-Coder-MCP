@@ -24,7 +24,7 @@ export interface InitializationPhase {
   duration?: number;
   status: 'pending' | 'completed' | 'failed';
   error?: Error;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -39,7 +39,7 @@ export interface ServiceInitialization {
   phases: InitializationPhase[];
   dependencies: string[];
   error?: Error;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -146,7 +146,7 @@ export class InitializationMonitor {
   startServiceInitialization(
     serviceName: string, 
     dependencies: string[] = [],
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     // Check if we're at the limit
     if (this.services.size >= this.config.maxTrackedServices) {
@@ -217,7 +217,7 @@ export class InitializationMonitor {
   startPhase(
     serviceName: string, 
     phaseName: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     const service = this.services.get(serviceName);
     if (!service) {
@@ -363,7 +363,6 @@ export class InitializationMonitor {
     // Simple critical path calculation based on dependencies
     const services = Array.from(this.services.values());
     const visited = new Set<string>();
-    const path: string[] = [];
 
     // Find services with no dependencies (root services)
     const rootServices = services.filter(s => s.dependencies.length === 0);

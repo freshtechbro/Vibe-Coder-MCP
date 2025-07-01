@@ -12,7 +12,7 @@ export interface JobDetails {
   /** Sub-progress within the current stage (0-100) */
   subProgress?: number;
   /** Additional metadata specific to the tool */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

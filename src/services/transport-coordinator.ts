@@ -8,6 +8,20 @@
 import { transportManager } from './transport-manager/index.js';
 import logger from '../logger.js';
 
+// Transport Manager Status Interface
+interface TransportManagerStatus {
+  isStarted: boolean;
+  isConfigured: boolean;
+  startupInProgress: boolean;
+  startedServices: string[];
+  config: unknown;
+  serviceDetails: Record<string, unknown>;
+  websocket?: { running: boolean; port?: number; path?: string; connections?: number };
+  http?: { running: boolean; port?: number; cors?: boolean };
+  sse?: { running: boolean; connections?: number };
+  stdio?: { running: boolean };
+}
+
 export interface TransportCoordinatorConfig {
   websocket: {
     enabled: boolean;
@@ -189,7 +203,7 @@ export class TransportCoordinator {
   getStatus(): {
     isInitialized: boolean;
     initializationInProgress: boolean;
-    transportManagerStatus: any;
+    transportManagerStatus: TransportManagerStatus;
   } {
     return {
       isInitialized: this.isInitialized,

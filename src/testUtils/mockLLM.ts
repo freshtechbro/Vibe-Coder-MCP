@@ -1,7 +1,7 @@
 // src/testUtils/mockLLM.ts
 import axios, { AxiosError, AxiosResponse, AxiosRequestConfig, InternalAxiosRequestConfig, AxiosHeaders } from 'axios'; // Import AxiosHeaders
 import { vi } from 'vitest';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 // Load env variables to get the base URL, ensure this runs before tests need it
 dotenv.config();
@@ -33,13 +33,25 @@ export interface MockOptions { // Export the interface
 }
 
 /**
+ * Request data interface for LLM operations
+ */
+interface LLMRequestData {
+  messages?: Array<{
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+  }>;
+  model?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Detects the LLM operation type from the request content
  * Performance optimized with caching
  */
-function detectOperationType(requestData: any): LLMOperationType {
+function detectOperationType(requestData: LLMRequestData): LLMOperationType {
   const messages = requestData?.messages || [];
-  const systemMessage = messages.find((m: any) => m.role === 'system')?.content || '';
-  const userMessage = messages.find((m: any) => m.role === 'user')?.content || '';
+  const systemMessage = messages.find((m) => m.role === 'system')?.content || '';
+  const userMessage = messages.find((m) => m.role === 'user')?.content || '';
 
   // Create cache key from message content
   const cacheKey = `${systemMessage}|${userMessage}`;
@@ -86,10 +98,15 @@ function detectOperationType(requestData: any): LLMOperationType {
 }
 
 /**
+ * Response content type for LLM operations
+ */
+type LLMResponseContent = string | Record<string, unknown>;
+
+/**
  * Formats response content based on operation type
  * Performance optimized with prebuilt responses
  */
-function formatResponseForOperation(content: any, operationType: LLMOperationType): string {
+function formatResponseForOperation(content: LLMResponseContent, operationType: LLMOperationType): string {
   if (typeof content === 'string') {
     return content;
   }
@@ -445,35 +462,46 @@ export class PerformanceTestUtils {
   /**
    * Performance monitoring for mock usage
    */
-  static measureMockPerformance<T>(testName: string, testFn: () => Promise<T>): Promise<T & { mockPerformance: { duration: number; cacheStats: any } }> {
-    return new Promise(async (resolve, reject) => {
-      const startTime = Date.now();
-      const startStats = getPerformanceStats();
+  static async measureMockPerformance<T>(testName: string, testFn: () => Promise<T>): Promise<T & { mockPerformance: { duration: number; cacheStats: { start: { cacheSize: number }; end: { cacheSize: number }; growth: number } } }> {
+    const startTime = Date.now();
+    const startStats = getPerformanceStats();
 
-      try {
-        const result = await testFn();
-        const endTime = Date.now();
-        const endStats = getPerformanceStats();
+    try {
+      const result = await testFn();
+      const endTime = Date.now();
+      const endStats = getPerformanceStats();
 
-        const mockPerformance = {
-          duration: endTime - startTime,
-          cacheStats: {
-            start: startStats,
-            end: endStats,
-            growth: endStats.cacheSize - startStats.cacheSize
-          }
-        };
-
-        // Performance warning if test takes too long
-        if (mockPerformance.duration > 2000) {
-          console.warn(`⚠️ Test "${testName}" took ${mockPerformance.duration}ms - consider optimizing mocks`);
+      const mockPerformance = {
+        duration: endTime - startTime,
+        cacheStats: {
+          start: startStats,
+          end: endStats,
+          growth: endStats.cacheSize - startStats.cacheSize
         }
+      };
 
-        resolve({ ...result, mockPerformance } as T & { mockPerformance: { duration: number; cacheStats: any } });
-      } catch (error) {
-        reject(error);
+      // Performance warning if test takes too long
+      if (mockPerformance.duration > 2000) {
+        console.warn(`⚠️ Test "${testName}" took ${mockPerformance.duration}ms - consider optimizing mocks`);
       }
-    });
+
+      return { ...result, mockPerformance } as T & { mockPerformance: { duration: number; cacheStats: { start: { cacheSize: number }; end: { cacheSize: number }; growth: number } } };
+    } catch (error) {
+      const endTime = Date.now();
+      const endStats = getPerformanceStats();
+      
+      const mockPerformance = {
+        duration: endTime - startTime,
+        cacheStats: {
+          start: startStats,
+          end: endStats,
+          growth: endStats.cacheSize - startStats.cacheSize
+        }
+      };
+      
+      console.error(`❌ Test "${testName}" failed after ${mockPerformance.duration}ms`);
+      throw error;
+    }
   }
 }
 
@@ -543,12 +571,7 @@ function createOperationAwareFallback(operation: string, originalOptions: MockOp
 export function mockOpenRouterResponse(options: MockOptions): void {
   const {
     model,
-    responseContent,
-    statusCode = options.shouldError ? 500 : 200,
-    shouldError = false,
-    errorMessage = 'Mock API Error',
-    matchUrl = `${openRouterBaseUrl}/chat/completions`, // Default match URL pattern
-    operationType = 'auto'
+    matchUrl = `${openRouterBaseUrl}/chat/completions` // Default match URL pattern
   } = options;
 
   // Get the spy on axios.post. If multiple mocks are needed in one test,
@@ -557,11 +580,9 @@ export function mockOpenRouterResponse(options: MockOptions): void {
   // but more specific matching inside the implementation is safer.
   const axiosPostSpy = vi.spyOn(axios, 'post');
 
-  // We need to use 'any' here to match axios.post's complex generic signature
-  // The eslint rule is disabled because in mocking contexts, 'any' is sometimes unavoidable
-  // when dealing with library methods that use complex generic types
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  axiosPostSpy.mockImplementation(async (url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse> => {
+  // We use 'unknown' for the data parameter as it could be any valid JSON data
+  // The axios.post signature allows for flexible data types in HTTP requests
+  axiosPostSpy.mockImplementation(async (url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse> => {
     // 1. Check if the URL matches the expected OpenRouter endpoint
     const urlMatches = (typeof matchUrl === 'string' && url === matchUrl) ||
                        (matchUrl instanceof RegExp && matchUrl.test(url));
@@ -578,11 +599,11 @@ export function mockOpenRouterResponse(options: MockOptions): void {
     }
 
     // 2. Check if the model matches (if a model filter was provided)
-    const requestModel = data?.model;
+    const requestModel = (data as Record<string, unknown>)?.model;
     let modelMatches = true; // Assume match if no model filter in options
     if (model && requestModel) { // Only check if both 'model' option and request data 'model' exist
       modelMatches = (typeof model === 'string' && requestModel === model) ||
-                     (model instanceof RegExp && model.test(requestModel));
+                     (model instanceof RegExp && model.test(requestModel as string));
     }
 
     // If a model filter was provided but didn't match, this mock shouldn't handle it.
@@ -601,18 +622,16 @@ export function mockOpenRouterResponse(options: MockOptions): void {
       detectedOperationType = options.operationType;
     } else {
       // Auto-detect from request content
-      detectedOperationType = detectOperationType(data);
+      detectedOperationType = detectOperationType(data as LLMRequestData);
     }
 
     // 4. Use queued response if available, otherwise use current options with operation-aware fallback
     let currentOptions = options;
-    let usingQueuedResponse = false;
 
     if (currentTestId && mockResponseQueues.has(currentTestId)) {
       const testQueue = mockResponseQueues.get(currentTestId)!;
       if (testQueue.length > 0) {
         currentOptions = testQueue.shift()!; // Get and remove first item from queue
-        usingQueuedResponse = true;
         // Performance: Removed console.log for faster test execution
       } else {
         // Queue exhausted - use operation-aware fallback
@@ -657,7 +676,7 @@ export function mockOpenRouterResponse(options: MockOptions): void {
     }
 
     const messageContent = currentOptions.responseContent
-      ? formatResponseForOperation(currentOptions.responseContent, detectedOperationType)
+      ? formatResponseForOperation(currentOptions.responseContent as LLMResponseContent, detectedOperationType)
       : formatResponseForOperation({}, detectedOperationType);
 
     // 7. Simulate successful response structure (mimicking OpenRouter)
@@ -684,9 +703,8 @@ export function mockOpenRouterResponse(options: MockOptions): void {
       },
     };
 
-    // Log the mocked resolution
-    const responseSource = usingQueuedResponse ? 'queued' : 'fallback';
     // Performance: Removed console.log for faster test execution
+    // Response source tracking removed to eliminate unused variable
     return Promise.resolve({
        data: mockResponseData,
        status: currentStatusCode,

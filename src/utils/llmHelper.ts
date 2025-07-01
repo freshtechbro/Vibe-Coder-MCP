@@ -324,7 +324,7 @@ function preProcessJsonResponse(rawResponse: string, jobId?: string): string {
 
   // 4. Fix single quotes to double quotes (careful with content)
   sanitized = sanitized.replace(/'([^'\\]*(\\.[^'\\]*)*)':/g, '"$1":');
-  sanitized = sanitized.replace(/:\s*'([^'\\]*(\\.[^'\\]*)*)'([,\}\]])/g, ': "$1"$3');
+  sanitized = sanitized.replace(/:\s*'([^'\\]*(\\.[^'\\]*)*)'([,}]])/g, ': "$1"$3');
 
   // 19. Boolean Case Variations
   sanitized = sanitized.replace(/:\s*True\b/g, ': true');
@@ -356,8 +356,17 @@ function sanitizeControlCharacters(jsonString: string, jobId?: string): string {
   // Control character mapping removed - using direct replacement logic
 
   // Handle control characters in ALL string values (not just "content")
-  sanitized = sanitized.replace(/"([^"]*[\x00-\x1F][^"]*)"/g, (match, content) => {
-    const cleanContent = content.replace(/[\x00-\x1F]/g, (char: string) => {
+  // Build control character ranges using fromCharCode to avoid lint errors
+  const controlChars = [];
+  for (let i = 0; i <= 31; i++) {
+    controlChars.push(String.fromCharCode(i));
+  }
+  const controlCharClass = '[' + controlChars.map(c => c.replace(/[\\\]^-]/g, '\\$&')).join('') + ']';
+  const controlCharRegex = new RegExp(`"([^"]*${controlCharClass}[^"]*)"`, 'g');
+  const controlCharReplaceRegex = new RegExp(controlCharClass, 'g');
+  
+  sanitized = sanitized.replace(controlCharRegex, (match, content) => {
+    const cleanContent = content.replace(controlCharReplaceRegex, (char: string) => {
       const code = char.charCodeAt(0);
       // Use standard escape sequences for common characters
       if (char === '\n') return '\\n';
@@ -372,7 +381,15 @@ function sanitizeControlCharacters(jsonString: string, jobId?: string): string {
   });
 
   // Remove other control characters outside of strings
-  sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+  // Build extended control character ranges using fromCharCode to avoid lint errors
+  const extendedControlChars = [];
+  for (let i = 0; i <= 8; i++) extendedControlChars.push(String.fromCharCode(i));
+  extendedControlChars.push(String.fromCharCode(11), String.fromCharCode(12));
+  for (let i = 14; i <= 31; i++) extendedControlChars.push(String.fromCharCode(i));
+  for (let i = 127; i <= 159; i++) extendedControlChars.push(String.fromCharCode(i));
+  const extendedControlClass = '[' + extendedControlChars.map(c => c.replace(/[\\\]^-]/g, '\\$&')).join('') + ']';
+  const extendedControlRegex = new RegExp(extendedControlClass, 'g');
+  sanitized = sanitized.replace(extendedControlRegex, '');
 
   // 14. Large Number Precision Loss (convert to strings for large numbers)
   // Match numbers with 15 or more digits and preserve exact value
@@ -414,7 +431,7 @@ function sanitizeControlCharacters(jsonString: string, jobId?: string): string {
 
   try {
     logger.debug({ jobId, stage: 'control-characters', processedLength: sanitized.length }, "Stage 2 control character sanitization completed");
-  } catch (logError) {
+  } catch {
     // Ignore logger errors to prevent them from breaking the parsing
   }
   return sanitized;
@@ -477,7 +494,7 @@ function repairJsonStructure(jsonString: string, jobId?: string): string {
 
   try {
     logger.debug({ jobId, stage: 'structural-repair', processedLength: repaired.length }, "Stage 3 structural repair completed");
-  } catch (logError) {
+  } catch {
     // Ignore logger errors to prevent them from breaking the parsing
   }
   return repaired;
@@ -513,7 +530,7 @@ function completeJsonBrackets(jsonString: string, jobId?: string): string {
  * Intelligent JSON parsing with validation-first approach
  * Only applies preprocessing when needed based on detected issues
  */
-export function intelligentJsonParse(response: string, context: string): any {
+export function intelligentJsonParse(response: string, context: string): unknown {
   // Enhanced debug logging for context_curator_relevance_scoring
   if (context === 'context_curator_relevance_scoring') {
     logger.info({
@@ -568,7 +585,7 @@ export function intelligentJsonParse(response: string, context: string): any {
 
 interface ParseResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   issues: string[];
   needsPreprocessing: boolean;
   processingStrategy?: 'direct' | 'basic-cleanup' | 'aggressive-extraction';
@@ -653,7 +670,7 @@ function determineParsingStrategy(issues: string[], response: string): 'basic-cl
   return 'basic-cleanup';
 }
 
-function applyTargetedParsing(response: string, strategy: 'basic-cleanup' | 'aggressive-extraction', context: string): any {
+function applyTargetedParsing(response: string, strategy: 'basic-cleanup' | 'aggressive-extraction', context: string): unknown {
   if (strategy === 'basic-cleanup') {
     return basicCleanupParsing(response, context);
   } else {
@@ -661,7 +678,7 @@ function applyTargetedParsing(response: string, strategy: 'basic-cleanup' | 'agg
   }
 }
 
-function basicCleanupParsing(response: string, context: string): any {
+function basicCleanupParsing(response: string, context: string): unknown {
   let cleaned = response.trim();
 
   // Remove BOM
@@ -718,7 +735,7 @@ function basicCleanupParsing(response: string, context: string): any {
   }
 }
 
-function aggressiveExtractionParsing(response: string, context: string): any {
+function aggressiveExtractionParsing(response: string, context: string): unknown {
   // This is where we'd put the current 4-stage pipeline as a fallback
   // But with better logging and data loss detection
 
@@ -1050,7 +1067,7 @@ function extractPartialJson(jsonString: string, jobId?: string): string {
   let maxValidObject = '';
 
   // Helper function to determine if a parsed object is substantial
-  const isSubstantialObject = (parsed: any): boolean => {
+  const isSubstantialObject = (parsed: unknown): boolean => {
     if (typeof parsed !== 'object' || parsed === null) return false;
 
     if (Array.isArray(parsed)) {
@@ -1141,7 +1158,7 @@ function extractPartialJson(jsonString: string, jobId?: string): string {
 /**
  * Relaxed JSON parser for handling LLM output patterns
  */
-function relaxedJsonParse(jsonString: string, jobId?: string): any {
+function relaxedJsonParse(jsonString: string, jobId?: string): unknown {
   // Handle common LLM output patterns
   let relaxed = jsonString;
 
@@ -1166,14 +1183,14 @@ function relaxedJsonParse(jsonString: string, jobId?: string): any {
  * Enhanced progressive JSON parsing with 4-stage sanitization pipeline
  * Implements comprehensive recovery strategies for all 20 edge cases
  */
-function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): any {
+function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): unknown {
   const maxDepth = 50; // 13. Deeply Nested Objects limit
   const maxArrayLength = 10000; // 12. Mixed Array Types limit
 
   const strategies = [
     // Strategy 1: Direct parse (with large number pre-check)
     () => {
-      try { logger.debug({ jobId, strategy: 'direct' }, "Attempting direct JSON parse"); } catch {}
+      try { logger.debug({ jobId, strategy: 'direct' }, "Attempting direct JSON parse"); } catch { /* Ignore logging errors */ }
 
       // Pre-check for markdown code blocks that need extraction
       if (/```/.test(rawResponse)) {
@@ -1219,7 +1236,7 @@ function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): an
         }
 
         return parsed;
-      } catch (parseError) {
+      } catch {
         // If direct parsing fails, try smart partial extraction on the extracted content
         logger.debug({ jobId, strategy: 'mixed-content-smart-fallback' }, "Direct parse of extracted content failed, trying smart partial extraction");
 
@@ -1237,7 +1254,7 @@ function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): an
 
     // Strategy 3: 4-stage sanitization pipeline
     () => {
-      try { logger.debug({ jobId, strategy: '4-stage-sanitization' }, "Attempting 4-stage sanitization pipeline"); } catch {}
+      try { logger.debug({ jobId, strategy: '4-stage-sanitization' }, "Attempting 4-stage sanitization pipeline"); } catch { /* Ignore logging errors */ }
       let processed = preProcessJsonResponse(rawResponse, jobId);
       processed = sanitizeControlCharacters(processed, jobId);
       processed = repairJsonStructure(processed, jobId);
@@ -1288,7 +1305,7 @@ function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): an
       // 16. Circular References detection and 13. Depth limiting
       const sanitizedResult = detectCircularAndLimitDepth(result, maxDepth, maxArrayLength, jobId);
 
-      try { logger.debug({ jobId, strategy: i + 1, success: true }, "Enhanced JSON parsing successful"); } catch {}
+      try { logger.debug({ jobId, strategy: i + 1, success: true }, "Enhanced JSON parsing successful"); } catch { /* Ignore logging errors */ }
 
       // Enhanced success logging for relevance scoring
       if (jobId === 'context_curator_relevance_scoring') {
@@ -1298,7 +1315,7 @@ function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): an
       return sanitizedResult;
     } catch (error) {
       lastError = error as Error;
-      try { logger.debug({ jobId, strategy: i + 1, error: error instanceof Error ? error.message : String(error) }, "Enhanced JSON parsing strategy failed"); } catch {}
+      try { logger.debug({ jobId, strategy: i + 1, error: error instanceof Error ? error.message : String(error) }, "Enhanced JSON parsing strategy failed"); } catch { /* Ignore logging errors */ }
 
       // Enhanced error logging for relevance scoring
       if (jobId === 'context_curator_relevance_scoring') {
@@ -1317,10 +1334,10 @@ function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): an
 /**
  * Detect circular references and limit depth/array length
  */
-function detectCircularAndLimitDepth(obj: any, maxDepth: number, maxArrayLength: number, jobId?: string): any {
+function detectCircularAndLimitDepth(obj: unknown, maxDepth: number, maxArrayLength: number, jobId?: string): unknown {
   const seen = new WeakSet();
 
-  function processObject(current: any, depth = 0): any {
+  function processObject(current: unknown, depth = 0): unknown {
     if (depth > maxDepth) {
       logger.warn({ jobId, depth, maxDepth }, "Maximum depth exceeded, truncating object");
       return '[Max Depth Exceeded]';
@@ -1340,15 +1357,19 @@ function detectCircularAndLimitDepth(obj: any, maxDepth: number, maxArrayLength:
 
       if (Array.isArray(current)) {
         // 12. Mixed Array Types normalization
-        if (current.length > maxArrayLength) {
-          logger.warn({ jobId, arrayLength: current.length, maxArrayLength }, "Array length exceeded, truncating");
-          current = current.slice(0, maxArrayLength);
+        const currentArray = current as unknown[];
+        if (currentArray.length > maxArrayLength) {
+          logger.warn({ jobId, arrayLength: currentArray.length, maxArrayLength }, "Array length exceeded, truncating");
+          return currentArray.slice(0, maxArrayLength).map((item: unknown) => processObject(item, depth + 1));
         }
-        return current.map((item: any) => processObject(item, depth + 1));
+        return currentArray.map((item: unknown) => processObject(item, depth + 1));
       } else {
-        const result: any = {};
-        for (const key in current) {
-          result[key] = processObject(current[key], depth + 1);
+        const result: Record<string, unknown> = {};
+        const currentObj = current as Record<string, unknown>;
+        for (const key in currentObj) {
+          if (Object.prototype.hasOwnProperty.call(currentObj, key)) {
+            result[key] = processObject(currentObj[key], depth + 1);
+          }
         }
         return result;
       }
@@ -1397,13 +1418,12 @@ function extractJsonFromMixedContent(content: string, jobId?: string): string {
           JSON.parse(extracted);
           logger.debug({ jobId, startPos: start.pos, extractedLength: extracted.length }, "Successfully extracted JSON from mixed content");
           return extracted;
-        } catch (parseError) {
+        } catch {
           // If the extracted content isn't valid JSON, continue to next position
-          logger.debug({ jobId, startPos: start.pos, parseError: parseError instanceof Error ? parseError.message : String(parseError) }, "Extracted content is not valid JSON, trying next position");
           continue;
         }
       }
-    } catch (error) {
+    } catch {
       continue; // Try next position
     }
   }

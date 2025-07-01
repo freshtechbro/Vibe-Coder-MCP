@@ -278,7 +278,7 @@ export class OpenRouterConfigManager {
         );
       }
 
-      if (!(parsedConfig as any).llm_mapping || typeof (parsedConfig as any).llm_mapping !== 'object') {
+      if (!(parsedConfig as { llm_mapping?: unknown }).llm_mapping || typeof (parsedConfig as { llm_mapping?: unknown }).llm_mapping !== 'object') {
         throw new ValidationError(
           'LLM configuration must contain llm_mapping object',
           context,

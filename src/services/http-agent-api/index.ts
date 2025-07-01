@@ -7,16 +7,44 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import { Server } from 'http';
 import logger from '../../logger.js';
 import { AgentRegistry } from '../../tools/agent-registry/index.js';
 import { AgentTaskQueue } from '../../tools/agent-tasks/index.js';
 import { AgentResponseProcessor } from '../../tools/agent-response/index.js';
 
+// Task payload interface
+interface TaskPayload {
+  type: string;
+  description: string;
+  parameters?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+}
+
+// Completion details interface - matches AgentResponse expected format
+interface CompletionDetails {
+  filesModified?: string[];
+  testsPass?: boolean;
+  buildSuccessful?: boolean;
+  executionTime?: number;
+  errorDetails?: string;
+  partialProgress?: number;
+}
+
+// Agent interface for HTTP delivery
+interface HTTPAgent {
+  agentId: string;
+  httpEndpoint?: string;
+  httpAuthToken?: string;
+  capabilities: string[];
+  status?: string;
+}
+
 // HTTP API interfaces
 interface HTTPTaskRequest {
   agentId: string;
   taskId: string;
-  taskPayload: any;
+  taskPayload: TaskPayload;
   priority?: 'low' | 'normal' | 'high';
   deadline?: number;
 }
@@ -26,7 +54,7 @@ interface HTTPTaskResponse {
   taskId: string;
   status: 'DONE' | 'ERROR' | 'PARTIAL';
   response: string;
-  completionDetails?: any;
+  completionDetails?: CompletionDetails;
 }
 
 interface HTTPAgentRegistration {
@@ -42,7 +70,7 @@ interface HTTPAgentRegistration {
 class HTTPAgentAPIServer {
   private static instance: HTTPAgentAPIServer;
   private app: express.Application;
-  private server?: any;
+  private server?: Server;
   private port: number = 3001;
 
   static getInstance(): HTTPAgentAPIServer {
@@ -83,7 +111,7 @@ class HTTPAgentAPIServer {
     });
 
     // Error handling middleware
-    this.app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
+    this.app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
       logger.error({ err: error, url: req.url, method: req.method }, 'HTTP API error');
       res.status(500).json({
         success: false,
@@ -393,7 +421,7 @@ class HTTPAgentAPIServer {
     }
   }
 
-  private async deliverTaskToAgent(agent: any, taskRequest: HTTPTaskRequest): Promise<boolean> {
+  private async deliverTaskToAgent(agent: HTTPAgent, taskRequest: HTTPTaskRequest): Promise<boolean> {
     try {
       if (!agent.httpEndpoint) {
         return false;
@@ -492,7 +520,7 @@ class HTTPAgentAPIServer {
     try {
       if (this.server) {
         await new Promise<void>((resolve) => {
-          this.server.close(() => resolve());
+          this.server!.close(() => resolve());
         });
       }
 

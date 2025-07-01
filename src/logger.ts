@@ -91,7 +91,7 @@ function createResilientLogger(baseLogger: Logger) {
       }
 
       // For non-logging methods or when logger is not destroyed, use original
-      return (target as any)[prop];
+      return (target as unknown as Record<string | symbol, unknown>)[prop];
     }
   });
 }

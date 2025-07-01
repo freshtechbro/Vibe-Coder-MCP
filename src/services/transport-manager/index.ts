@@ -11,6 +11,37 @@ import { websocketServer } from '../websocket-server/index.js';
 import { httpAgentAPI } from '../http-agent-api/index.js';
 import { PortRange, PortAllocator } from '../../utils/port-allocator.js';
 
+// Type definitions for transport manager
+interface ServiceFailure {
+  service: string;
+  reason: string;
+  error?: Error | unknown;
+}
+
+interface ServiceSuccess {
+  service: string;
+  port?: number;
+  note?: string;
+}
+
+// Use the AllocationSummary from port-allocator
+import type { AllocationSummary } from '../../utils/port-allocator.js';
+
+interface HealthDetails {
+  note?: string;
+  port?: number;
+  error?: string;
+  lastCheck?: Date;
+  connections?: number | string;
+  cors?: boolean;
+  connectedAgents?: number;
+}
+
+interface HealthStatus {
+  status: 'healthy' | 'unhealthy' | 'disabled';
+  details?: HealthDetails;
+}
+
 // Transport configuration interface
 export interface TransportConfig {
   sse: {
@@ -472,9 +503,9 @@ class TransportManager {
   /**
    * Start individual services with their allocated ports using graceful degradation
    */
-  private async startServicesWithAllocatedPorts(allocationSummary: any): Promise<void> {
-    const serviceFailures: Array<{ service: string; reason: string; error?: any }> = [];
-    const serviceSuccesses: Array<{ service: string; port?: number; note?: string }> = [];
+  private async startServicesWithAllocatedPorts(allocationSummary: AllocationSummary): Promise<void> {
+    const serviceFailures: ServiceFailure[] = [];
+    const serviceSuccesses: ServiceSuccess[] = [];
 
     logger.info('Starting transport services with graceful degradation enabled');
 
@@ -666,8 +697,8 @@ class TransportManager {
    * Log graceful degradation summary showing which services started and which failed
    */
   private logGracefulDegradationSummary(
-    successes: Array<{ service: string; port?: number; note?: string }>,
-    failures: Array<{ service: string; reason: string; error?: any }>
+    successes: ServiceSuccess[],
+    failures: ServiceFailure[]
   ): void {
     const totalServices = successes.length + failures.length;
     const successRate = totalServices > 0 ? (successes.length / totalServices * 100).toFixed(1) : '0';
@@ -714,23 +745,35 @@ class TransportManager {
   /**
    * Log comprehensive startup summary with enhanced port allocation details
    */
-  private logStartupSummary(allocationSummary: any): void {
-    const successful: number[] = [];
-    const attempted: number[] = [];
-    const conflicts: number[] = [];
-    const serviceDetails: Record<string, any> = {};
+  private logStartupSummary(allocationSummary: AllocationSummary): void {
+    const successful = allocationSummary.successful;
+    const attempted = allocationSummary.totalAttempted;
+    const conflicts = allocationSummary.conflicts;
+    const serviceDetails: Record<string, {
+      port?: number;
+      status: string;
+      reason?: string;
+      requested?: number;
+      allocated?: number | null;
+      attempts?: number;
+      attemptedPorts?: number[];
+      success?: boolean;
+      conflicts?: number[];
+    }> = {};
 
     // Collect detailed allocation information per service
     for (const [serviceName, allocation] of allocationSummary.allocations) {
       attempted.push(...allocation.attempted);
 
       serviceDetails[serviceName] = {
+        status: allocation.success ? 'success' : 'failed',
         requested: allocation.attempted[0], // First port attempted (from config/env)
         allocated: allocation.success ? allocation.port : null,
         attempts: allocation.attempted.length,
         attemptedPorts: allocation.attempted,
         success: allocation.success,
-        conflicts: allocation.success ? [] : allocation.attempted
+        conflicts: allocation.success ? [] : allocation.attempted,
+        reason: allocation.error
       };
 
       if (allocation.success) {
@@ -1095,13 +1138,13 @@ class TransportManager {
     startupInProgress: boolean;
     startedServices: string[];
     config: TransportConfig;
-    serviceDetails: Record<string, any>;
+    serviceDetails: Record<string, unknown>;
     websocket?: { running: boolean; port?: number; path?: string; connections?: number };
     http?: { running: boolean; port?: number; cors?: boolean };
     sse?: { running: boolean; connections?: number };
     stdio?: { running: boolean };
   } {
-    const serviceDetails: Record<string, any> = {};
+    const serviceDetails: Record<string, unknown> = {};
 
     // WebSocket service details
     const websocketRunning = this.startedServices.includes('websocket');
@@ -1184,7 +1227,7 @@ class TransportManager {
   /**
    * Get configuration for a specific transport
    */
-  getTransportConfig(transport: keyof TransportConfig): any {
+  getTransportConfig(transport: keyof TransportConfig): TransportConfig[keyof TransportConfig] {
     return this.config[transport];
   }
 
@@ -1266,8 +1309,8 @@ class TransportManager {
   /**
    * Get health status of all transports
    */
-  async getHealthStatus(): Promise<Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: any }>> {
-    const health: Record<string, { status: 'healthy' | 'unhealthy' | 'disabled'; details?: any }> = {};
+  async getHealthStatus(): Promise<Record<string, HealthStatus>> {
+    const health: Record<string, HealthStatus> = {};
 
     // Check stdio transport
     health.stdio = {
