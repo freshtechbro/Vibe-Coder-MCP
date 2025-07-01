@@ -76,7 +76,7 @@ const createEpicCommand = new Command('create')
         Tags: result.data!.metadata.tags.join(', ') || 'None'
       };
 
-      console.log('\n' + CLIUtils.formatOutput(displayData, options.format as any));
+      console.log('\n' + CLIUtils.formatOutput(displayData, options.format as 'table' | 'json' | 'yaml'));
 
     } catch (error) {
       logger.error({ err: error }, 'Failed to create epic');
@@ -150,7 +150,7 @@ const listEpicsCommand = new Command('list')
         Tags: epic.metadata.tags.slice(0, 2).join(', ') + (epic.metadata.tags.length > 2 ? '...' : '')
       }));
 
-      console.log(CLIUtils.formatOutput(displayData, options.format as any));
+      console.log(CLIUtils.formatOutput(displayData, options.format as 'table' | 'json' | 'yaml'));
       console.log(`\nShowing ${epics.length} epic(s)`);
 
     } catch (error) {
@@ -182,7 +182,7 @@ const showEpicCommand = new Command('show')
       const epic = epicResult.data!;
 
       // Basic epic information
-      const displayData: any = {
+      const displayData: Record<string, unknown> = {
         ID: epic.id,
         Title: epic.title,
         Description: epic.description,
@@ -199,7 +199,7 @@ const showEpicCommand = new Command('show')
         'Task IDs': epic.taskIds.join(', ') || 'None'
       };
 
-      console.log(CLIUtils.formatOutput(displayData, options.format as any));
+      console.log(CLIUtils.formatOutput(displayData, options.format as 'table' | 'json' | 'yaml'));
 
       // Show progress if requested
       if (options.progress) {
@@ -220,7 +220,7 @@ const showEpicCommand = new Command('show')
             'Remaining Hours': progress.remainingHours
           };
 
-          console.log(CLIUtils.formatOutput(progressData, options.format as any));
+          console.log(CLIUtils.formatOutput(progressData, options.format as 'table' | 'json' | 'yaml'));
         } else {
           CLIUtils.warning(`Could not get progress information: ${progressResult.error}`);
         }
@@ -294,7 +294,7 @@ const updateEpicCommand = new Command('update')
         Tags: result.data!.metadata.tags.join(', ') || 'None'
       };
 
-      console.log('\n' + CLIUtils.formatOutput(displayData, options.format as any));
+      console.log('\n' + CLIUtils.formatOutput(displayData, options.format as 'table' | 'json' | 'yaml'));
 
     } catch (error) {
       logger.error({ err: error, epicId }, 'Failed to update epic');

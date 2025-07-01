@@ -10,7 +10,7 @@ import { CommandHandler, CommandExecutionContext, CommandExecutionResult } from 
 import { DecompositionService } from '../../services/decomposition-service.js';
 import { getTaskOperations } from '../../core/operations/task-operations.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
-import { AtomicTask, TaskType, TaskPriority } from '../../types/task.js';
+import { AtomicTask } from '../../types/task.js';
 import { ProjectAnalyzer } from '../../utils/project-analyzer.js';
 import { getPathResolver } from '../../utils/path-resolver.js';
 import logger from '../../../../logger.js';
@@ -479,8 +479,8 @@ export class DecomposeTaskHandler implements CommandHandler {
   /**
    * Extract decomposition options from natural language input
    */
-  private extractDecompositionOptions(recognizedIntent: RecognizedIntent, toolParams: Record<string, unknown>): any {
-    const options: any = {};
+  private extractDecompositionOptions(recognizedIntent: RecognizedIntent, _toolParams: Record<string, unknown>): Record<string, unknown> {
+    const options: Record<string, unknown> = {};
 
     // Check for force decomposition
     if (recognizedIntent.originalInput.toLowerCase().includes('force') ||

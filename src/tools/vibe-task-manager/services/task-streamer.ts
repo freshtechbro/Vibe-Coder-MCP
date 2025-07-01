@@ -7,7 +7,7 @@
 
 import { AtomicTask } from '../types/task.js';
 import { ProjectContext } from '../types/project-context.js';
-import { AgentOrchestrator, TaskAssignment } from './agent-orchestrator.js';
+import { AgentOrchestrator } from './agent-orchestrator.js';
 import { TaskScheduler } from './task-scheduler.js';
 import { AppError, ValidationError } from '../../../utils/errors.js';
 import { MemoryManager } from '../../code-map-generator/cache/memoryManager.js';
@@ -69,7 +69,7 @@ export interface StreamEventData {
   taskId?: string;
   agentId?: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

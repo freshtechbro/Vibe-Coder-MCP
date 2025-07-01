@@ -93,7 +93,7 @@ const refineTaskCommand = new Command('task')
         'Timestamp': CLIUtils.formatDate(result.metadata.timestamp)
       };
 
-      console.log(CLIUtils.formatOutput(summaryData, options.format as any));
+      console.log(CLIUtils.formatOutput(summaryData, options.format as 'table' | 'json' | 'yaml'));
 
       // Show changes
       if (result.changes.length > 0) {
@@ -115,7 +115,7 @@ const refineTaskCommand = new Command('task')
           'Files': task.filePaths.length
         }));
 
-        console.log(CLIUtils.formatOutput(decomposedData, options.format as any));
+        console.log(CLIUtils.formatOutput(decomposedData, options.format as 'table' | 'json' | 'yaml'));
         CLIUtils.info(`Task was decomposed into ${result.decomposedTasks.length} sub-tasks`);
       } else if (result.refinedTask) {
         console.log('\n--- Refined Task ---');
@@ -128,7 +128,7 @@ const refineTaskCommand = new Command('task')
           'Updated At': CLIUtils.formatDate(result.refinedTask.updatedAt)
         };
 
-        console.log(CLIUtils.formatOutput(refinedData, options.format as any));
+        console.log(CLIUtils.formatOutput(refinedData, options.format as 'table' | 'json' | 'yaml'));
       }
 
     } catch (error) {
@@ -182,7 +182,7 @@ const redecomposeCommand = new Command('decompose')
         'Timestamp': CLIUtils.formatDate(result.metadata.timestamp)
       };
 
-      console.log(CLIUtils.formatOutput(summaryData, options.format as any));
+      console.log(CLIUtils.formatOutput(summaryData, options.format as 'table' | 'json' | 'yaml'));
 
       // Show decomposed tasks
       if (result.decomposedTasks && result.decomposedTasks.length > 0) {
@@ -197,7 +197,7 @@ const redecomposeCommand = new Command('decompose')
           'Criteria': task.acceptanceCriteria.length
         }));
 
-        console.log(CLIUtils.formatOutput(decomposedData, options.format as any));
+        console.log(CLIUtils.formatOutput(decomposedData, options.format as 'table' | 'json' | 'yaml'));
         CLIUtils.info(`Created ${result.decomposedTasks.length} atomic sub-tasks`);
       } else {
         CLIUtils.warning('No sub-tasks were created. Task may already be atomic.');
@@ -240,7 +240,7 @@ const analyzeCommand = new Command('analyze')
         'Recommendations Count': analysis.recommendations.length
       };
 
-      console.log(CLIUtils.formatOutput(analysisData, options.format as any));
+      console.log(CLIUtils.formatOutput(analysisData, options.format as 'table' | 'json' | 'yaml'));
 
       // Show recommendations
       if (analysis.recommendations.length > 0) {
@@ -328,7 +328,7 @@ const bulkRefineCommand = new Command('bulk')
         'Success Rate': `${Math.round((successCount / results.length) * 100)}%`
       };
 
-      console.log(CLIUtils.formatOutput(summaryData, options.format as any));
+      console.log(CLIUtils.formatOutput(summaryData, options.format as 'table' | 'json' | 'yaml'));
 
       // Show detailed results
       console.log('\n--- Detailed Results ---');
@@ -340,7 +340,7 @@ const bulkRefineCommand = new Command('bulk')
         'Error': result.error ? CLIUtils.truncate(result.error, 30) : 'None'
       }));
 
-      console.log(CLIUtils.formatOutput(detailedData, options.format as any));
+      console.log(CLIUtils.formatOutput(detailedData, options.format as 'table' | 'json' | 'yaml'));
 
       if (successCount > 0) {
         CLIUtils.success(`Successfully refined ${successCount} task(s)`);

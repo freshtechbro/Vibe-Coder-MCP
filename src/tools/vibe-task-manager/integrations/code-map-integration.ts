@@ -12,7 +12,6 @@ import logger from '../../../logger.js';
 import { executeCodeMapGeneration } from '../../code-map-generator/index.js';
 import type { CodeMapGeneratorConfig } from '../../code-map-generator/types.js';
 import type { ProjectContext } from '../types/project-context.js';
-import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
 import { OpenRouterConfigManager } from '../../../utils/openrouter-config-manager.js';
 
 /**

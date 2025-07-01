@@ -49,7 +49,7 @@ export interface WorkflowTransition {
   toState: WorkflowState;
   timestamp: Date;
   reason?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   triggeredBy?: string;
 }
 
@@ -64,7 +64,7 @@ export interface PhaseExecution {
   duration?: number;
   progress: number; // 0-100
   error?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   retryCount: number;
   maxRetries: number;
 }
@@ -93,7 +93,7 @@ export interface WorkflowStateSnapshot {
     epicCount?: number;
     agentCount?: number;
     dependencyCount?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   
   // Persistence info
@@ -226,7 +226,7 @@ export class WorkflowStateManager extends EventEmitter {
     workflowId: string,
     sessionId: string,
     projectId: string,
-    metadata: Record<string, any> = {}
+    metadata: Record<string, unknown> = {}
   ): Promise<WorkflowStateSnapshot> {
     const context = createErrorContext('WorkflowStateManager', 'initializeWorkflow')
       .sessionId(sessionId)
@@ -295,7 +295,7 @@ export class WorkflowStateManager extends EventEmitter {
     toState: WorkflowState,
     options: {
       reason?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
       triggeredBy?: string;
       progress?: number;
     } = {}
@@ -429,7 +429,7 @@ export class WorkflowStateManager extends EventEmitter {
     workflowId: string,
     phase: WorkflowPhase,
     progress: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const workflow = this.workflows.get(workflowId);
     if (!workflow) {
@@ -579,7 +579,7 @@ export class WorkflowStateManager extends EventEmitter {
   async loadWorkflow(workflowId: string): Promise<WorkflowStateSnapshot | null> {
     try {
       const filePath = `${this.persistenceDirectory}/${workflowId}.json`;
-      const loadResult = await FileUtils.readJsonFile<any>(filePath);
+      const loadResult = await FileUtils.readJsonFile<Record<string, unknown>>(filePath);
 
       if (!loadResult.success) {
         return null;
@@ -587,18 +587,48 @@ export class WorkflowStateManager extends EventEmitter {
 
       const workflowData = loadResult.data;
 
-      // Convert phases object back to Map
+      // Validate and convert phases object back to Map
+      if (!workflowData || typeof workflowData !== 'object') {
+        logger.warn({ workflowId }, 'Invalid workflow data structure');
+        return null;
+      }
+
+      const phases = workflowData.phases && typeof workflowData.phases === 'object'
+        ? new Map(Object.entries(workflowData.phases as Record<string, unknown>))
+        : new Map();
+
+      const startTime = typeof workflowData.startTime === 'string' || typeof workflowData.startTime === 'number'
+        ? new Date(workflowData.startTime)
+        : new Date();
+
+      const endTime = workflowData.endTime && (typeof workflowData.endTime === 'string' || typeof workflowData.endTime === 'number')
+        ? new Date(workflowData.endTime)
+        : undefined;
+
+      const persistedAt = typeof workflowData.persistedAt === 'string' || typeof workflowData.persistedAt === 'number'
+        ? new Date(workflowData.persistedAt)
+        : new Date();
+
+      const transitions = Array.isArray(workflowData.transitions)
+        ? workflowData.transitions.map((t: unknown) => {
+            const transition = t as Record<string, unknown>;
+            return {
+              ...transition,
+              timestamp: typeof transition.timestamp === 'string' || typeof transition.timestamp === 'number'
+                ? new Date(transition.timestamp)
+                : new Date()
+            };
+          })
+        : [];
+
       const workflow: WorkflowStateSnapshot = {
         ...workflowData,
-        phases: new Map(Object.entries(workflowData.phases)),
-        startTime: new Date(workflowData.startTime),
-        endTime: workflowData.endTime ? new Date(workflowData.endTime) : undefined,
-        persistedAt: new Date(workflowData.persistedAt),
-        transitions: workflowData.transitions.map((t: any) => ({
-          ...t,
-          timestamp: new Date(t.timestamp)
-        }))
-      };
+        phases,
+        startTime,
+        endTime,
+        persistedAt,
+        transitions
+      } as WorkflowStateSnapshot;
 
       this.workflows.set(workflowId, workflow);
       return workflow;
@@ -650,8 +680,8 @@ export class WorkflowStateManager extends EventEmitter {
     const workflows = Array.from(this.workflows.values());
     const total = workflows.length;
 
-    const byPhase: Record<WorkflowPhase, number> = {} as any;
-    const byState: Record<WorkflowState, number> = {} as any;
+    const byPhase: Record<WorkflowPhase, number> = {} as Record<WorkflowPhase, number>;
+    const byState: Record<WorkflowState, number> = {} as Record<WorkflowState, number>;
 
     let totalDuration = 0;
     let completedCount = 0;

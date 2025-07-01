@@ -6,8 +6,7 @@
  * and error pattern analysis.
  */
 
-import { AtomicTask } from '../types/task.js';
-import { AgentOrchestrator, TaskAssignment } from './agent-orchestrator.js';
+import { AgentOrchestrator } from './agent-orchestrator.js';
 import { TaskStreamer } from './task-streamer.js';
 import { ExecutionWatchdog } from './execution-watchdog.js';
 import { FeedbackProcessor } from './feedback-processor.js';
@@ -50,7 +49,7 @@ export interface ErrorInfo {
   message: string;
   stackTrace?: string;
   timestamp: Date;
-  context: Record<string, any>;
+  context: Record<string, unknown>;
   severity: 'low' | 'medium' | 'high' | 'critical';
   recoverable: boolean;
 }
@@ -179,7 +178,7 @@ export class ErrorRecovery {
     errorType: ErrorType,
     message: string,
     agentId?: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     stackTrace?: string
   ): Promise<string> {
     try {

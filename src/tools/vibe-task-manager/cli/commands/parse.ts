@@ -88,7 +88,7 @@ const parsePRDCommand = new Command('prd')
       if (options.createProject) {
         CLIUtils.info('Creating project from PRD...');
         const projectOperations = getProjectOperations();
-        const projectResult = await projectOperations.createProjectFromPRD(prdInfo, 'cli-user');
+        const projectResult = await projectOperations.createProjectFromPRD(prdInfo as unknown as Record<string, unknown>, 'cli-user');
 
         if (!projectResult.success) {
           CLIUtils.error(`Failed to create project from PRD: ${projectResult.error}`);
@@ -177,7 +177,7 @@ const parseTasksCommand = new Command('tasks')
       if (options.createProject) {
         CLIUtils.info('Creating project from task list...');
         const projectOperations = getProjectOperations();
-        const projectResult = await projectOperations.createProjectFromTaskList(taskListInfo, 'cli-user');
+        const projectResult = await projectOperations.createProjectFromTaskList(taskListInfo as unknown as Record<string, unknown>, 'cli-user');
 
         if (!projectResult.success) {
           CLIUtils.error(`Failed to create project from task list: ${projectResult.error}`);

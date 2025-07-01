@@ -236,7 +236,7 @@ export interface ProjectConfig {
   agentConfig: {
     maxAgents: number;
     defaultAgent: string;
-    agentCapabilities: Record<string, string[]>;
+    agentCapabilities: Record<string, string[] | boolean>;
   };
 
   /** Performance targets */

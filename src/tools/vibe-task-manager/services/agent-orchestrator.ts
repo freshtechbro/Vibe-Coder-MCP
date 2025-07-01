@@ -7,17 +7,20 @@
 
 import { AtomicTask, TaskPriority } from '../types/task.js';
 import { ProjectContext } from '../types/project-context.js';
-import { SentinelProtocol, AgentResponse, AgentStatus } from '../cli/sentinel-protocol.js';
+import { SentinelProtocol, AgentResponse } from '../cli/sentinel-protocol.js';
+import type { WebSocketServerManager } from '../../../services/websocket-server/index.js';
+import type { HTTPAgentAPIServer } from '../../../services/http-agent-api/index.js';
+type SSENotifier = typeof import('../../../services/sse-notifier/index.js').sseNotifier;
+import type { TaskAssignment as AgentTasksAssignment } from '../../agent-tasks/index.js';
 import {
   EnhancedError,
   AgentError,
   TaskExecutionError,
   ValidationError,
-  TimeoutError,
   ResourceError,
   createErrorContext
 } from '../utils/enhanced-errors.js';
-import { AppError, ValidationError as BaseValidationError } from '../../../utils/errors.js';
+import { AppError } from '../../../utils/errors.js';
 import { MemoryManager } from '../../code-map-generator/cache/memoryManager.js';
 import { transportManager } from '../../../services/transport-manager/index.js';
 import { getTimeoutManager, TaskComplexity } from '../utils/timeout-manager.js';
@@ -34,6 +37,15 @@ import logger from '../../../logger.js';
 export type AgentCapability =
   | 'frontend' | 'backend' | 'database' | 'testing' | 'devops'
   | 'documentation' | 'refactoring' | 'debugging' | 'general';
+
+/**
+ * Task queue interface for agent orchestrator  
+ * Uses any for compatibility with different TaskAssignment interfaces
+ */
+interface TaskQueueInterface {
+  addTask: (agentId: string, taskAssignment: any) => Promise<string>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  getInstance: () => unknown;
+}
 
 /**
  * Agent registration information
@@ -55,7 +67,7 @@ export interface AgentInfo {
   metadata: {
     version: string;
     supportedProtocols: string[];
-    preferences: Record<string, any>;
+    preferences: Record<string, unknown>;
   };
 }
 
@@ -119,7 +131,7 @@ export interface TaskAssignment {
     executionId?: string;
     retryCount?: number;
     maxRetries?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -207,12 +219,12 @@ export interface OrchestratorConfig {
  * Provides unified communication across all transport types
  */
 class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
-  private agentRegistry: any;
-  private taskQueue: any;
-  private responseProcessor: any;
-  private websocketServer: any;
-  private httpAgentAPI: any;
-  private sseNotifier: any;
+  private agentRegistry: { getAgent: (agentId: string) => Promise<{ id: string; transportType: string; status: string; lastSeen: number; httpEndpoint?: string; metadata?: { preferences?: { sessionId?: string } } } | null>; getInstance: () => unknown } | null = null;
+  private taskQueue: TaskQueueInterface | null = null;
+  private responseProcessor: { getAgentResponses: (agentId: string) => Promise<AgentResponse[]>; getInstance: () => unknown } | null = null;
+  private websocketServer: WebSocketServerManager | null = null;
+  private httpAgentAPI: HTTPAgentAPIServer | null = null;
+  private sseNotifier: SSENotifier | null = null;
   private isInitialized: boolean = false;
   private dependenciesPromise: Promise<void> | null = null;
 
@@ -260,9 +272,9 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
       // Try to import agent modules with safe imports to prevent circular dependencies
       try {
-        const AgentRegistryModule = await ImportCycleBreaker.safeImport<{ AgentRegistry: any }>('../tools/agent-registry/index.js');
-        const AgentTaskQueueModule = await ImportCycleBreaker.safeImport<{ AgentTaskQueue: any }>('../tools/agent-tasks/index.js');
-        const AgentResponseProcessorModule = await ImportCycleBreaker.safeImport<{ AgentResponseProcessor: any }>('../tools/agent-response/index.js');
+        const AgentRegistryModule = await ImportCycleBreaker.safeImport<{ AgentRegistry: { getInstance: () => { getAgent: (agentId: string) => Promise<{ id: string; transportType: string; status: string; lastSeen: number; httpEndpoint?: string; metadata?: { preferences?: { sessionId?: string } } } | null>; getInstance: () => unknown } } }>('../tools/agent-registry/index.js');
+        const AgentTaskQueueModule = await ImportCycleBreaker.safeImport<{ AgentTaskQueue: { getInstance: () => { addTask: (agentId: string, taskAssignment: Omit<AgentTasksAssignment, 'taskId' | 'assignedAt'>) => Promise<string>; getInstance: () => unknown } } }>('../tools/agent-tasks/index.js');
+        const AgentResponseProcessorModule = await ImportCycleBreaker.safeImport<{ AgentResponseProcessor: { getInstance: () => { getAgentResponses: (agentId: string) => Promise<AgentResponse[]>; getInstance: () => unknown } } }>('../tools/agent-response/index.js');
 
         // Extract classes from modules
         const AgentRegistry = AgentRegistryModule?.AgentRegistry;
@@ -279,9 +291,23 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
           logger.warn('Some agent modules could not be imported due to circular dependencies, using fallback implementations');
 
           // Use fallback implementations for missing modules
-          this.agentRegistry = AgentRegistry ? AgentRegistry.getInstance() : this.createFallbackAgentRegistry();
-          this.taskQueue = AgentTaskQueue ? AgentTaskQueue.getInstance() : this.createFallbackTaskQueue();
-          this.responseProcessor = AgentResponseProcessor ? AgentResponseProcessor.getInstance() : this.createFallbackResponseProcessor();
+          if (AgentRegistry) {
+            this.agentRegistry = AgentRegistry.getInstance();
+          } else {
+            this.agentRegistry = this.createFallbackAgentRegistry();
+          }
+          
+          if (AgentTaskQueue) {
+            this.taskQueue = AgentTaskQueue.getInstance();
+          } else {
+            this.taskQueue = this.createFallbackTaskQueue();
+          }
+          
+          if (AgentResponseProcessor) {
+            this.responseProcessor = AgentResponseProcessor.getInstance();
+          } else {
+            this.responseProcessor = this.createFallbackResponseProcessor();
+          }
 
           logger.info('Universal agent communication channel initialized with mixed agent modules and fallbacks');
         }
@@ -317,7 +343,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
   /**
    * Create fallback agent registry
    */
-  private createFallbackAgentRegistry(): any {
+  private createFallbackAgentRegistry(): { getAgent: (agentId: string) => Promise<{ id: string; transportType: string; status: string; lastSeen: number; httpEndpoint?: string; metadata?: { preferences?: { sessionId?: string } } } | null>; getInstance: () => unknown } {
     return {
       getAgent: async (agentId: string) => {
         logger.debug({ agentId }, 'Fallback agent registry: getAgent called');
@@ -326,7 +352,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
           transportType: 'stdio',
           status: 'online',
           lastSeen: Date.now(),
-          httpEndpoint: null
+          httpEndpoint: undefined
         };
       },
       getInstance: () => this.agentRegistry
@@ -336,11 +362,11 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
   /**
    * Create fallback task queue
    */
-  private createFallbackTaskQueue(): any {
-    const fallbackQueue = new Map<string, any[]>();
+  private createFallbackTaskQueue(): TaskQueueInterface {
+    const fallbackQueue = new Map<string, Array<any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
 
     return {
-      addTask: async (agentId: string, taskAssignment: any) => {
+      addTask: async (agentId: string, taskAssignment: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         logger.debug({ agentId, taskAssignment }, 'Fallback task queue: addTask called');
         if (!fallbackQueue.has(agentId)) {
           fallbackQueue.set(agentId, []);
@@ -355,7 +381,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
   /**
    * Create fallback response processor
    */
-  private createFallbackResponseProcessor(): any {
+  private createFallbackResponseProcessor(): { getAgentResponses: (agentId: string) => Promise<AgentResponse[]>; getInstance: () => unknown } {
     return {
       getAgentResponses: async (agentId: string) => {
         logger.debug({ agentId }, 'Fallback response processor: getAgentResponses called');
@@ -371,7 +397,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
       await this.ensureDependencies();
 
       // Verify agent exists and is registered
-      const agent = await this.agentRegistry.getAgent(agentId);
+      const agent = await this.agentRegistry?.getAgent(agentId);
       if (!agent) {
         logger.error({ agentId }, 'Agent not found - cannot send task');
         return false;
@@ -381,7 +407,8 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
       const taskId = this.extractTaskIdFromPayload(taskPayload);
 
       // Create task assignment
-      const taskAssignment = {
+      const taskAssignment: Omit<AgentTasksAssignment, 'taskId' | 'assignedAt'> = {
+        agentId: agentId, // Add required field
         sentinelPayload: taskPayload,
         priority: 'normal' as const,
         estimatedDuration: 1800000, // 30 minutes default
@@ -396,13 +423,13 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
       switch (agent.transportType) {
         case 'stdio':
           // Add task to queue for polling
-          await this.taskQueue.addTask(agentId, taskAssignment);
+          await this.taskQueue?.addTask(agentId, taskAssignment);
           success = true;
           break;
 
-        case 'sse':
+        case 'sse': {
           // Add task to queue for polling AND send immediate SSE notification
-          await this.taskQueue.addTask(agentId, taskAssignment);
+          await this.taskQueue?.addTask(agentId, taskAssignment);
 
           // Send immediate SSE notification if agent has active session
           const sessionId = agent.metadata?.preferences?.sessionId;
@@ -413,8 +440,8 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
                 taskId,
                 taskPayload,
                 priority: taskAssignment.priority,
-                assignedAt: taskAssignment.metadata.assignedAt,
-                deadline: taskAssignment.metadata.assignedAt + (24 * 60 * 60 * 1000), // Default 24 hour deadline
+                assignedAt: taskAssignment.metadata?.assignedAt || Date.now(),
+                deadline: (typeof taskAssignment.metadata?.assignedAt === 'number' ? taskAssignment.metadata.assignedAt : Date.now()) + (24 * 60 * 60 * 1000),
                 metadata: taskAssignment.metadata
               });
 
@@ -425,7 +452,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
                 agentId,
                 taskId,
                 priority: taskAssignment.priority,
-                assignedAt: taskAssignment.metadata.assignedAt,
+                assignedAt: taskAssignment.metadata?.assignedAt || Date.now(),
                 transportType: 'sse'
               });
 
@@ -443,29 +470,31 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
           success = true;
           break;
+        }
 
         case 'websocket':
           // Send directly via WebSocket
           if (this.websocketServer && this.websocketServer.isAgentConnected(agentId)) {
             try {
-              success = await this.websocketServer.sendTaskToAgent(agentId, {
+              success = await this.sendTaskViaWebSocket(
+                agentId,
                 taskId,
-                sentinelPayload: taskPayload,
-                priority: taskAssignment.priority,
-                assignedAt: taskAssignment.metadata.assignedAt
-              });
+                taskPayload,
+                taskAssignment.priority,
+                Date.now()
+              );
 
               if (success) {
                 logger.info({ agentId, taskId }, 'Task sent to agent via WebSocket');
               } else {
                 logger.warn({ agentId, taskId }, 'WebSocket task delivery returned false, falling back to task queue');
-                await this.taskQueue.addTask(agentId, taskAssignment);
+                await this.taskQueue?.addTask(agentId, taskAssignment);
                 success = true;
               }
             } catch (error) {
               logger.warn({ err: error, agentId }, 'WebSocket task delivery failed, falling back to task queue');
               // Fallback to task queue for WebSocket failures
-              await this.taskQueue.addTask(agentId, taskAssignment);
+              await this.taskQueue?.addTask(agentId, taskAssignment);
               success = true;
             }
           } else {
@@ -475,45 +504,46 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
               isAgentConnected: this.websocketServer ? this.websocketServer.isAgentConnected(agentId) : false
             }, 'WebSocket server not available or agent not connected, falling back to task queue');
             // Fallback to task queue if WebSocket not available
-            await this.taskQueue.addTask(agentId, taskAssignment);
+            await this.taskQueue?.addTask(agentId, taskAssignment);
             success = true;
           }
           break;
 
         case 'http':
           // Send to agent's HTTP endpoint
-          if (this.httpAgentAPI && this.httpAgentAPI.deliverTaskToAgent && agent.httpEndpoint) {
+          if (this.httpAgentAPI && agent.httpEndpoint) {
             try {
-              success = await this.httpAgentAPI.deliverTaskToAgent(agent, {
+              success = await this.sendTaskViaHTTP(
+                agent,
                 agentId,
                 taskId,
                 taskPayload,
-                priority: taskAssignment.priority
-              });
+                taskAssignment.priority
+              );
 
               if (success) {
                 logger.info({ agentId, taskId, httpEndpoint: agent.httpEndpoint }, 'Task sent to agent via HTTP');
               } else {
                 logger.warn({ agentId, taskId, httpEndpoint: agent.httpEndpoint }, 'HTTP task delivery returned false, falling back to task queue');
-                await this.taskQueue.addTask(agentId, taskAssignment);
+                await this.taskQueue?.addTask(agentId, taskAssignment);
                 success = true;
               }
             } catch (error) {
               logger.warn({ err: error, agentId, httpEndpoint: agent.httpEndpoint }, 'HTTP task delivery failed, falling back to task queue');
               // Fallback to task queue for HTTP failures
-              await this.taskQueue.addTask(agentId, taskAssignment);
+              await this.taskQueue?.addTask(agentId, taskAssignment);
               success = true;
             }
           } else {
             logger.warn({
               agentId,
               hasHttpAPI: !!this.httpAgentAPI,
-              hasDeliverMethod: !!(this.httpAgentAPI && this.httpAgentAPI.deliverTaskToAgent),
+              hasDeliverMethod: !!(this.httpAgentAPI && 'deliverTaskToAgent' in this.httpAgentAPI),
               hasEndpoint: !!agent.httpEndpoint,
               httpEndpoint: agent.httpEndpoint
             }, 'HTTP API not available or agent has no endpoint, falling back to task queue');
             // Fallback to task queue if HTTP not available
-            await this.taskQueue.addTask(agentId, taskAssignment);
+            await this.taskQueue?.addTask(agentId, taskAssignment);
             success = true;
           }
           break;
@@ -549,7 +579,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
       // Poll for agent responses
       while (Date.now() - startTime < timeout) {
-        const responses = await this.responseProcessor.getAgentResponses(agentId);
+        const responses = await this.responseProcessor?.getAgentResponses(agentId) || [];
 
         // Find the most recent response
         if (responses.length > 0) {
@@ -560,7 +590,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
 
           logger.debug({
             agentId,
-            taskId: latestResponse.taskId,
+            taskId: latestResponse.task_id,
             status: latestResponse.status
           }, 'Agent response received');
 
@@ -584,7 +614,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
       // Ensure dependencies are ready before operation
       await this.ensureDependencies();
 
-      const agent = await this.agentRegistry.getAgent(agentId);
+      const agent = await this.agentRegistry?.getAgent(agentId);
       if (!agent) {
         return false;
       }
@@ -611,7 +641,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
           }
           break;
 
-        case 'http':
+        case 'http': {
           // For HTTP agents, check last heartbeat/polling activity and endpoint availability
           const hasHttpEndpoint = !!(agent.httpEndpoint && this.httpAgentAPI);
           isReachable = agent.status === 'online' &&
@@ -626,6 +656,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
             }, 'HTTP agent missing endpoint or API service');
           }
           break;
+        }
 
         default:
           isReachable = false;
@@ -784,14 +815,14 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
   /**
    * Get agent responses through unified processor
    */
-  async getAgentResponses(agentId: string): Promise<any[]> {
+  async getAgentResponses(agentId: string): Promise<AgentResponse[]> {
     try {
       // Import AgentResponseProcessor dynamically
       const { AgentResponseProcessor } = await import('../../agent-response/index.js');
       const responseProcessor = AgentResponseProcessor.getInstance();
 
       // Get responses for all tasks assigned to this agent
-      const agentResponses: any[] = [];
+      const agentResponses: AgentResponse[] = [];
 
       // Note: this.assignments is from the AgentOrchestrator class, not UniversalAgentCommunicationChannel
       // We need to access the orchestrator instance to get assignments
@@ -801,7 +832,7 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
         if (assignment.agentId === agentId) {
           const response = await responseProcessor.getResponse(taskId);
           if (response) {
-            agentResponses.push(response);
+            agentResponses.push(response as unknown as AgentResponse);
           }
         }
       }
@@ -814,31 +845,28 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
     }
   }
 
-  private formatAgentResponse(response: any): string {
+  private formatAgentResponse(response: AgentResponse): string {
     try {
       // Convert agent response to expected Sentinel Protocol format
       let formattedResponse = `VIBE_STATUS: ${response.status}\n`;
 
-      if (response.response) {
-        formattedResponse += response.response;
+      if (response.message) {
+        formattedResponse += response.message;
       }
 
-      if (response.completionDetails) {
-        const details = response.completionDetails;
-        if (details.filesModified && details.filesModified.length > 0) {
-          formattedResponse += `\nFiles modified: ${details.filesModified.join(', ')}`;
+      if (response.completion_details) {
+        const details = response.completion_details;
+        if (details.files_modified && details.files_modified.length > 0) {
+          formattedResponse += `\nFiles modified: ${details.files_modified.join(', ')}`;
         }
-        if (details.testsPass !== undefined) {
-          formattedResponse += `\nTests passed: ${details.testsPass}`;
+        if (details.tests_passed !== undefined) {
+          formattedResponse += `\nTests passed: ${details.tests_passed}`;
         }
-        if (details.buildSuccessful !== undefined) {
-          formattedResponse += `\nBuild successful: ${details.buildSuccessful}`;
+        if (details.build_successful !== undefined) {
+          formattedResponse += `\nBuild successful: ${details.build_successful}`;
         }
-        if (details.executionTime) {
-          formattedResponse += `\nExecution time: ${details.executionTime}ms`;
-        }
-        if (details.errorDetails) {
-          formattedResponse += `\nError details: ${details.errorDetails}`;
+        if (details.notes) {
+          formattedResponse += `\nNotes: ${details.notes}`;
         }
       }
 
@@ -847,6 +875,91 @@ class UniversalAgentCommunicationChannel implements AgentCommunicationChannel {
     } catch (error) {
       logger.error({ err: error }, 'Failed to format agent response');
       return `VIBE_STATUS: ERROR\nFailed to format response: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  /**
+   * Adapter method for WebSocket task delivery
+   * Converts from expected interface to actual WebSocketServerManager interface
+   */
+  private async sendTaskViaWebSocket(
+    agentId: string,
+    taskId: string,
+    sentinelPayload: string,
+    priority: string,
+    _assignedAt: number
+  ): Promise<boolean> {
+    if (!this.websocketServer) {
+      return false;
+    }
+
+    // Convert to the interface expected by WebSocketServerManager
+    return this.websocketServer.sendTaskToAgent(agentId, {
+      taskId,
+      task: sentinelPayload, // Map sentinelPayload to task
+      priority: priority === 'urgent' ? 3 : priority === 'high' ? 2 : priority === 'normal' ? 1 : 0
+    });
+  }
+
+  /**
+   * Adapter method for HTTP task delivery
+   * Converts from expected interface to actual HTTPAgentAPIServer interface
+   */
+  private async sendTaskViaHTTP(
+    agent: { httpEndpoint?: string; [key: string]: unknown },
+    agentId: string,
+    taskId: string,
+    taskPayload: string,
+    priority: string
+  ): Promise<boolean> {
+    if (!this.httpAgentAPI || !agent.httpEndpoint) {
+      return false;
+    }
+
+    // Check if deliverTaskToAgent is available (it might be private)
+    if (!('deliverTaskToAgent' in this.httpAgentAPI) || 
+        typeof (this.httpAgentAPI as unknown as { deliverTaskToAgent?: unknown }).deliverTaskToAgent !== 'function') {
+      logger.warn('HTTPAgentAPIServer.deliverTaskToAgent is not accessible');
+      return false;
+    }
+
+    try {
+      // Parse the task payload to create the expected TaskPayload object
+      const parsedPayload = JSON.parse(taskPayload);
+      const taskPayloadObj = {
+        type: parsedPayload.type || 'task',
+        description: parsedPayload.description || '',
+        parameters: parsedPayload.parameters || {},
+        context: parsedPayload.context || {}
+      };
+
+      // Use fetch instead of private method
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      
+      const httpAuthToken = agent.metadata && typeof agent.metadata === 'object' && 'preferences' in agent.metadata && agent.metadata.preferences 
+        ? (agent.metadata.preferences as Record<string, unknown>).httpAuthToken : undefined;
+      if (httpAuthToken && typeof httpAuthToken === 'string') {
+        headers['Authorization'] = `Bearer ${httpAuthToken}`;
+      }
+      
+      const response = await fetch(agent.httpEndpoint!, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          taskId,
+          taskPayload: taskPayloadObj,
+          priority: priority as 'low' | 'normal' | 'high',
+          deadline: Date.now() + 24 * 60 * 60 * 1000,
+          assignedAt: Date.now()
+        })
+      });
+      
+      return response.ok;
+    } catch (error) {
+      logger.error({ err: error, agentId, taskId }, 'Failed to parse task payload for HTTP delivery');
+      return false;
     }
   }
 }
@@ -874,10 +987,10 @@ export class AgentOrchestrator {
   private activeExecutions = new Map<string, TaskExecutionResult>();
   private communicationChannel: AgentCommunicationChannel;
   private executionMonitors = new Map<string, NodeJS.Timeout>();
-  private sseNotifier: any;
+  private sseNotifier: SSENotifier | null = null;
 
   // Task completion callbacks
-  private taskCompletionCallbacks = new Map<string, (taskId: string, success: boolean, details?: any) => Promise<void>>();
+  private taskCompletionCallbacks = new Map<string, (taskId: string, success: boolean, details?: Record<string, unknown>) => Promise<void>>();
 
   private constructor(config?: Partial<OrchestratorConfig>) {
     // Get timeout manager for better defaults
@@ -1037,18 +1150,18 @@ export class AgentOrchestrator {
               id: agentInfo.id,
               name: agentInfo.name,
               capabilities: agentInfo.capabilities.map(cap => cap.toString()),
-              status: agentInfo.status === 'available' ? 'online' : agentInfo.status as any,
+              status: agentInfo.status === 'available' ? 'online' as const : agentInfo.status as 'online' | 'offline' | 'busy',
               maxConcurrentTasks: agentInfo.maxConcurrentTasks,
               currentTasks: agentInfo.currentTasks,
-              transportType: agentInfo.metadata.preferences?.transportType || 'stdio',
-              sessionId: agentInfo.metadata.preferences?.sessionId,
-              pollingInterval: agentInfo.metadata.preferences?.pollingInterval,
+              transportType: (agentInfo.metadata.preferences?.transportType as 'stdio' | 'sse' | 'websocket' | 'http') || 'stdio',
+              sessionId: agentInfo.metadata.preferences?.sessionId as string,
+              pollingInterval: agentInfo.metadata.preferences?.pollingInterval as number,
               registeredAt: Date.now(),
               lastSeen: Date.now(),
               lastHeartbeat: fullAgentInfo.lastHeartbeat,
               performance: fullAgentInfo.performance,
-              httpEndpoint: agentInfo.metadata.preferences?.httpEndpoint,
-              httpAuthToken: agentInfo.metadata.preferences?.httpAuthToken,
+              httpEndpoint: agentInfo.metadata.preferences?.httpEndpoint as string,
+              httpAuthToken: agentInfo.metadata.preferences?.httpAuthToken as string,
               metadata: agentInfo.metadata
             });
 
@@ -1353,7 +1466,7 @@ export class AgentOrchestrator {
       // Register task execution activity in workflow-aware manager
       this.workflowAwareManager.registerAgentActivity(availableAgent.id, 'task_execution', {
         workflowId: task.projectId,
-        sessionId: (context as any).sessionId || `session_${Date.now()}`,
+        sessionId: (context as unknown as Record<string, unknown>).sessionId as string || `session_${Date.now()}`,
         expectedDuration: assignment.estimatedDuration,
         isWorkflowCritical: false,
         metadata: {
@@ -1564,7 +1677,6 @@ export class AgentOrchestrator {
 
     return new Promise((resolve) => {
       let attempts = 0;
-      let timeoutHandle: NodeJS.Timeout;
       let monitoringHandle: NodeJS.Timeout | undefined;
 
       const cleanup = () => {
@@ -1579,7 +1691,8 @@ export class AgentOrchestrator {
       };
 
       // Set up timeout
-      timeoutHandle = setTimeout(async () => {
+      // eslint-disable-next-line prefer-const
+      let timeoutHandle = setTimeout(async () => {
         logger.warn({ taskId: assignment.taskId, executionId }, 'Task execution timeout');
 
         if (attempts < maxRetries) {
@@ -1714,7 +1827,7 @@ export class AgentOrchestrator {
                   break;
               }
             }
-          } catch (error) {
+          } catch {
             // No response yet, continue monitoring
             logger.debug({ taskId: assignment.taskId }, 'No agent response yet, continuing to monitor');
           }
@@ -1797,7 +1910,7 @@ export class AgentOrchestrator {
   private async processResponseThroughUnifiedProcessor(
     response: AgentResponse,
     agentId: string,
-    assignment: TaskAssignment
+    _assignment: TaskAssignment
   ): Promise<void> {
     try {
       // Import AgentResponseProcessor dynamically to avoid circular dependencies
@@ -1851,21 +1964,23 @@ export class AgentOrchestrator {
   /**
    * Extract completion details from response
    */
-  private extractCompletionDetails(response: AgentResponse): any {
+  private extractCompletionDetails(response: AgentResponse): {
+    executionTime: number;
+    filesModified: string[];
+    testsRun: number;
+    testsPassed: number;
+    deploymentStatus?: string;
+    notes?: string;
+  } {
     const completionDetails = response.completion_details;
 
     return {
       executionTime: 0, // Not available in current AgentResponse format
       filesModified: completionDetails?.files_modified || [],
-      testsPass: completionDetails?.tests_passed !== false, // Default to true if not specified
-      buildSuccessful: completionDetails?.build_successful !== false, // Default to true if not specified
-      output: response.message,
-      metadata: {
-        originalStatus: response.status,
-        helpRequest: response.help_request,
-        blockerDetails: response.blocker_details,
-        notes: completionDetails?.notes
-      }
+      testsPassed: completionDetails?.tests_passed ? 1 : 0, // Convert boolean to number
+      testsRun: completionDetails?.tests_passed !== undefined ? 1 : 0, // If we have test result, assume 1 test
+      deploymentStatus: completionDetails?.build_successful ? 'success' : 'failed',
+      notes: completionDetails?.notes || response.message
     };
   }
 
@@ -1874,7 +1989,7 @@ export class AgentOrchestrator {
    */
   registerTaskCompletionCallback(
     taskId: string,
-    callback: (taskId: string, success: boolean, details?: any) => Promise<void>
+    callback: (taskId: string, success: boolean, details?: Record<string, unknown>) => Promise<void>
   ): void {
     this.taskCompletionCallbacks.set(taskId, callback);
     logger.debug({ taskId }, 'Task completion callback registered');
@@ -1889,7 +2004,7 @@ export class AgentOrchestrator {
       const { TaskScheduler } = await import('./task-scheduler.js');
 
       // Create a callback that notifies the scheduler when tasks complete
-      const schedulerCallback = async (taskId: string, success: boolean, details?: any) => {
+      const schedulerCallback = async (taskId: string, success: boolean, details?: Record<string, unknown>) => {
         try {
           // Get the current scheduler instance (if any)
           const currentScheduler = TaskScheduler.getCurrentInstance();
@@ -1927,7 +2042,7 @@ export class AgentOrchestrator {
   private async triggerTaskCompletionCallbacks(
     taskId: string,
     success: boolean,
-    details?: any
+    details?: Record<string, unknown>
   ): Promise<void> {
     const callback = this.taskCompletionCallbacks.get(taskId);
     if (callback) {
@@ -1948,6 +2063,13 @@ export class AgentOrchestrator {
    */
   getAssignmentsMap(): Map<string, TaskAssignment> {
     return this.assignments;
+  }
+
+  /**
+   * Get communication channel for external service coordination
+   */
+  getCommunicationChannel(): AgentCommunicationChannel {
+    return this.communicationChannel;
   }
 
   /**
@@ -2429,13 +2551,13 @@ export class AgentOrchestrator {
     if (agent) {
       const sessionId = agent.metadata?.preferences?.sessionId;
       if (this.sseNotifier && sessionId) {
-        this.sseNotifier.sendEvent(sessionId, 'taskCompleted', {
+        this.sseNotifier.sendEvent(sessionId as string, 'taskCompleted', {
           agentId: agent.id,
           taskId: assignment.taskId,
           completedAt: new Date().toISOString(),
           duration: completionDetails.duration,
           response: completionDetails.response
-        }).catch((error: any) => {
+        }).catch((error: unknown) => {
           logger.warn({ err: error, agentId: agent.id, taskId: assignment.taskId }, 'Failed to send SSE task completion notification');
         });
 
@@ -2446,7 +2568,7 @@ export class AgentOrchestrator {
           status: 'completed',
           completedAt: new Date().toISOString(),
           duration: completionDetails.duration
-        }).catch((error: any) => {
+        }).catch((error: unknown) => {
           logger.warn({ err: error }, 'Failed to broadcast SSE task completion update');
         });
       }
@@ -2680,8 +2802,15 @@ export class AgentOrchestrator {
     sse: { available: boolean; port?: number; endpoint?: string };
     stdio: { available: boolean };
   } {
-    if (this.communicationChannel && typeof (this.communicationChannel as any).getTransportStatus === 'function') {
-      return (this.communicationChannel as any).getTransportStatus();
+    if (this.communicationChannel && 'getTransportStatus' in this.communicationChannel && 
+        typeof (this.communicationChannel as { getTransportStatus?: unknown }).getTransportStatus === 'function') {
+      type TransportStatus = {
+        websocket: { available: boolean; port?: number; clients?: number };
+        http: { available: boolean; port?: number; endpoint?: string };
+        sse: { available: boolean; port?: number; endpoint?: string };
+        stdio: { available: boolean };
+      };
+      return (this.communicationChannel as { getTransportStatus: () => TransportStatus }).getTransportStatus();
     }
 
     // Fallback: get transport status directly from Transport Manager

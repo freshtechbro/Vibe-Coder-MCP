@@ -1,5 +1,5 @@
 import { Dependency, DependencyType, DependencyGraph, DependencyNode } from '../../types/dependency.js';
-import { AtomicTask } from '../../types/task.js';
+// AtomicTask type imported but not used in this file
 import { getStorageManager } from '../storage/storage-manager.js';
 import { getIdGenerator } from '../../utils/id-generator.js';
 import { FileOperationResult } from '../../utils/file-utils.js';
@@ -39,7 +39,7 @@ export interface DependencyValidationResult {
  * Dependency operations service
  */
 export class DependencyOperations {
-  private static instance: DependencyOperations;
+  private static instance: DependencyOperations | undefined;
   private validator: DependencyValidator;
 
   private constructor() {
@@ -60,7 +60,7 @@ export class DependencyOperations {
    * Reset singleton instance (for testing)
    */
   static resetInstance(): void {
-    DependencyOperations.instance = undefined as any;
+    DependencyOperations.instance = undefined;
   }
 
   /**
@@ -571,7 +571,7 @@ export class DependencyOperations {
   /**
    * Validate all dependencies for a project using enhanced validation
    */
-  async validateProjectDependencies(projectId: string): Promise<FileOperationResult<any>> {
+  async validateProjectDependencies(projectId: string): Promise<FileOperationResult<Record<string, unknown>>> {
     try {
       logger.info({ projectId }, 'Starting enhanced dependency validation for project');
 
@@ -589,7 +589,7 @@ export class DependencyOperations {
 
       return {
         success: true,
-        data: validationResult,
+        data: validationResult as unknown as Record<string, unknown>,
         metadata: {
           filePath: 'dependency-operations',
           operation: 'validate_project_dependencies',

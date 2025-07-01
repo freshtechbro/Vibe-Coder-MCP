@@ -1,9 +1,7 @@
-import { Epic, AtomicTask, TaskPriority } from '../types/task.js';
+import { TaskPriority, AtomicTask } from '../types/task.js';
 import { getStorageManager } from '../core/storage/storage-manager.js';
 import { getProjectOperations } from '../core/operations/project-operations.js';
 import { getEpicService } from './epic-service.js';
-import { getIdGenerator } from '../utils/id-generator.js';
-import { FileOperationResult } from '../utils/file-utils.js';
 import logger from '../../../logger.js';
 
 /**
@@ -378,7 +376,7 @@ export class EpicContextResolver {
   /**
    * Add task to epic with bidirectional relationship management
    */
-  async addTaskToEpic(taskId: string, epicId: string, projectId: string): Promise<EpicTaskRelationshipResult> {
+  async addTaskToEpic(taskId: string, epicId: string, _projectId: string): Promise<EpicTaskRelationshipResult> {
     try {
       const storageManager = await getStorageManager();
       
@@ -448,7 +446,7 @@ export class EpicContextResolver {
   /**
    * Move task between epics with conflict resolution
    */
-  async moveTaskBetweenEpics(taskId: string, fromEpicId: string, toEpicId: string, projectId: string): Promise<EpicTaskRelationshipResult> {
+  async moveTaskBetweenEpics(taskId: string, fromEpicId: string, toEpicId: string, _projectId: string): Promise<EpicTaskRelationshipResult> {
     try {
       const storageManager = await getStorageManager();
       
@@ -625,7 +623,7 @@ export class EpicContextResolver {
       let newStatus = epic.status;
       
       if (progressData.totalTasks === 0) {
-        newStatus = 'planning';
+        newStatus = 'pending';
       } else if (progressData.completedTasks === progressData.totalTasks) {
         newStatus = 'completed';
       } else if (progressData.inProgressTasks > 0 || progressData.completedTasks > 0) {
@@ -633,7 +631,7 @@ export class EpicContextResolver {
       } else if (progressData.blockedTasks === progressData.totalTasks) {
         newStatus = 'blocked';
       } else {
-        newStatus = 'todo';
+        newStatus = 'pending';
       }
 
       if (newStatus !== epic.status) {
@@ -698,17 +696,17 @@ export class EpicContextResolver {
     
     // Group tasks by file paths
     tasks.forEach(task => {
-      task.filePaths.forEach(filePath => {
+      (task as AtomicTask).filePaths.forEach((filePath: string) => {
         if (!filePathMap.has(filePath)) {
           filePathMap.set(filePath, []);
         }
-        filePathMap.get(filePath)!.push(task.id);
+        filePathMap.get(filePath)!.push((task as AtomicTask).id);
       });
     });
 
     // Count conflicts (file paths used by multiple tasks)
     let conflicts = 0;
-    filePathMap.forEach((taskIds, filePath) => {
+    filePathMap.forEach((taskIds) => {
       if (taskIds.length > 1) {
         conflicts++;
       }
@@ -776,8 +774,8 @@ export class EpicContextResolver {
     }
 
     // Simple estimation based on average task completion time
-    const totalEstimatedHours = tasks.reduce((sum, task) => sum + task.estimatedHours, 0);
-    const remainingHours = totalEstimatedHours * ((100 - progressPercentage) / 100);
+    const totalEstimatedHours = tasks.reduce((sum, task) => sum + ((task as AtomicTask).estimatedHours || 0), 0);
+    const remainingHours = (totalEstimatedHours as number) * ((100 - progressPercentage) / 100);
     
     // Assume 8 hours per working day
     const workingDaysRemaining = Math.ceil(remainingHours / 8);

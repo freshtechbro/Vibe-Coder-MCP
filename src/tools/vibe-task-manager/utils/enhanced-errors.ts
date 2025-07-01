@@ -47,7 +47,7 @@ export interface EnhancedErrorContext extends ErrorContext {
   projectId?: string;
   sessionId?: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -409,7 +409,7 @@ export class ValidationError extends EnhancedError {
       cause?: Error;
       field?: string;
       expectedFormat?: string;
-      actualValue?: any;
+      actualValue?: unknown;
       userFriendly?: boolean;
     } = {}
   ) {
@@ -496,7 +496,7 @@ export class ErrorFactory {
     type: ErrorCategory,
     message: string,
     context: EnhancedErrorContext,
-    options: any = {}
+    options: Record<string, unknown> = {}
   ): EnhancedError {
     // Override userFriendly to false for factory-created errors to ensure
     // they return category-based user-friendly messages
@@ -561,7 +561,7 @@ export class ErrorContextBuilder {
     return this;
   }
 
-  metadata(metadata: Record<string, any>): this {
+  metadata(metadata: Record<string, unknown>): this {
     this.context.metadata = { ...this.context.metadata, ...metadata };
     return this;
   }

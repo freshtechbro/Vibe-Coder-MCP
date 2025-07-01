@@ -10,7 +10,6 @@
  */
 
 import { AtomicTask } from '../types/task.js';
-import { ValidationError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
 /**
@@ -30,8 +29,8 @@ export interface SanitizationResult<T> {
 export interface SanitizationViolation {
   field: string;
   violationType: 'xss' | 'injection' | 'malformed' | 'length' | 'pattern' | 'encoding';
-  originalValue: any;
-  sanitizedValue?: any;
+  originalValue: unknown;
+  sanitizedValue?: unknown;
   severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
 }
@@ -169,7 +168,12 @@ export class DataSanitizer {
             this.sanitizeString(method, `validationMethods.manual[${index}]`, violations)
           )
         },
-        metadata: this.sanitizeObject(task.metadata, 'metadata', violations, 0)
+        metadata: this.sanitizeObject(task.metadata, 'metadata', violations, 0) as {
+          createdAt: Date;
+          updatedAt: Date;
+          createdBy: string;
+          tags: string[];
+        }
       };
 
       const sanitizationTime = Date.now() - startTime;
@@ -408,11 +412,11 @@ export class DataSanitizer {
    * Sanitize object recursively
    */
   private sanitizeObject(
-    obj: any,
+    obj: unknown,
     fieldName: string,
     violations: SanitizationViolation[],
     depth: number
-  ): any {
+  ): unknown {
     if (depth > this.config.maxObjectDepth) {
       violations.push({
         field: fieldName,
@@ -432,7 +436,7 @@ export class DataSanitizer {
       return this.sanitizeArray(obj, fieldName, violations);
     }
 
-    const sanitized: any = {};
+    const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
       // Don't sanitize object keys as they are typically property names
       const sanitizedKey = key;

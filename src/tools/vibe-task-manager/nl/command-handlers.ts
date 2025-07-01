@@ -3,10 +3,11 @@
  * Implements handlers for each recognized intent
  */
 
-import { Intent, RecognizedIntent, CommandProcessingResult, NLResponse } from '../types/nl.js';
+import { Intent, RecognizedIntent } from '../types/nl.js';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
-import { ConfigLoader, VibeTaskManagerConfig } from '../utils/config-loader.js';
+import { Project } from '../types/task.js';
+import { VibeTaskManagerConfig } from '../utils/config-loader.js';
 import { extractProjectFromContext, extractEpicFromContext } from '../utils/context-extractor.js';
 import { DecomposeTaskHandler, DecomposeProjectHandler } from './handlers/decomposition-handlers.js';
 import { SearchFilesHandler, SearchContentHandler } from './handlers/search-handlers.js';
@@ -414,7 +415,7 @@ export class ListProjectsHandler implements CommandHandler {
       const projectOps = getProjectOperations();
 
       // Build query parameters from options
-      const queryParams: any = {};
+      const queryParams: Record<string, unknown> = {};
       if (options.status) queryParams.status = options.status as string;
       if (options.tags) queryParams.tags = options.tags as string[];
       if (options.limit) queryParams.limit = options.limit as number;
@@ -458,7 +459,7 @@ export class ListProjectsHandler implements CommandHandler {
       }
 
       const projectList = projects
-        .map((p: any) => `• **${p.name}** (${p.status}) - ID: ${p.id}\n  ${p.description || 'No description'}\n  Created: ${p.metadata.createdAt.toLocaleDateString()}`)
+        .map((p: Project) => `• **${p.name}** (${p.status}) - ID: ${p.id}\n  ${p.description || 'No description'}\n  Created: ${p.metadata?.createdAt ? new Date(p.metadata.createdAt).toLocaleDateString() : 'Unknown'}`)
         .join('\n\n');
 
       const result: CallToolResult = {
@@ -521,7 +522,7 @@ export class ListTasksHandler implements CommandHandler {
       const taskOps = getTaskOperations();
 
       // Build query parameters from options
-      const queryParams: any = {};
+      const queryParams: Record<string, unknown> = {};
       if (options.status) queryParams.status = options.status as string;
       if (options.project) queryParams.projectId = options.project as string;
       if (options.priority) queryParams.priority = options.priority as string;
@@ -871,7 +872,6 @@ export class CheckStatusHandler implements CommandHandler {
   ): Promise<CommandExecutionResult> {
     const projectName = toolParams.projectName as string;
     const taskId = toolParams.taskId as string;
-    const options = toolParams.options as Record<string, unknown> || {};
 
     logger.info({
       projectName,

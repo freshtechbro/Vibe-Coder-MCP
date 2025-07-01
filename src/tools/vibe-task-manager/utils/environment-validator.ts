@@ -6,16 +6,14 @@
 import { 
   ENVIRONMENT_VARIABLES, 
   getEnvironmentValue, 
-  validateAllEnvironmentVariables,
   getEnvironmentVariableDocumentation 
 } from './config-defaults.js';
 import { 
   ValidationError, 
-  ConfigurationError, 
   createErrorContext 
 } from './enhanced-errors.js';
-import logger from '../../../logger.js';
-import path from 'path';
+// import logger from '../../../logger.js';
+// import path from 'path';
 import { existsSync } from 'fs';
 
 /**
@@ -51,8 +49,8 @@ export interface EnvironmentValidationError {
 export interface EnvironmentValidationWarning {
   variable: string;
   warning: string;
-  currentValue: any;
-  defaultValue: any;
+  currentValue: unknown;
+  defaultValue: unknown;
   impact: string;
 }
 
@@ -208,8 +206,8 @@ export class EnvironmentValidator {
    */
   private async performAdditionalValidation(
     name: string,
-    config: any,
-    value: any,
+    config: { key: string; defaultValue: string | number | boolean; type: string; required: boolean; description: string },
+    value: unknown,
     errors: EnvironmentValidationError[],
     warnings: EnvironmentValidationWarning[]
   ): Promise<void> {

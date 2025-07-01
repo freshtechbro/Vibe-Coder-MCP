@@ -12,7 +12,6 @@
 import fs from 'fs-extra';
 import path from 'path';
 import crypto from 'crypto';
-import { VibeTaskManagerConfig } from '../utils/config-loader.js';
 import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
@@ -53,7 +52,7 @@ export interface SecurityAuditEvent {
   outcome: 'success' | 'failure' | 'blocked' | 'warning';
   details: {
     description: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     errorCode?: string;
     stackTrace?: string;
   };
@@ -74,7 +73,7 @@ export interface SuspiciousActivityPattern {
     eventTypes: SecurityEventType[];
     timeWindow: number; // ms
     threshold: number;
-    conditions?: Record<string, any>;
+    conditions?: Record<string, unknown>;
   };
   severity: SecurityEventSeverity;
   enabled: boolean;
@@ -173,7 +172,7 @@ export class SecurityAuditLogger {
     options?: {
       actor?: Partial<SecurityAuditEvent['actor']>;
       resource?: Partial<SecurityAuditEvent['resource']>;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
       errorCode?: string;
       stackTrace?: string;
     }
@@ -464,7 +463,7 @@ export class SecurityAuditLogger {
         let matchesConditions = true;
         if (pattern.pattern.conditions) {
           for (const [key, value] of Object.entries(pattern.pattern.conditions)) {
-            if ((event as any)[key] !== value) {
+            if ((event as unknown as Record<string, unknown>)[key] !== value) {
               matchesConditions = false;
               break;
             }
@@ -513,8 +512,8 @@ export class SecurityAuditLogger {
     );
 
     // Calculate summary statistics
-    const eventsByType: Record<SecurityEventType, number> = {} as any;
-    const eventsBySeverity: Record<SecurityEventSeverity, number> = {} as any;
+    const eventsByType: Record<SecurityEventType, number> = {} as Record<SecurityEventType, number>;
+    const eventsBySeverity: Record<SecurityEventSeverity, number> = {} as Record<SecurityEventSeverity, number>;
 
     for (const event of periodEvents) {
       eventsByType[event.eventType] = (eventsByType[event.eventType] || 0) + 1;
@@ -649,8 +648,8 @@ export class SecurityAuditLogger {
     recentViolations: SecurityAuditEvent[];
     suspiciousPatterns: number;
   } {
-    const eventsByType: Record<SecurityEventType, number> = {} as any;
-    const eventsBySeverity: Record<SecurityEventSeverity, number> = {} as any;
+    const eventsByType: Record<SecurityEventType, number> = {} as Record<SecurityEventType, number>;
+    const eventsBySeverity: Record<SecurityEventSeverity, number> = {} as Record<SecurityEventSeverity, number>;
 
     for (const event of this.auditEvents) {
       eventsByType[event.eventType] = (eventsByType[event.eventType] || 0) + 1;

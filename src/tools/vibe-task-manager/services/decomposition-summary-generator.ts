@@ -617,7 +617,7 @@ export class DecompositionSummaryGenerator {
         const typeNode = `Type_${type.replace(/[^a-zA-Z0-9]/g, '_')}`;
         content += `    Decomp --> ${typeNode}[${type} Tasks: ${typeTasks.length}]\n`;
 
-        typeTasks.slice(0, 5).forEach((task, index) => { // Limit to 5 tasks per type for readability
+        typeTasks.slice(0, 5).forEach((task) => { // Limit to 5 tasks per type for readability
           const taskNode = `Task_${task.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
           const taskTitle = task.title.length > 30 ? task.title.substring(0, 30) + '...' : task.title;
           content += `    ${typeNode} --> ${taskNode}["${taskTitle}<br/>${task.estimatedHours}h"]\n`;
@@ -655,8 +655,7 @@ export class DecompositionSummaryGenerator {
     tasks.forEach(task => {
       const nodeId = `T_${task.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const taskTitle = task.title.length > 20 ? task.title.substring(0, 20) + '...' : task.title;
-      const priorityColor = task.priority === 'high' ? 'fill:#ffcccc' :
-                           task.priority === 'medium' ? 'fill:#ffffcc' : 'fill:#ccffcc';
+      // Priority color not used in this implementation
       content += `    ${nodeId}["${taskTitle}<br/>${task.estimatedHours}h"]:::${task.priority}\n`;
     });
 

@@ -6,7 +6,7 @@
  */
 
 import { AtomicTask } from '../types/task.js';
-import { Dependency, DependencyGraph } from '../types/dependency.js';
+import { Dependency } from '../types/dependency.js';
 import { getDependencyOperations } from '../core/operations/dependency-operations.js';
 import { getTaskOperations } from '../core/operations/task-operations.js';
 import logger from '../../../logger.js';
@@ -359,8 +359,6 @@ export class DependencyValidator {
       };
 
     } catch (error) {
-      const validationTime = Date.now() - startTime;
-
       logger.error({
         err: error,
         fromTaskId,

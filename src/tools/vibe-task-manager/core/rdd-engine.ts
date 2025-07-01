@@ -1,6 +1,6 @@
 import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
-import { getLLMModelForOperation } from '../utils/config-loader.js';
+// LLM model operations handled via config system
 import { AtomicTask, TaskType, TaskPriority } from '../types/task.js';
 import { AtomicTaskDetector, AtomicityAnalysis } from './atomic-detector.js';
 import { ProjectContext } from '../types/project-context.js';
@@ -524,18 +524,18 @@ CRITICAL REMINDER:
   /**
    * Validate the structure of a task object
    */
-  private validateTaskStructure(task: any): boolean {
+  private validateTaskStructure(task: Record<string, unknown>): boolean {
     const requiredFields = ['title', 'description', 'type', 'priority', 'estimatedHours'];
-    return requiredFields.every(field => task.hasOwnProperty(field) && task[field] != null);
+    return requiredFields.every(field => Object.prototype.hasOwnProperty.call(task, field) && task[field] != null);
   }
 
   /**
    * Validate the response structure before parsing
    */
-  private validateResponseStructure(parsed: any): { isValid: boolean; error?: string } {
+  private validateResponseStructure(parsed: Record<string, unknown>): { isValid: boolean; error?: string } {
     // Check if it's a tasks array format
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
-      const invalidTasks = parsed.tasks.filter((task: any) => !this.validateTaskStructure(task));
+      const invalidTasks = (parsed.tasks as Record<string, unknown>[]).filter((task: Record<string, unknown>) => !this.validateTaskStructure(task));
       if (invalidTasks.length > 0) {
         return { isValid: false, error: `Invalid task structure in tasks array: missing required fields` };
       }
@@ -544,7 +544,7 @@ CRITICAL REMINDER:
 
     // Check if it's a subTasks array format (backward compatibility)
     if (parsed.subTasks && Array.isArray(parsed.subTasks)) {
-      const invalidTasks = parsed.subTasks.filter((task: any) => !this.validateTaskStructure(task));
+      const invalidTasks = (parsed.subTasks as Record<string, unknown>[]).filter((task: Record<string, unknown>) => !this.validateTaskStructure(task));
       if (invalidTasks.length > 0) {
         return { isValid: false, error: `Invalid task structure in subTasks array: missing required fields` };
       }
@@ -598,19 +598,19 @@ CRITICAL REMINDER:
         throw new Error('Invalid tasks array in response');
       }
 
-      return tasksArray.map((taskData: any, index: number) => {
+      return tasksArray.map((taskData: Record<string, unknown>, index: number) => {
         const decomposedTaskId = `${originalTask.id}-${String(index + 1).padStart(2, '0')}`;
 
         return {
           id: decomposedTaskId,
-          title: taskData.title || '',
-          description: taskData.description || '',
-          type: this.validateTaskType(taskData.type) || originalTask.type,
-          priority: this.validateTaskPriority(taskData.priority) || originalTask.priority,
+          title: (taskData.title as string) || '',
+          description: (taskData.description as string) || '',
+          type: this.validateTaskType(String(taskData.type)) || originalTask.type,
+          priority: this.validateTaskPriority(String(taskData.priority)) || originalTask.priority,
           status: 'pending' as const,
           projectId: originalTask.projectId,
           epicId: originalTask.epicId,
-          estimatedHours: taskData.estimatedHours || 0.1, // Preserve original value for validation
+          estimatedHours: (taskData.estimatedHours as number) || 0.1, // Preserve original value for validation
           actualHours: 0,
           filePaths: Array.isArray(taskData.filePaths) ? taskData.filePaths : [],
           acceptanceCriteria: Array.isArray(taskData.acceptanceCriteria) ?
@@ -723,12 +723,11 @@ CRITICAL REMINDER:
   /**
    * Validate and limit decomposed tasks with atomic constraints
    */
-  private validateDecomposedTasks(decomposedTasks: AtomicTask[], originalTask: AtomicTask): AtomicTask[] {
+  private validateDecomposedTasks(decomposedTasks: AtomicTask[], _originalTask: AtomicTask): AtomicTask[] {
     // Limit number of tasks
     const limitedTasks = decomposedTasks.slice(0, this.rddConfig.maxSubTasks);
 
-    // Calculate total time for epic constraint validation
-    const totalEstimatedHours = limitedTasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0);
+    // Epic time limit for validation
     const epicTimeLimit = 8; // 8 hours maximum per epic
 
     // Validate each task with atomic constraints
@@ -941,7 +940,7 @@ CRITICAL REMINDER:
   /**
    * Get circuit breaker statistics for monitoring
    */
-  getCircuitBreakerStats(taskId?: string): any {
+  getCircuitBreakerStats(taskId?: string): Record<string, unknown> {
     if (taskId) {
       return this.circuitBreaker.getStats(taskId);
     }

@@ -3,7 +3,6 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { z } from 'zod';
 import logger from '../../../logger.js';
-import { AppError, ValidationError } from '../../../utils/errors.js';
 import { validateSecurePath } from './path-security-validator.js';
 
 /**
@@ -437,7 +436,9 @@ export class FileUtils {
         }
 
         // Validate filename doesn't contain dangerous characters
-        if (/[<>"|?*\x00-\x1f]/.test(fileName)) {
+        const dangerousChars = /[<>"|?*]/;
+        const controlChars = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + ']');
+        if (dangerousChars.test(fileName) || controlChars.test(fileName)) {
           return {
             valid: false,
             error: 'Filename contains dangerous characters'

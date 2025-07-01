@@ -1,10 +1,10 @@
-import { AtomicTask, Epic, TaskStatus, TaskPriority, TaskType } from '../../types/task.js';
+import { AtomicTask, TaskStatus, TaskPriority, TaskType } from '../../types/task.js';
 import { getStorageManager } from '../storage/storage-manager.js';
 import { getVibeTaskManagerConfig } from '../../utils/config-loader.js';
 import { getIdGenerator } from '../../utils/id-generator.js';
 import { FileOperationResult } from '../../utils/file-utils.js';
-import { DataSanitizer, SanitizationResult } from '../../security/data-sanitizer.js';
-import { ConcurrentAccessManager, LockAcquisitionResult } from '../../security/concurrent-access.js';
+import { DataSanitizer } from '../../security/data-sanitizer.js';
+import { ConcurrentAccessManager } from '../../security/concurrent-access.js';
 import logger from '../../../../logger.js';
 
 /**
@@ -101,7 +101,7 @@ export class TaskOperations {
    * Reset singleton instance (for testing)
    */
   static resetInstance(): void {
-    TaskOperations.instance = undefined as any;
+    TaskOperations.instance = undefined as unknown as TaskOperations;
   }
 
   /**
@@ -208,12 +208,12 @@ export class TaskOperations {
 
         return {
           success: false,
-          error: `Input sanitization failed: ${sanitizationResult.violations.map((v: any) => v.description).join(', ')}`,
+          error: `Input sanitization failed: ${sanitizationResult.violations.map((v: { description: string }) => v.description).join(', ')}`,
           metadata: {
             filePath: 'task-operations',
             operation: 'create_task',
             timestamp: new Date()
-          } as any
+          }
         };
       }
 
@@ -499,7 +499,7 @@ export class TaskOperations {
       const existingTask = existingResult.data!;
 
       // Prepare update object with proper typing
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         ...params,
         metadata: {
           ...existingTask.metadata,
@@ -895,7 +895,7 @@ export class TaskOperations {
   /**
    * Update task metadata
    */
-  async updateTaskMetadata(taskId: string, metadata: Record<string, any>, updatedBy: string = 'system'): Promise<FileOperationResult<AtomicTask>> {
+  async updateTaskMetadata(taskId: string, metadata: Record<string, unknown>, updatedBy: string = 'system'): Promise<FileOperationResult<AtomicTask>> {
     try {
       logger.info({ taskId, metadataKeys: Object.keys(metadata), updatedBy }, 'Updating task metadata');
 
@@ -921,7 +921,7 @@ export class TaskOperations {
       };
 
       // Prepare update object with merged metadata
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         metadata: mergedMetadata
       };
 
@@ -1007,7 +1007,7 @@ export class TaskOperations {
   /**
    * Get task metadata
    */
-  async getTaskMetadata(taskId: string): Promise<FileOperationResult<Record<string, any>>> {
+  async getTaskMetadata(taskId: string): Promise<FileOperationResult<Record<string, unknown>>> {
     try {
       logger.debug({ taskId }, 'Getting task metadata');
 

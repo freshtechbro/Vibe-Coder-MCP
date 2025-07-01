@@ -8,7 +8,7 @@
 import { Command } from 'commander';
 import { FileSearchService } from '../../../../services/file-search-service/index.js';
 import { CLIUtils } from './index.js';
-import { AppError, ValidationError } from '../../../../utils/errors.js';
+import { ValidationError } from '../../../../utils/errors.js';
 import logger from '../../../../logger.js';
 import path from 'path';
 
@@ -140,7 +140,6 @@ function createContentSearchCommand(): Command {
         const fileTypes = options.extensions ? options.extensions.split(',').map((ext: string) => ext.trim().startsWith('.') ? ext.trim() : `.${ext.trim()}`) : undefined;
         const excludeDirs = options.exclude ? options.exclude.split(',').map((pattern: string) => pattern.trim()) : ['node_modules', '.git', 'dist', 'build'];
         const limit = parseInt(options.limit, 10);
-        const contextLines = parseInt(options.context, 10);
 
         // Perform content search
         const searchOptions = {
@@ -187,7 +186,7 @@ function createContentSearchCommand(): Command {
 
             if (result.preview) {
               const lines = result.preview.split('\n').slice(0, 3);
-              lines.forEach((line, lineIndex) => {
+              lines.forEach((line, _lineIndex) => {
                 console.log(`   ${line.trim()}`);
               });
 

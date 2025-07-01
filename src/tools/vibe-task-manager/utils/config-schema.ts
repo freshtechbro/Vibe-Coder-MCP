@@ -6,10 +6,8 @@
 import { VibeTaskManagerConfig } from './config-loader.js';
 import { 
   ValidationError, 
-  ConfigurationError, 
   createErrorContext 
 } from './enhanced-errors.js';
-import logger from '../../../logger.js';
 
 /**
  * Schema validation result
@@ -29,7 +27,7 @@ export interface SchemaValidationError {
   message: string;
   expectedType: string;
   actualType: string;
-  actualValue: any;
+  actualValue: unknown;
 }
 
 /**
@@ -47,14 +45,14 @@ export interface SchemaValidationWarning {
 export interface SchemaField {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   required: boolean;
-  default?: any;
+  default?: unknown;
   min?: number;
   max?: number;
-  enum?: any[];
+  enum?: unknown[];
   pattern?: RegExp;
   description: string;
-  validation?: (value: any) => boolean;
-  transform?: (value: any) => any;
+  validation?: (value: unknown) => boolean;
+  transform?: (value: unknown) => unknown;
   children?: Record<string, SchemaField>;
 }
 
@@ -71,7 +69,7 @@ export const CONFIG_SCHEMA: Record<string, SchemaField> = {
         type: 'object',
         required: true,
         description: 'Mapping of operations to LLM models',
-        validation: (value: any) => {
+        validation: (value: unknown) => {
           return typeof value === 'object' && 
                  value !== null && 
                  Object.keys(value).length > 0;
@@ -89,7 +87,7 @@ export const CONFIG_SCHEMA: Record<string, SchemaField> = {
         type: 'object',
         required: true,
         description: 'MCP tool definitions',
-        validation: (value: any) => {
+        validation: (value: unknown) => {
           return typeof value === 'object' && value !== null;
         }
       }
@@ -122,7 +120,7 @@ export const CONFIG_SCHEMA: Record<string, SchemaField> = {
         type: 'string',
         required: true,
         description: 'Data directory for task manager files',
-        validation: (value: string) => typeof value === 'string' && value.length > 0
+        validation: (value: unknown) => typeof value === 'string' && value.length > 0
       },
 
       artifactParsing: {
@@ -426,7 +424,7 @@ export class ConfigSchemaValidator {
   /**
    * Validate configuration against schema
    */
-  validateConfig(config: any): SchemaValidationResult {
+  validateConfig(config: unknown): SchemaValidationResult {
     const context = createErrorContext('ConfigSchemaValidator', 'validateConfig')
       .metadata({ configKeys: Object.keys(config || {}) })
       .build();
@@ -440,7 +438,7 @@ export class ConfigSchemaValidator {
         valid: errors.length === 0,
         errors,
         warnings,
-        normalizedConfig: errors.length === 0 ? normalizedConfig as VibeTaskManagerConfig : undefined
+        normalizedConfig: errors.length === 0 ? normalizedConfig as unknown as VibeTaskManagerConfig : undefined
       };
 
     } catch (error) {
@@ -458,18 +456,18 @@ export class ConfigSchemaValidator {
    * Normalize configuration with defaults and transformations
    */
   private normalizeConfig(
-    config: any,
+    config: unknown,
     schema: Record<string, SchemaField>,
     path: string,
     errors: SchemaValidationError[],
     warnings: SchemaValidationWarning[]
-  ): any {
-    const normalized: any = {};
+  ): Record<string, unknown> {
+    const normalized: Record<string, unknown> = {};
 
     // Process each field in the schema
     for (const [key, field] of Object.entries(schema)) {
       const currentPath = path ? `${path}.${key}` : key;
-      const value = config?.[key];
+      const value = (config as Record<string, unknown>)?.[key];
 
       // Check if required field is missing
       if (field.required && (value === undefined || value === null)) {
@@ -513,9 +511,9 @@ export class ConfigSchemaValidator {
   /**
    * Validate individual field
    */
-  private validateField(value: any, field: SchemaField, path: string): {
+  private validateField(value: unknown, field: SchemaField, path: string): {
     valid: boolean;
-    normalizedValue?: any;
+    normalizedValue?: unknown;
     errors: SchemaValidationError[];
   } {
     const errors: SchemaValidationError[] = [];
@@ -550,7 +548,7 @@ export class ConfigSchemaValidator {
     }
 
     // Range validation for numbers
-    if (field.type === 'number') {
+    if (field.type === 'number' && typeof normalizedValue === 'number') {
       if (field.min !== undefined && normalizedValue < field.min) {
         errors.push({
           path,
@@ -583,11 +581,11 @@ export class ConfigSchemaValidator {
     }
 
     // Pattern validation for strings
-    if (field.type === 'string' && field.pattern && !field.pattern.test(normalizedValue)) {
+    if (field.type === 'string' && field.pattern && typeof normalizedValue === 'string' && !field.pattern.test(normalizedValue)) {
       errors.push({
         path,
         message: `Value does not match required pattern`,
-        expectedType: `string matching ${field.pattern}`,
+        expectedType: `string matching ${field.pattern.toString()}`,
         actualType: 'string',
         actualValue: normalizedValue
       });
@@ -622,7 +620,7 @@ export class ConfigSchemaValidator {
   /**
    * Validate type
    */
-  private validateType(value: any, expectedType: string): boolean {
+  private validateType(value: unknown, expectedType: string): boolean {
     switch (expectedType) {
       case 'string':
         return typeof value === 'string';
@@ -644,14 +642,14 @@ export class ConfigSchemaValidator {
    */
   generateDefaultConfig(): VibeTaskManagerConfig {
     const defaultConfig = this.extractDefaults(CONFIG_SCHEMA);
-    return defaultConfig as VibeTaskManagerConfig;
+    return defaultConfig as unknown as VibeTaskManagerConfig;
   }
 
   /**
    * Extract default values from schema
    */
-  private extractDefaults(schema: Record<string, SchemaField>): any {
-    const defaults: any = {};
+  private extractDefaults(schema: Record<string, SchemaField>): Record<string, unknown> {
+    const defaults: Record<string, unknown> = {};
 
     for (const [key, field] of Object.entries(schema)) {
       if (field.default !== undefined) {

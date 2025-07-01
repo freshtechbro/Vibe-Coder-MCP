@@ -339,7 +339,7 @@ export class TimeoutManager {
   /**
    * Create a timeout promise for manual timeout handling
    */
-  createTimeoutPromise<T>(operation: TimeoutOperation, customTimeout?: number): Promise<never> {
+  createTimeoutPromise(operation: TimeoutOperation, customTimeout?: number): Promise<never> {
     const timeout = customTimeout || this.getTimeout(operation);
     
     return new Promise((_, reject) => {
@@ -357,7 +357,7 @@ export class TimeoutManager {
     operationPromise: Promise<T>,
     customTimeout?: number
   ): Promise<T> {
-    const timeoutPromise = this.createTimeoutPromise<T>(operation, customTimeout);
+    const timeoutPromise = this.createTimeoutPromise(operation, customTimeout);
     
     return Promise.race([operationPromise, timeoutPromise]);
   }

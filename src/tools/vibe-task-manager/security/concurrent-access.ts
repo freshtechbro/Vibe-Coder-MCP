@@ -12,7 +12,6 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
-import { VibeTaskManagerConfig } from '../utils/config-loader.js';
 import { getTimeoutManager } from '../utils/timeout-manager.js';
 import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
@@ -79,7 +78,7 @@ export interface LockAuditEvent {
   sessionId?: string;
   timestamp: Date;
   duration?: number; // ms
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -161,7 +160,7 @@ export class ConcurrentAccessManager {
     options?: {
       timeout?: number;
       sessionId?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
       waitForRelease?: boolean;
     }
   ): Promise<LockAcquisitionResult> {
@@ -309,8 +308,8 @@ export class ConcurrentAccessManager {
       const lockData = JSON.stringify(lock, null, 2);
       await fs.writeFile(lockFilePath, lockData, { flag: 'wx' }); // 'wx' fails if file exists
 
-    } catch (error: any) {
-      if (error.code === 'EEXIST') {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
         // Lock file already exists, check if it's stale
         const existingLock = await this.readLockFile(lockFilePath);
         if (existingLock && this.isLockExpired(existingLock)) {
@@ -320,7 +319,7 @@ export class ConcurrentAccessManager {
         } else {
           throw new AppError('Resource is already locked');
         }
-      } else if (error.code === 'ENOENT') {
+      } else if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         // Directory doesn't exist, fall back to in-memory locking only
         logger.warn('Lock directory not accessible, using in-memory locking only');
         return;
@@ -339,7 +338,7 @@ export class ConcurrentAccessManager {
     operation: 'read' | 'write' | 'execute',
     lockId: string,
     timeout: number,
-    options?: { sessionId?: string; metadata?: Record<string, any> }
+    options?: { sessionId?: string; metadata?: Record<string, unknown> }
   ): Promise<LockAcquisitionResult> {
     return new Promise((resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
@@ -498,7 +497,7 @@ export class ConcurrentAccessManager {
     for (const [resource, waiters] of this.lockWaiters) {
       const lockHolder = this.findLockHolder(resource);
       if (lockHolder) {
-        for (const waiter of waiters) {
+        for (let i = 0; i < waiters.length; i++) {
           // This is simplified - in a real implementation, you'd track waiter identities
           const waiterId = 'waiter'; // Placeholder
           if (!waitGraph.has(waiterId)) {
@@ -672,7 +671,7 @@ export class ConcurrentAccessManager {
     owner: string,
     sessionId?: string,
     duration?: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     if (!this.config.enableLockAuditTrail) return;
 

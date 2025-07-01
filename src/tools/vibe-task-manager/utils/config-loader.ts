@@ -1,5 +1,4 @@
 import path from 'path';
-import { readFile } from 'fs/promises';
 import { FileUtils, FileOperationResult } from './file-utils.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import {
@@ -525,13 +524,6 @@ export class ConfigLoader {
     } catch (error) {
       const loadTime = performance.now() - this.loadingStartTime;
 
-      const context = createErrorContext('ConfigLoader', 'loadConfig')
-        .metadata({
-          loadTime,
-          performanceTarget: this.performanceConfig.maxStartupTime
-        })
-        .build();
-
       // Enhanced error logging with context
       if (error instanceof ConfigurationError || error instanceof ValidationError) {
         logger.error({
@@ -574,7 +566,7 @@ export class ConfigLoader {
    * Get LLM model for specific operation
    */
   getLLMModel(operation: string): string {
-    const fallbackModel = getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_DEFAULT_LLM_MODEL);
+    const fallbackModel = getEnvironmentValue(ENVIRONMENT_VARIABLES.VIBE_DEFAULT_LLM_MODEL) as string;
 
     if (!this.config) {
       return fallbackModel;
@@ -903,7 +895,7 @@ export function extractVibeTaskManagerSecurityConfig(config?: OpenRouterConfig):
 /**
  * Create AgentOrchestrator configuration from centralized config
  */
-export async function getOrchestratorConfig(): Promise<any> {
+export async function getOrchestratorConfig(): Promise<unknown> {
   try {
     const config = await getVibeTaskManagerConfig();
     if (!config) {

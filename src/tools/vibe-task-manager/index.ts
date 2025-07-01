@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CallToolResult, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { OpenRouterConfig } from '../../types/workflow.js';
 import { registerTool, ToolDefinition, ToolExecutor, ToolExecutionContext } from '../../services/routing/toolRegistry.js';
 import { getBaseOutputDir, getVibeTaskManagerOutputDir, getVibeTaskManagerConfig } from './utils/config-loader.js';
@@ -8,11 +8,10 @@ import logger from '../../logger.js';
 import { AgentOrchestrator } from './services/agent-orchestrator.js';
 import { ProjectOperations } from './core/operations/project-operations.js';
 import { DecompositionService } from './services/decomposition-service.js';
-import { CommandGateway } from './nl/command-gateway.js';
 import { jobManager } from '../../services/job-manager/index.js';
 import path from 'path';
 import fs from 'fs/promises';
-import { AtomicTask } from './types/task.js';
+import { AtomicTask, Project } from './types/task.js';
 import { ProjectContext } from './types/project-context.js';
 
 // Input schema for the Vibe Task Manager tool
@@ -61,7 +60,7 @@ function isNaturalLanguageInput(params: Record<string, unknown>): boolean {
 async function handleNaturalLanguageInput(
   input: string,
   config: OpenRouterConfig,
-  context: any
+  context: ToolExecutionContext | undefined
 ): Promise<CallToolResult> {
   try {
     // Import CommandGateway dynamically to avoid circular dependencies
@@ -71,7 +70,7 @@ async function handleNaturalLanguageInput(
     // Process natural language input
     const result = await gateway.processCommand(input, {
       sessionId: context?.sessionId || 'default',
-      userId: context?.userId || 'anonymous'
+      userId: context?.sessionId || 'anonymous' // Use sessionId as userId fallback
     });
 
     if (!result.success) {
@@ -284,7 +283,7 @@ export const vibeTaskManagerExecutor: ToolExecutor = async (
 /**
  * Infer project complexity based on project context
  */
-function inferProjectComplexity(projectContext: any): 'low' | 'medium' | 'high' {
+function inferProjectComplexity(projectContext: ProjectContext): 'low' | 'medium' | 'high' {
   if (!projectContext) return 'medium';
   
   let complexityScore = 0;
@@ -314,7 +313,7 @@ function inferProjectComplexity(projectContext: any): 'low' | 'medium' | 'high' 
   
   // Explicit complexity if available
   if (projectContext.complexity) {
-    const explicitComplexity = projectContext.complexity.toLowerCase();
+    const explicitComplexity = (projectContext.complexity || '').toLowerCase();
     if (explicitComplexity === 'high' || explicitComplexity === 'complex') return 'high';
     if (explicitComplexity === 'low' || explicitComplexity === 'simple') return 'low';
   }
@@ -423,7 +422,7 @@ async function waitForDecompositionCompletion(
       partialResultThreshold: 0.5
     },
     // Partial result extractor
-    (currentState) => {
+    (_currentState) => {
       try {
         const session = decompositionService.getSession(sessionId);
         if (session && session.status === 'in_progress') {
@@ -502,7 +501,7 @@ async function handleCreateCommand(
         const result = await projectOps.createProject({
           name: projectName,
           description,
-          techStack: options?.techStack as any,
+          techStack: options?.techStack as { languages: string[]; frameworks: string[]; tools: string[]; } | undefined,
           tags: options?.tags as string[],
           rootPath: options?.rootPath as string
         }, sessionId);
@@ -582,7 +581,7 @@ async function handleListCommand(
     const projectOps = getProjectOperations();
 
     // Build query parameters from options
-    const queryParams: any = {};
+    const queryParams: Record<string, unknown> = {};
     if (options?.status) queryParams.status = options.status as string;
     if (options?.tags) queryParams.tags = options.tags as string[];
     if (options?.limit) queryParams.limit = options.limit as number;
@@ -616,7 +615,7 @@ async function handleListCommand(
     }
 
     const projectList = projects
-      .map((p: any) => `• **${p.name}** (${p.status}) - ID: ${p.id}\n  ${p.description || 'No description'}\n  Created: ${p.metadata.createdAt.toLocaleDateString()}`)
+      .map((p: Project) => `• **${p.name}** (${p.status}) - ID: ${p.id}\n  ${p.description || 'No description'}\n  Created: ${p.metadata?.createdAt ? new Date(p.metadata.createdAt).toLocaleDateString() : 'Unknown'}`)
       .join('\n\n');
 
     return {
@@ -1245,7 +1244,7 @@ async function handleRefineCommand(
 /**
  * Validate project existence and readiness for decomposition
  */
-async function validateProjectForDecomposition(project: any): Promise<{
+async function validateProjectForDecomposition(project: Project): Promise<{
   isValid: boolean;
   errors: string[];
   warnings: string[];
@@ -1260,11 +1259,11 @@ async function validateProjectForDecomposition(project: any): Promise<{
     errors.push('Project missing required ID field');
   }
 
-  if (!project.name || project.name.trim().length === 0) {
+  if (typeof project.name !== 'string' || project.name.trim().length === 0) {
     errors.push('Project missing required name field');
   }
 
-  if (!project.description || project.description.trim().length === 0) {
+  if (typeof project.description !== 'string' || project.description.trim().length === 0) {
     warnings.push('Project missing description - decomposition may be less accurate');
     recommendations.push('Add a detailed project description for better task generation');
   }
@@ -1305,29 +1304,35 @@ async function validateProjectForDecomposition(project: any): Promise<{
   }
 
   // Check project status
-  if (project.status === 'archived') {
-    errors.push('Cannot decompose archived project');
+  if (project.status === 'cancelled') {
+    errors.push('Cannot decompose cancelled project');
   }
 
-  if (project.status === 'deleted') {
-    errors.push('Cannot decompose deleted project');
+  if (project.status === 'failed') {
+    errors.push('Cannot decompose failed project');
   }
 
   // Check for existing decompositions
-  if (project.metadata?.lastDecomposition) {
-    const lastDecomposition = new Date(project.metadata.lastDecomposition);
-    const daysSinceLastDecomposition = (Date.now() - lastDecomposition.getTime()) / (1000 * 60 * 60 * 24);
+  if (project.metadata) {
+    const metadata = project.metadata as Record<string, unknown>;
+    if (metadata.lastDecomposition && (typeof metadata.lastDecomposition === 'string' || typeof metadata.lastDecomposition === 'number')) {
+      const lastDecomposition = new Date(metadata.lastDecomposition);
+      const daysSinceLastDecomposition = (Date.now() - lastDecomposition.getTime()) / (1000 * 60 * 60 * 24);
 
-    if (daysSinceLastDecomposition < 1) {
-      warnings.push('Project was decomposed recently (less than 24 hours ago)');
-      recommendations.push('Consider reviewing existing decomposition before creating a new one');
+      if (daysSinceLastDecomposition < 1) {
+        warnings.push('Project was decomposed recently (less than 24 hours ago)');
+        recommendations.push('Consider reviewing existing decomposition before creating a new one');
+      }
     }
   }
 
   // Validate project size and complexity indicators
-  if (project.metadata?.estimatedComplexity === 'very_high') {
-    warnings.push('Project marked as very high complexity - decomposition may take longer');
-    recommendations.push('Consider breaking down into smaller sub-projects first');
+  if (project.metadata) {
+    const metadata = project.metadata as Record<string, unknown>;
+    if (metadata.estimatedComplexity === 'very_high') {
+      warnings.push('Project marked as very high complexity - decomposition may take longer');
+      recommendations.push('Consider breaking down into smaller sub-projects first');
+    }
   }
 
   const isValid = errors.length === 0;
@@ -1509,7 +1514,7 @@ async function handleDecomposeCommand(
         // Create project context using the unified ProjectContext interface
         const projectContext: ProjectContext = {
           projectId: matchingProject.id, // Use the actual project ID from storage
-          projectPath: matchingProject.path || process.cwd(),
+          projectPath: matchingProject.rootPath || process.cwd(),
           projectName: matchingProject.name || target,
           description: matchingProject.description || `Project decomposition for ${target}`,
           languages, // Dynamic detection using existing 35+ language infrastructure
@@ -1763,7 +1768,7 @@ const vibeTaskManagerDefinition: ToolDefinition = {
 /**
  * Ensure agent is registered for the current session
  */
-async function ensureAgentRegistration(sessionId: string, context?: ToolExecutionContext): Promise<void> {
+async function ensureAgentRegistration(sessionId: string, _context?: ToolExecutionContext): Promise<void> {
   try {
     const orchestrator = AgentOrchestrator.getInstance();
 

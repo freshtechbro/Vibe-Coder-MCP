@@ -855,7 +855,7 @@ export class TaskRefinementService {
    * Determine codebase size from project analysis
    * Returns default size - could be enhanced to analyze project structure
    */
-  private determineCodebaseSize(projectId: string): 'small' | 'medium' | 'large' {
+  private determineCodebaseSize(_projectId: string): 'small' | 'medium' | 'large' {
     // Default implementation returns medium as a sensible default
     return 'medium';
   }
@@ -864,7 +864,7 @@ export class TaskRefinementService {
    * Get team size from project configuration
    * Returns default team size - could be enhanced to fetch from project storage
    */
-  private getTeamSize(projectId: string): number {
+  private getTeamSize(_projectId: string): number {
     // Default implementation returns a sensible default
     return 3;
   }

@@ -829,10 +829,10 @@ export class TaskScheduler {
           const coordinator = await ExecutionCoordinator.getInstance();
 
           // Check if coordinator is running
-          if (!(coordinator as any).isRunning) {
+          if (!coordinator.getRunningStatus()) {
             throw new Error('ExecutionCoordinator not running');
           }
-        } catch (error) {
+        } catch {
           // ExecutionCoordinator might not be available in all environments
           logger.debug('ExecutionCoordinator not available, continuing without it');
         }
@@ -847,7 +847,7 @@ export class TaskScheduler {
           if (status.isConfigured && !status.isStarted) {
             throw new Error('Transport Manager not ready');
           }
-        } catch (error) {
+        } catch {
           // Transport Manager might not be available in all environments
           logger.debug('Transport Manager not available, continuing without it');
         }
@@ -856,7 +856,7 @@ export class TaskScheduler {
         logger.debug('All execution dependencies ready for TaskScheduler');
         return;
 
-      } catch (error) {
+      } catch {
         // Wait before next check
         await new Promise(resolve => setTimeout(resolve, checkInterval));
       }
@@ -2191,7 +2191,7 @@ export class TaskScheduler {
     let dependencyViolations = 0;
     let totalDependencies = 0;
 
-    for (const [taskId, scheduledTask] of schedule.scheduledTasks) {
+    for (const [, scheduledTask] of schedule.scheduledTasks) {
       for (const depId of scheduledTask.prerequisiteTasks) {
         totalDependencies++;
         const depTask = schedule.scheduledTasks.get(depId);

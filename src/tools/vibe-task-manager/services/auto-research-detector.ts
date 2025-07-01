@@ -8,8 +8,6 @@
  * - Domain-specific requirements
  */
 
-import { AtomicTask } from '../types/task.js';
-import { ProjectContext } from '../types/project-context.js';
 import { ContextResult } from './context-enrichment-service.js';
 import {
   AutoResearchDetectorConfig,
@@ -20,8 +18,6 @@ import {
 } from '../types/research-types.js';
 import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
 import {
-  EnhancedError,
-  ValidationError,
   createErrorContext
 } from '../utils/enhanced-errors.js';
 import logger from '../../../logger.js';
@@ -208,7 +204,7 @@ export class AutoResearchDetector {
    * Evaluate project type (greenfield vs existing)
    */
   private async evaluateProjectType(context: ResearchTriggerContext): Promise<ResearchTriggerConditions['projectType']> {
-    const { projectContext, contextResult } = context;
+    const { contextResult } = context;
 
     // Check if we have existing codebase context
     const hasCodebaseContext = contextResult && contextResult.summary.totalFiles > 0;
@@ -337,7 +333,7 @@ export class AutoResearchDetector {
    * Evaluate domain-specific requirements
    */
   private evaluateDomainSpecific(context: ResearchTriggerContext): ResearchTriggerConditions['domainSpecific'] {
-    const { task, projectContext } = context;
+    const { task } = context;
     const description = (task.description || task.title).toLowerCase();
 
     const technologyStack = this.extractTechnologyStack(context);
@@ -358,7 +354,7 @@ export class AutoResearchDetector {
    */
   private makeResearchDecision(
     conditions: ResearchTriggerConditions,
-    context: ResearchTriggerContext
+    _context: ResearchTriggerContext
   ): ResearchTriggerDecision {
     const reasoning: string[] = [];
     let shouldTriggerResearch = false;
@@ -652,7 +648,7 @@ export class AutoResearchDetector {
    */
   private async initializeConfig(): Promise<void> {
     try {
-      const vibeConfig = await getVibeTaskManagerConfig();
+      await getVibeTaskManagerConfig();
       // Merge with any config from vibe task manager
       // For now, use defaults
       logger.debug('Auto-research detector configuration initialized');

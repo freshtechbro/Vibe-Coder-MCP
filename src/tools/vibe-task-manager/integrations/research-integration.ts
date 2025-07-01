@@ -1,11 +1,10 @@
 import { performResearchQuery } from '../../../utils/researchHelper.js';
 import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
-import { getVibeTaskManagerConfig } from '../utils/config-loader.js';
 import { OpenRouterConfigManager } from '../../../utils/openrouter-config-manager.js';
 import type { OpenRouterConfig } from '../../../types/workflow.js';
-import type { AtomicTask } from '../types/task.js';
 import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
+import crypto from 'crypto';
 
 /**
  * Circuit breaker for research operations
@@ -64,7 +63,7 @@ export interface TaskDecompositionRequest {
   taskDescription: string;
   projectPath?: string;
   domain?: string;
-  context?: any;
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -168,6 +167,19 @@ export type ResearchProgressCallback = (stage: string, progress: number, message
 export type ResearchCompleteCallback = (result: EnhancedResearchResult) => void;
 
 /**
+ * Performance metrics for research operations
+ */
+export interface ResearchPerformanceMetrics {
+  query: string;
+  totalTime: number;
+  qualityScore: number;
+  cacheHit: boolean;
+  timestamp: number;
+  memoryUsage?: number;
+  apiCalls?: number;
+}
+
+/**
  * Research integration configuration
  */
 export interface ResearchIntegrationConfig {
@@ -209,7 +221,7 @@ export class ResearchIntegration extends EventEmitter {
   private researchCache = new Map<string, EnhancedResearchResult>();
   private progressSubscriptions = new Map<string, ResearchProgressCallback[]>();
   private completeSubscriptions = new Map<string, ResearchCompleteCallback[]>();
-  private performanceMetrics = new Map<string, any>();
+  private performanceMetrics = new Map<string, ResearchPerformanceMetrics>();
   private cleanupInterval?: NodeJS.Timeout;
   private circuitBreaker = new ResearchCircuitBreaker();
 
@@ -844,7 +856,6 @@ Return only the queries, one per line, without numbering or formatting.
    */
   private generateRequestId(request: ResearchRequest): string {
     const key = `${request.query}-${request.scope.depth}-${request.scope.focus}-${request.optimization.qualityThreshold}`;
-    const crypto = require('crypto');
     return crypto.createHash('md5').update(key).digest('hex').slice(0, 16);
   }
 
@@ -1167,7 +1178,7 @@ Always provide clear recommendations and highlight potential risks or challenges
   /**
    * Extract insights from research content
    */
-  private async extractInsights(content: string, request: ResearchRequest): Promise<EnhancedResearchResult['insights']> {
+  private async extractInsights(content: string, _request: ResearchRequest): Promise<EnhancedResearchResult['insights']> {
     // Simple extraction based on content analysis
     const lines = content.split('\n').filter(line => line.trim().length > 0);
 
@@ -1548,7 +1559,7 @@ Always provide clear recommendations and highlight potential risks or challenges
   /**
    * Extract detailed error information for logging
    */
-  private extractErrorDetails(error: any): any {
+  private extractErrorDetails(error: unknown): Record<string, unknown> {
     if (error instanceof Error) {
       const baseError = {
         name: error.name,
@@ -1557,7 +1568,7 @@ Always provide clear recommendations and highlight potential risks or challenges
       };
 
       // Include any additional error properties safely
-      const additionalProps: any = {};
+      const additionalProps: Record<string, unknown> = {};
       
       if ('cause' in error && error.cause) {
         additionalProps.cause = this.extractErrorDetails(error.cause);
@@ -1565,7 +1576,7 @@ Always provide clear recommendations and highlight potential risks or challenges
       
       // For API errors, include response data if available
       if ('response' in error && error.response) {
-        const response = error.response as any;
+        const response = error.response as Record<string, unknown>;
         additionalProps.response = {
           status: response.status,
           statusText: response.statusText,
@@ -1575,7 +1586,7 @@ Always provide clear recommendations and highlight potential risks or challenges
       
       // For AxiosError, include request details
       if ('config' in error && error.config) {
-        const config = error.config as any;
+        const config = error.config as Record<string, unknown>;
         additionalProps.request = {
           method: config.method,
           url: config.url,

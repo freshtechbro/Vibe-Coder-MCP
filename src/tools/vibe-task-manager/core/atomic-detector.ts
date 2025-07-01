@@ -1,7 +1,7 @@
 import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { getLLMModelForOperation } from '../utils/config-loader.js';
-import { AtomicTask, TaskPriority, TaskType } from '../types/task.js';
+import { AtomicTask } from '../types/task.js';
 import { ProjectContext } from '../types/project-context.js';
 import { getPrompt } from '../services/prompt-service.js';
 import { AutoResearchDetector } from '../services/auto-research-detector.js';
@@ -355,7 +355,7 @@ Please provide your analysis in the following JSON format:
   /**
    * Provide fallback analysis when LLM analysis fails
    */
-  private getFallbackAnalysis(task: AtomicTask, context: ProjectContext): AtomicityAnalysis {
+  private getFallbackAnalysis(task: AtomicTask, _context: ProjectContext): AtomicityAnalysis {
     logger.warn({ taskId: task.id }, 'Using fallback atomic analysis');
 
     // Simple heuristic-based analysis with updated atomic criteria
@@ -442,7 +442,7 @@ Please provide your analysis in the following JSON format:
                   type: file.filePath.split('.').pop() || 'unknown'
                 })),
                 contextSummary: `Context gathered from ${contextResult.contextFiles.length} files`,
-                totalContextSize: contextResult.contextFiles.reduce((sum: number, f: any) => sum + f.charCount, 0),
+                totalContextSize: contextResult.contextFiles.reduce((sum: number, f) => sum + (f.charCount || 0), 0),
                 averageRelevance: contextResult.summary.averageRelevance,
                 gatheringMetrics: { 
                   totalTime: contextResult.metrics.totalTime, 
@@ -464,7 +464,7 @@ Please provide your analysis in the following JSON format:
       const analysis = await this.analyzeTask(task, enhancedContext);
 
       // Step 5: Calculate contextual factors
-      const contextualFactors = this.calculateContextualFactors(enhancedContext, researchEvaluation.decision);
+      const contextualFactors = this.calculateContextualFactors(enhancedContext, researchEvaluation.decision as unknown as Record<string, unknown>);
 
       // Step 6: Calculate quality metrics
       const qualityMetrics = this.calculateQualityMetrics(task, enhancedContext);
@@ -583,7 +583,7 @@ Please provide your analysis in the following JSON format:
    */
   private calculateContextualFactors(
     context: ProjectContext,
-    researchDecision: any
+    researchDecision: Record<string, unknown>
   ): EnhancedValidationResult['contextualFactors'] {
     let projectComplexity = 0.5;
     if (context.complexity === 'high') projectComplexity = 0.9;
@@ -597,7 +597,7 @@ Please provide your analysis in the following JSON format:
 
     return {
       projectComplexity,
-      researchRequired: researchDecision.shouldTrigger || false,
+      researchRequired: (researchDecision.shouldTrigger as boolean) || false,
       contextEnhancementUsed: !!context.codebaseContext,
       technicalDebtImpact,
       teamExperienceLevel

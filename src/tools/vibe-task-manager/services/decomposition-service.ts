@@ -4,7 +4,7 @@ import { RDDEngine, DecompositionResult, RDDConfig } from '../core/rdd-engine.js
 import { ProjectContext } from '../types/project-context.js';
 import { AtomicTask } from '../types/task.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
-import { getVibeTaskManagerConfig, getVibeTaskManagerOutputDir } from '../utils/config-loader.js';
+import { getVibeTaskManagerOutputDir } from '../utils/config-loader.js';
 import { ContextEnrichmentService, ContextRequest } from './context-enrichment-service.js';
 import { AutoResearchDetector } from './auto-research-detector.js';
 import { ResearchIntegration } from '../integrations/research-integration.js';
@@ -14,7 +14,6 @@ import {
   EnhancedError,
   TaskExecutionError,
   ValidationError,
-  TimeoutError,
   createErrorContext
 } from '../utils/enhanced-errors.js';
 import logger from '../../../logger.js';
@@ -26,7 +25,7 @@ import type { TaskType } from '../types/task.js';
 import { TaskOperations } from '../core/operations/task-operations.js';
 import { WorkflowStateManager, WorkflowPhase, WorkflowState } from './workflow-state-manager.js';
 import { DecompositionSummaryGenerator, SummaryConfig } from './decomposition-summary-generator.js';
-import { getDependencyGraph, OptimizedDependencyGraph } from '../core/dependency-graph.js';
+import { getDependencyGraph, OptimizedDependencyGraph, DependencySuggestion } from '../core/dependency-graph.js';
 import { ProgressTracker, ProgressEventData } from './progress-tracker.js';
 
 /**
@@ -38,7 +37,7 @@ export interface DecompositionEventData {
   taskId: string;
   agentId: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -961,7 +960,7 @@ export class DecompositionService extends EventEmitter {
         duration: session.endTime!.getTime() - session.startTime.getTime(),
         status: 'completed',
         metadata: {
-          hasResearchContext: !!(session as any).researchInsights,
+          hasResearchContext: !!(session as DecompositionSession & { researchInsights?: unknown }).researchInsights,
           summaryGenerated: true,
           orchestrationTriggered: true
         }
@@ -1091,7 +1090,7 @@ export class DecompositionService extends EventEmitter {
             taskDescription: task.description || task.title,
             projectPath,
             domain: this.extractDomain(context),
-            context: context
+            context: context as unknown as Record<string, unknown>
           });
 
           // Extract research insights and create enhanced context
@@ -1170,7 +1169,7 @@ export class DecompositionService extends EventEmitter {
         totalSize: contextResult.summary.totalSize,
         averageRelevance: contextResult.summary.averageRelevance,
         gatheringTime: contextResult.metrics.totalTime,
-        hasResearchContext: !!(finalEnhancedContext as any).researchInsights,
+        hasResearchContext: !!(finalEnhancedContext as ProjectContext & { researchInsights?: unknown }).researchInsights,
         autoResearchTriggered: researchEvaluation.decision.shouldTriggerResearch
       }, 'Context enrichment completed with auto-research integration');
 
@@ -1191,7 +1190,7 @@ export class DecompositionService extends EventEmitter {
     progress: number,
     step: string,
     phase: string,
-    additionalMetadata?: Record<string, any>
+    additionalMetadata?: Record<string, unknown>
   ): void {
     const progressEvent: DecompositionProgressEvent = {
       sessionId: session.id,
@@ -1238,7 +1237,7 @@ export class DecompositionService extends EventEmitter {
     session: DecompositionSession,
     request: DecompositionRequest,
     error: Error | unknown,
-    additionalMetadata?: Record<string, any>
+    additionalMetadata?: Record<string, unknown>
   ): void {
     const failedEvent: DecompositionFailedEvent = {
       sessionId: session.id,
@@ -1318,7 +1317,7 @@ export class DecompositionService extends EventEmitter {
    */
   async retryDecomposition(
     sessionId: string,
-    newConfig?: Partial<RDDConfig>
+    _newConfig?: Partial<RDDConfig>
   ): Promise<DecompositionSession | null> {
     const originalSession = this.sessions.get(sessionId);
     if (!originalSession || originalSession.status !== 'failed') {
@@ -1479,14 +1478,15 @@ export class DecompositionService extends EventEmitter {
         }
       });
 
-      const contextService = ContextEnrichmentService.getInstance();
-      const contextRequest: ContextRequest = {
-        taskDescription: task.description,
-        projectPath: projectContext.projectPath,
-        contentKeywords: [task.title.toLowerCase(), ...task.tags],
-        maxFiles: 8,
-        maxContentSize: 50000
-      };
+      // Context service could be used for actual context gathering in full implementation
+      // const contextService = ContextEnrichmentService.getInstance();
+      // const contextRequest: ContextRequest = {
+      //   taskDescription: task.description,
+      //   projectPath: projectContext.projectPath,
+      //   contentKeywords: [task.title.toLowerCase(), ...task.tags],
+      //   maxFiles: 8,
+      //   maxContentSize: 50000
+      // };
 
       // Simulate context gathering progress
       const totalFiles = 8;
@@ -1841,7 +1841,7 @@ export class DecompositionService extends EventEmitter {
   /**
    * Export session data for analysis
    */
-  exportSession(sessionId: string): any {
+  exportSession(sessionId: string): { session: Record<string, unknown>; results: Array<Record<string, unknown>>; } | null {
     const session = this.sessions.get(sessionId);
     if (!session) return null;
 
@@ -1879,7 +1879,7 @@ export class DecompositionService extends EventEmitter {
     taskList: ParsedTaskList,
     projectId: string,
     epicId?: string,
-    options?: {
+    _options?: {
       maxDepth?: number;
       minHours?: number;
       maxHours?: number;
@@ -2471,7 +2471,7 @@ export class DecompositionService extends EventEmitter {
   /**
    * Build prompt for dependency analysis
    */
-  private buildDependencyAnalysisPrompt(taskSummaries: any[], projectId: string): string {
+  private buildDependencyAnalysisPrompt(taskSummaries: Array<{id: string; title: string; description: string; type: string; estimatedHours: number; acceptanceCriteria: string[]}>, projectId: string): string {
     return `Analyze the following tasks for a project (${projectId}) and identify dependency relationships:
 
 TASKS:
@@ -2512,7 +2512,7 @@ Focus on logical dependencies such as:
   /**
    * Parse dependency analysis response from LLM
    */
-  private parseDependencyAnalysisResponse(response: string): any {
+  private parseDependencyAnalysisResponse(response: string): { dependencies: Array<{fromTaskId: string; toTaskId: string; type: string; reasoning: string}> } | null {
     try {
       // Try to parse as JSON
       const parsed = JSON.parse(response);
@@ -2544,10 +2544,10 @@ Focus on logical dependencies such as:
    * Apply dependency relationships to tasks
    */
   private async applyDependencyRelationships(
-    dependencies: any[],
+    dependencies: Array<{fromTaskId: string; toTaskId: string; type: string; reasoning: string}>,
     tasks: AtomicTask[],
-    taskOps: any,
-    dependencyOps: any
+    taskOps: unknown,
+    dependencyOps: unknown
   ): Promise<void> {
     const taskIdMap = new Map(tasks.map(task => [task.id, task]));
 
@@ -2575,11 +2575,11 @@ Focus on logical dependencies such as:
         }
 
         // Update tasks in storage (YAML files) with proper session context
-        const fromTaskUpdateResult = await taskOps.updateTask(fromTask.id, {
+        const fromTaskUpdateResult = await (taskOps as TaskOperations).updateTaskMetadata(fromTask.id, {
           dependents: fromTask.dependents
         }, 'dependency-analysis');
 
-        const toTaskUpdateResult = await taskOps.updateTask(toTask.id, {
+        const toTaskUpdateResult = await (taskOps as TaskOperations).updateTaskMetadata(toTask.id, {
           dependencies: toTask.dependencies
         }, 'dependency-analysis');
 
@@ -2596,7 +2596,7 @@ Focus on logical dependencies such as:
         }
 
         // Create dependency record
-        const dependencyResult = await dependencyOps.createDependency({
+        const dependencyResult = await (dependencyOps as { createDependency: (dep: Record<string, unknown>) => Promise<{ success: boolean }>; }).createDependency({
           fromTaskId: dep.fromTaskId,
           toTaskId: dep.toTaskId,
           type: this.mapDependencyType(dep.type),
@@ -2607,7 +2607,7 @@ Focus on logical dependencies such as:
           logger.warn({
             fromTaskId: dep.fromTaskId,
             toTaskId: dep.toTaskId,
-            error: dependencyResult.error
+            error: (dependencyResult as { error?: string }).error || 'Unknown error'
           }, 'Failed to create dependency record');
           continue;
         }
@@ -2633,7 +2633,7 @@ Focus on logical dependencies such as:
    */
   private async generateAndSaveVisualDependencyGraphs(
     session: DecompositionSession,
-    dependencyOps: any
+    dependencyOps: unknown
   ): Promise<void> {
     try {
       logger.info({
@@ -2642,13 +2642,13 @@ Focus on logical dependencies such as:
       }, 'Generating visual dependency graphs');
 
       // Generate the dependency graph data structure
-      const graphResult = await dependencyOps.generateDependencyGraph(session.projectId);
+      const graphResult = await (dependencyOps as { generateDependencyGraph: (projectId: string) => Promise<{ success: boolean; data?: unknown }>; }).generateDependencyGraph(session.projectId);
 
       if (!graphResult.success) {
         logger.warn({
           sessionId: session.id,
           projectId: session.projectId,
-          error: graphResult.error
+          error: (graphResult as { error?: string }).error || 'Unknown error'
         }, 'Failed to generate dependency graph data structure');
         return;
       }
@@ -2656,8 +2656,8 @@ Focus on logical dependencies such as:
       const dependencyGraph = graphResult.data;
 
       // Create visual representations
-      const mermaidDiagram = this.generateMermaidDependencyDiagram(dependencyGraph);
-      const textSummary = this.generateTextDependencySummary(dependencyGraph);
+      const mermaidDiagram = this.generateMermaidDependencyDiagram(dependencyGraph as { nodes: Map<string, { title: string; }>; edges: { fromTaskId: string; toTaskId: string; type?: string | undefined; }[]; criticalPath: string[]; statistics: { totalTasks: number; totalDependencies: number; maxDepth: number; }; });
+      const textSummary = this.generateTextDependencySummary(dependencyGraph as unknown as Parameters<typeof this.generateTextDependencySummary>[0]);
       const jsonGraph = JSON.stringify(dependencyGraph, null, 2);
 
       // Save to dependency-graphs directory
@@ -2700,7 +2700,7 @@ Focus on logical dependencies such as:
   /**
    * Generate Mermaid diagram from dependency graph
    */
-  private generateMermaidDependencyDiagram(dependencyGraph: any): string {
+  private generateMermaidDependencyDiagram(dependencyGraph: { nodes: Map<string, {title: string}>; edges: Array<{fromTaskId: string; toTaskId: string; type?: string}>; criticalPath: string[]; statistics: {totalTasks: number; totalDependencies: number; maxDepth: number} }): string {
     const { nodes, edges, criticalPath } = dependencyGraph;
 
     let mermaid = '# Task Dependency Graph\n\n```mermaid\ngraph TD\n';
@@ -2744,7 +2744,7 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
   /**
    * Generate text summary of dependency relationships
    */
-  private generateTextDependencySummary(dependencyGraph: any): string {
+  private generateTextDependencySummary(dependencyGraph: { projectId: string; nodes: Map<string, {title: string}>; edges: Array<{fromTaskId: string; toTaskId: string; type?: string}>; executionOrder: string[]; criticalPath: string[]; statistics: {totalTasks: number; totalDependencies: number; maxDepth: number; orphanedTasks: string[]} }): string {
     const { nodes, edges, executionOrder, criticalPath, statistics } = dependencyGraph;
 
     let summary = `# Dependency Analysis Summary\n\n`;
@@ -2777,7 +2777,7 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
 
     summary += `\n## Dependency Details\n`;
     if (edges.length > 0) {
-      edges.forEach((edge: any) => {
+      edges.forEach((edge: {fromTaskId: string; toTaskId: string; type?: string}) => {
         const fromNode = nodes.get(edge.fromTaskId);
         const toNode = nodes.get(edge.toTaskId);
         summary += `- **${edge.fromTaskId}** (${fromNode?.title}) ${edge.type || 'depends on'} **${edge.toTaskId}** (${toNode?.title})\n`;
@@ -2793,8 +2793,8 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
    * Verify that dependency relationships were properly persisted to YAML files
    */
   private async verifyDependencyPersistence(
-    dependencies: any[],
-    taskOps: any,
+    dependencies: Array<{fromTaskId: string; toTaskId: string; type: string; reasoning: string}>,
+    taskOps: unknown,
     sessionId: string
   ): Promise<void> {
     let verificationErrors = 0;
@@ -2802,8 +2802,8 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
     for (const dep of dependencies) {
       try {
         // Get the updated tasks from storage to verify persistence
-        const fromTaskResult = await taskOps.getTask(dep.fromTaskId);
-        const toTaskResult = await taskOps.getTask(dep.toTaskId);
+        const fromTaskResult = await (taskOps as TaskOperations).getTask(dep.fromTaskId);
+        const toTaskResult = await (taskOps as TaskOperations).getTask(dep.toTaskId);
 
         if (!fromTaskResult.success || !toTaskResult.success) {
           logger.warn({
@@ -2820,16 +2820,22 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
         const fromTask = fromTaskResult.data;
         const toTask = toTaskResult.data;
 
+        if (!fromTask || !toTask) {
+          logger.warn({ fromTaskId: dep.fromTaskId, toTaskId: dep.toTaskId }, 'Task data not found for verification');
+          verificationErrors++;
+          continue;
+        }
+
         // Verify that the dependency arrays were updated in the YAML files
-        const fromTaskHasDependency = fromTask.dependents.includes(dep.toTaskId);
-        const toTaskHasDependency = toTask.dependencies.includes(dep.fromTaskId);
+        const fromTaskHasDependency = fromTask.dependents?.includes(dep.toTaskId) || false;
+        const toTaskHasDependency = toTask.dependencies?.includes(dep.fromTaskId) || false;
 
         if (!fromTaskHasDependency || !toTaskHasDependency) {
           logger.error({
             fromTaskId: dep.fromTaskId,
             toTaskId: dep.toTaskId,
-            fromTaskDependents: fromTask.dependents,
-            toTaskDependencies: toTask.dependencies,
+            fromTaskDependents: fromTask.dependents || [],
+            toTaskDependencies: toTask.dependencies || [],
             fromTaskHasDependency,
             toTaskHasDependency,
             sessionId
@@ -2932,12 +2938,12 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
 
       // Import orchestration services dynamically to avoid circular dependencies
       const { AgentOrchestrator } = await import('./agent-orchestrator.js');
-      const { TaskScheduler } = await import('./task-scheduler.js');
+      // const { TaskScheduler } = await import('./task-scheduler.js'); // Commented out as scheduling is not implemented yet
       const { getDependencyOperations } = await import('../core/operations/dependency-operations.js');
 
       // Initialize orchestration components
       const agentOrchestrator = AgentOrchestrator.getInstance();
-      const taskScheduler = new TaskScheduler(); // TaskScheduler doesn't have getInstance()
+      // const taskScheduler = new TaskScheduler(); // TaskScheduler doesn't have getInstance() - Commented out as scheduling is not implemented yet
       const dependencyOps = getDependencyOperations();
 
       // Generate dependency graph for scheduling
@@ -3149,7 +3155,7 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
    * Get project path from context or use current working directory
    * Follows existing patterns from context-extractor.ts and security config
    */
-  private getProjectPath(context: any): string {
+  private getProjectPath(context: ProjectContext): string {
     // 1. Try to get path from context first (if it's the full ProjectContext from project-context.ts)
     if (context.projectPath && context.projectPath !== '/unknown' && context.projectPath !== '/') {
       return context.projectPath;
@@ -3344,7 +3350,7 @@ ${criticalPath.length > 0 ? criticalPath.join(' → ') : 'No critical path ident
     return 'software-development';
   }
 
-  private createResearchSummary(researchResults: any[]): string {
+  private createResearchSummary(researchResults: Array<{insights: {keyFindings: string[]; recommendations: string[]}}>): string {
     if (researchResults.length === 0) {
       return 'No research results available';
     }
@@ -3463,14 +3469,14 @@ Total Research Results: ${researchResults.length}`;
   /**
    * Generate project-specific epics for decomposed tasks
    */
-  private async generateProjectEpics(session: DecompositionSession, tasks: any[]): Promise<void> {
+  private async generateProjectEpics(session: DecompositionSession, tasks: AtomicTask[]): Promise<void> {
     try {
       const { getEpicContextResolver } = await import('./epic-context-resolver.js');
       const contextResolver = getEpicContextResolver();
 
       // Group tasks by functional area to create appropriate epics
-      const functionalAreaGroups = new Map<string, any[]>();
-      const unassignedTasks: any[] = [];
+      const functionalAreaGroups = new Map<string, AtomicTask[]>();
+      const unassignedTasks: AtomicTask[] = [];
 
       // Analyze tasks and group by functional area
       for (const task of tasks) {
@@ -3617,7 +3623,7 @@ Total Research Results: ${researchResults.length}`;
   private async resolveEpicId(
     epicId: string | undefined,
     projectId: string,
-    tasks: any[]
+    tasks: AtomicTask[]
   ): Promise<string> {
     try {
       // If epic ID is provided and not 'default-epic', use it
@@ -3657,7 +3663,7 @@ Total Research Results: ${researchResults.length}`;
   /**
    * Extract task context for epic resolution
    */
-  private extractTaskContext(tasks: any[]): {
+  private extractTaskContext(tasks: AtomicTask[]): {
     title: string;
     description: string;
     type: string;
@@ -3852,7 +3858,7 @@ Total Research Results: ${researchResults.length}`;
     projectId: string
   ): Promise<{
     appliedDependencies: number;
-    suggestions: any[];
+    suggestions: Array<{id: string; description: string; confidence: number}>;
     warnings: string[];
   }> {
     const progressTracker = ProgressTracker.getInstance();
@@ -3897,7 +3903,15 @@ Total Research Results: ${researchResults.length}`;
         timestamp: new Date()
       });
 
-      return result;
+      return {
+        appliedDependencies: result.appliedDependencies,
+        suggestions: result.suggestions.map((suggestion: DependencySuggestion) => ({
+          id: `${suggestion.fromTaskId}_${suggestion.toTaskId}`,
+          description: suggestion.reason || 'Auto-generated suggestion',
+          confidence: suggestion.confidence || 0.8
+        })),
+        warnings: result.warnings
+      };
     } catch (error) {
       logger.error({
         err: error,
@@ -3940,7 +3954,7 @@ Total Research Results: ${researchResults.length}`;
    */
   async getExecutionPlan(projectId: string): Promise<{
     topologicalOrder: string[];
-    parallelBatches: any[];
+    parallelBatches: Array<{batchNumber: number; tasks: string[]; estimatedDuration: number}>;
     criticalPath: string[];
     estimatedDuration: number;
   } | null> {
@@ -3949,13 +3963,23 @@ Total Research Results: ${researchResults.length}`;
       return null;
     }
 
-    return graph.getRecommendedExecutionOrder();
+    const executionOrder = graph.getRecommendedExecutionOrder();
+    return {
+      topologicalOrder: executionOrder.topologicalOrder,
+      parallelBatches: executionOrder.parallelBatches.map((batch, index: number) => ({
+        batchNumber: index + 1,
+        tasks: batch.taskIds || [],
+        estimatedDuration: batch.estimatedDuration || 0
+      })),
+      criticalPath: executionOrder.criticalPath,
+      estimatedDuration: executionOrder.estimatedDuration
+    };
   }
 
   /**
    * Export dependency analysis for a project
    */
-  async exportDependencyAnalysis(projectId: string): Promise<any | null> {
+  async exportDependencyAnalysis(projectId: string): Promise<Record<string, unknown> | null> {
     const graph = this.dependencyGraphs.get(projectId);
     if (!graph) {
       return null;

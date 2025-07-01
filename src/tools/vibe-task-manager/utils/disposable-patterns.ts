@@ -101,23 +101,23 @@ export class ResourceManager implements IDisposable {
     if (typeof resource === 'object' && resource !== null) {
       // Check for timeout (setTimeout)
       if ('_idleTimeout' in resource && !('_repeat' in resource)) {
-        clearTimeout(resource as any);
+        clearTimeout(resource as NodeJS.Timeout);
         return;
       }
       // Check for interval (setInterval)
       if ('_repeat' in resource) {
-        clearInterval(resource as any);
+        clearInterval(resource as unknown as NodeJS.Timeout);
         return;
       }
       // Fallback: try both (safe since they handle invalid IDs gracefully)
       if ('_idleTimeout' in resource || '_repeat' in resource) {
         try {
-          clearTimeout(resource as any);
+          clearTimeout(resource as unknown as NodeJS.Timeout);
         } catch {
           // Ignore errors, try interval
         }
         try {
-          clearInterval(resource as any);
+          clearInterval(resource as unknown as NodeJS.Timeout);
         } catch {
           // Ignore errors
         }
@@ -242,7 +242,7 @@ export class DisposableWrapper implements IDisposable {
   private disposed = false;
 
   constructor(
-    private target: any,
+    private target: unknown,
     private disposeMethod: string | (() => void | Promise<void>) = 'dispose'
   ) {}
 
@@ -258,8 +258,8 @@ export class DisposableWrapper implements IDisposable {
         await this.disposeMethod();
       } else if (typeof this.disposeMethod === 'string' && 
                  this.target && 
-                 typeof this.target[this.disposeMethod] === 'function') {
-        await this.target[this.disposeMethod]();
+                 typeof (this.target as Record<string, unknown>)[this.disposeMethod] === 'function') {
+        await (this.target as Record<string, () => Promise<void>>)[this.disposeMethod]();
       }
     } catch (error) {
       logger.warn('Error disposing wrapped object', { error });
@@ -331,10 +331,10 @@ export class GlobalDisposableRegistry {
 /**
  * Decorator for automatically registering disposable services
  */
-export function AutoDispose(target: any) {
+export function AutoDispose<T extends new (...args: unknown[]) => IDisposable>(target: T) {
   const originalConstructor = target;
 
-  function newConstructor(...args: any[]) {
+  function newConstructor(...args: unknown[]) {
     const instance = new originalConstructor(...args);
     if (instance && typeof instance.dispose === 'function') {
       GlobalDisposableRegistry.register(instance);
@@ -343,5 +343,5 @@ export function AutoDispose(target: any) {
   }
 
   newConstructor.prototype = originalConstructor.prototype;
-  return newConstructor;
+  return newConstructor as unknown as T;
 }

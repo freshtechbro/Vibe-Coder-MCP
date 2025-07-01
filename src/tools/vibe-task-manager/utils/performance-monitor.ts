@@ -9,7 +9,7 @@
  * - Automated performance alerts
  */
 
-import { VibeTaskManagerConfig } from './config-loader.js';
+// import { VibeTaskManagerConfig } from './config-loader.js';
 import { TaskManagerMemoryManager } from './memory-manager-integration.js';
 import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
@@ -336,7 +336,7 @@ export class PerformanceMonitor {
    * Check performance thresholds and generate alerts
    */
   private checkThresholds(): void {
-    for (const [key, metricArray] of this.metrics) {
+    for (const metricArray of this.metrics.values()) {
       const latestMetric = metricArray[metricArray.length - 1];
       if (!latestMetric?.threshold) continue;
 
@@ -416,7 +416,7 @@ export class PerformanceMonitor {
    */
   private detectBottleneck(key: string, metrics: PerformanceMetric[]): PerformanceBottleneck | null {
     const avgValue = metrics.reduce((sum, m) => sum + m.value, 0) / metrics.length;
-    const maxValue = Math.max(...metrics.map(m => m.value));
+    // const maxValue = Math.max(...metrics.map(m => m.value)); // Unused for now
     const latestMetric = metrics[metrics.length - 1];
 
     // Simple bottleneck detection logic
@@ -633,7 +633,7 @@ export class PerformanceMonitor {
   /**
    * End tracking an operation and record performance
    */
-  endOperation(operationId: string, metadata?: Record<string, any>): number {
+  endOperation(operationId: string, metadata?: Record<string, unknown>): number {
     const startTime = this.operationTimings.get(operationId);
     if (!startTime) {
       logger.warn({ operationId }, 'Operation timing not found');

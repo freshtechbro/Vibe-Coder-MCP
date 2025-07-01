@@ -1,7 +1,7 @@
-import { Epic, AtomicTask } from '../types/task.js';
+import { AtomicTask } from '../types/task.js';
 import { getStorageManager } from '../core/storage/storage-manager.js';
 import { getEpicContextResolver, EpicCreationParams } from '../services/epic-context-resolver.js';
-import { FileOperationResult } from './file-utils.js';
+// import { FileOperationResult } from './file-utils.js';
 import logger from '../../../logger.js';
 
 /**
@@ -129,7 +129,7 @@ export class EpicValidator {
    */
   async batchValidateEpics(tasks: Partial<AtomicTask>[]): Promise<Map<string, EpicValidationResult>> {
     const results = new Map<string, EpicValidationResult>();
-    const uniqueEpics = new Map<string, { epicId: string; projectId: string; taskContext?: any }>();
+    const uniqueEpics = new Map<string, { epicId: string; projectId: string; taskContext?: { title: string; description: string; type: string; tags: string[] } }>();
 
     // Collect unique epic-project combinations
     for (const task of tasks) {

@@ -18,7 +18,7 @@ import {
   TagCategory,
   TagSource
 } from '../types/metadata-types.js';
-import { AtomicTask, Epic, Project } from '../types/task.js';
+import { AtomicTask } from '../types/task.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
 import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
 import { getLLMModelForOperation } from '../utils/config-loader.js';
@@ -709,7 +709,7 @@ export class TagManagementService {
     type?: string;
   }): Promise<TagSuggestion[]> {
     try {
-      const model = await getLLMModelForOperation('tag_suggestion');
+      await getLLMModelForOperation('tag_suggestion');
       
       const prompt = `Analyze the following task and suggest relevant tags:
 
@@ -946,7 +946,7 @@ Respond with JSON format:
   /**
    * Get popular tags
    */
-  private async getPopularTags(filters: any): Promise<TagUsage[]> {
+  private async getPopularTags(_filters: {[key: string]: unknown}): Promise<TagUsage[]> {
     // Mock implementation - would query actual usage data
     return [
       { tag: 'auth', count: 45, percentage: 15.2, category: 'functional', trend: 'increasing' },
@@ -960,7 +960,7 @@ Respond with JSON format:
   /**
    * Get tag trends
    */
-  private async getTagTrends(filters: any): Promise<TagTrend[]> {
+  private async getTagTrends(_filters: {[key: string]: unknown}): Promise<TagTrend[]> {
     // Mock implementation
     return [];
   }
@@ -968,7 +968,7 @@ Respond with JSON format:
   /**
    * Get tag distribution
    */
-  private async getTagDistribution(filters: any): Promise<TagDistribution[]> {
+  private async getTagDistribution(_filters: {[key: string]: unknown}): Promise<TagDistribution[]> {
     // Mock implementation
     return [
       { category: 'functional', count: 120, percentage: 40.0, averageUsage: 8.5 },
@@ -982,7 +982,7 @@ Respond with JSON format:
   /**
    * Get tag relationships
    */
-  private async getTagRelationships(filters: any): Promise<TagRelationship[]> {
+  private async getTagRelationships(_filters: {[key: string]: unknown}): Promise<TagRelationship[]> {
     // Mock implementation
     return [];
   }
@@ -990,7 +990,7 @@ Respond with JSON format:
   /**
    * Get orphaned tags
    */
-  private async getOrphanedTags(filters: any): Promise<string[]> {
+  private async getOrphanedTags(_filters: {[key: string]: unknown}): Promise<string[]> {
     // Mock implementation
     return [];
   }

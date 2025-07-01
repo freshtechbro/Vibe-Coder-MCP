@@ -125,7 +125,7 @@ const openProjectCommand = new Command('project')
               CLIUtils.info('No tasks found for this project.');
             }
           }
-        } catch (error) {
+        } catch {
           CLIUtils.warning('Failed to load task summary');
         }
       }
@@ -161,7 +161,7 @@ const openProjectCommand = new Command('project')
           } else {
             CLIUtils.info('No dependency graph found. Generate one with dependency analysis.');
           }
-        } catch (error) {
+        } catch {
           CLIUtils.warning('Failed to load dependency graph summary');
         }
       }
@@ -288,7 +288,7 @@ const openTaskCommand = new Command('task')
               (!dependentsResult.success || dependentsResult.data!.length === 0)) {
             CLIUtils.info('No dependencies found for this task.');
           }
-        } catch (error) {
+        } catch {
           CLIUtils.warning('Failed to load task dependencies');
         }
       }

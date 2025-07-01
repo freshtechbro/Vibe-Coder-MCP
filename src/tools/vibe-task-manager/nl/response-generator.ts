@@ -297,7 +297,7 @@ export class ResponseGenerator {
   private generateErrorSuggestions(
     executionResult: CommandExecutionResult,
     recognizedIntent: RecognizedIntent,
-    context: ResponseContext
+    _context: ResponseContext
   ): string[] {
     const suggestions = [
       'Try rephrasing your request',
@@ -315,7 +315,7 @@ export class ResponseGenerator {
   /**
    * Get intent-specific suggestions
    */
-  private getIntentSpecificSuggestions(intent: Intent, context: ResponseContext): string[] {
+  private getIntentSpecificSuggestions(intent: Intent, _context: ResponseContext): string[] {
     const suggestions: Record<Intent, string[]> = {
       'create_project': ['Add tasks to your project', 'Set project priorities', 'Invite team members'],
       'update_project': ['Modify project settings', 'Change project configuration', 'Update project details'],
@@ -363,7 +363,7 @@ export class ResponseGenerator {
   private makeErrorHelpful(
     errorText: string,
     recognizedIntent: RecognizedIntent,
-    context: ResponseContext
+    _context: ResponseContext
   ): string {
     let helpfulText = errorText;
 

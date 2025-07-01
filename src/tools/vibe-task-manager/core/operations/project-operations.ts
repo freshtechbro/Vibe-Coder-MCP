@@ -143,7 +143,7 @@ export class ProjectOperations {
       const projectId = idResult.id!;
 
       // Determine optimal agent configuration based on project characteristics
-      const agentConfig = await this.determineOptimalAgentConfig(params, config);
+      const agentConfig = await this.determineOptimalAgentConfig(params, config as unknown as Record<string, unknown>);
 
       // Create default project configuration
       const defaultConfig: ProjectConfig = {
@@ -311,7 +311,7 @@ export class ProjectOperations {
       const existingProject = existingResult.data!;
 
       // Prepare update object with proper typing
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         ...params,
         metadata: {
           ...existingProject.metadata,
@@ -361,13 +361,14 @@ export class ProjectOperations {
   /**
    * Create a project from PRD data
    */
-  async createProjectFromPRD(prdData: any, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
+  async createProjectFromPRD(prdData: Record<string, unknown>, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
     try {
-      logger.info({ projectName: prdData.metadata?.projectName, createdBy }, 'Creating project from PRD');
+      logger.info({ projectName: (prdData.metadata as Record<string, unknown>)?.projectName, createdBy }, 'Creating project from PRD');
 
-      // Extract initial tech stack from PRD
-      let languages = prdData.technical?.techStack || [];
-      let frameworks = prdData.technical?.architecturalPatterns || [];
+      // Extract initial tech stack from PRD with proper type checking
+      const technical = prdData.technical as Record<string, unknown> | undefined;
+      let languages: string[] = Array.isArray(technical?.techStack) ? technical.techStack as string[] : [];
+      let frameworks: string[] = Array.isArray(technical?.architecturalPatterns) ? technical.architecturalPatterns as string[] : [];
       let tools: string[] = [];
 
       // Use ProjectAnalyzer as fallback if PRD tech stack is insufficient
@@ -400,7 +401,7 @@ export class ProjectOperations {
         } catch (analyzerError) {
           logger.warn({
             err: analyzerError,
-            projectName: prdData.metadata?.projectName
+            projectName: (prdData.metadata as Record<string, unknown>)?.projectName
           }, 'ProjectAnalyzer detection failed, using fallback values');
 
           // Fallback to sensible defaults
@@ -411,9 +412,11 @@ export class ProjectOperations {
       }
 
       // Extract project information from PRD with enhanced tech stack
+      const metadata = prdData.metadata as Record<string, unknown> | undefined;
+      const overview = prdData.overview as Record<string, unknown> | undefined;
       const projectParams: CreateProjectParams = {
-        name: prdData.metadata?.projectName || 'Untitled Project',
-        description: prdData.overview?.description || 'Project created from PRD',
+        name: (typeof metadata?.projectName === 'string' ? metadata.projectName : 'Untitled Project'),
+        description: (typeof overview?.description === 'string' ? overview.description : 'Project created from PRD'),
         tags: ['prd-generated'],
         techStack: {
           languages,
@@ -449,19 +452,21 @@ export class ProjectOperations {
   /**
    * Create a project from task list data
    */
-  async createProjectFromTaskList(taskListData: any, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
+  async createProjectFromTaskList(taskListData: Record<string, unknown>, createdBy: string = 'system'): Promise<FileOperationResult<Project>> {
     try {
-      logger.info({ projectName: taskListData.metadata?.projectName, createdBy }, 'Creating project from task list');
+      logger.info({ projectName: (taskListData.metadata as Record<string, unknown>)?.projectName, createdBy }, 'Creating project from task list');
 
-      // Extract project information from task list
+      // Extract project information from task list with proper type checking
+      const metadata = taskListData.metadata as Record<string, unknown> | undefined;
+      const techStack = metadata?.techStack as Record<string, unknown> | undefined;
       const projectParams: CreateProjectParams = {
-        name: taskListData.metadata?.projectName || 'Untitled Project',
-        description: taskListData.metadata?.description || 'Project created from task list',
+        name: (typeof metadata?.projectName === 'string' ? metadata.projectName : 'Untitled Project'),
+        description: (typeof metadata?.description === 'string' ? metadata.description : 'Project created from task list'),
         tags: ['task-list-generated'],
         techStack: {
-          languages: taskListData.metadata?.techStack?.languages || [],
-          frameworks: taskListData.metadata?.techStack?.frameworks || [],
-          tools: taskListData.metadata?.techStack?.tools || []
+          languages: Array.isArray(techStack?.languages) ? techStack.languages as string[] : [],
+          frameworks: Array.isArray(techStack?.frameworks) ? techStack.frameworks as string[] : [],
+          tools: Array.isArray(techStack?.tools) ? techStack.tools as string[] : []
         }
       };
 
@@ -649,8 +654,8 @@ export class ProjectOperations {
    */
   private async determineOptimalAgentConfig(
     params: CreateProjectParams,
-    config: any
-  ): Promise<{ maxAgents: number; defaultAgent: string; agentCapabilities: Record<string, any> }> {
+    config: Record<string, unknown>
+  ): Promise<{ maxAgents: number; defaultAgent: string; agentCapabilities: Record<string, string[] | boolean> }> {
     try {
       logger.debug({
         projectName: params.name,
@@ -721,10 +726,12 @@ export class ProjectOperations {
         projectName: params.name
       }, 'Failed to determine optimal agent configuration, using defaults');
 
-      // Fallback to default configuration
+      // Fallback to default configuration with type safety
+      const taskManager = config.taskManager as Record<string, unknown> | undefined;
+      const agentSettings = taskManager?.agentSettings as Record<string, unknown> | undefined;
       return {
-        maxAgents: config.taskManager.agentSettings.maxAgents,
-        defaultAgent: config.taskManager.agentSettings.defaultAgent,
+        maxAgents: typeof agentSettings?.maxAgents === 'number' ? agentSettings.maxAgents : 3,
+        defaultAgent: typeof agentSettings?.defaultAgent === 'string' ? agentSettings.defaultAgent : 'general',
         agentCapabilities: {}
       };
     }
@@ -775,7 +782,7 @@ export class ProjectOperations {
     };
 
     // Calculate scores for each agent specialization
-    for (const [agentType, spec] of Object.entries(agentSpecializations)) {
+    for (const [, spec] of Object.entries(agentSpecializations)) {
       // Language match score (40% weight)
       const languageMatches = languages.filter(lang =>
         spec.languages.some(specLang => lang.toLowerCase().includes(specLang))
@@ -818,19 +825,19 @@ export class ProjectOperations {
   /**
    * Build agent capabilities based on tech stack
    */
-  private buildAgentCapabilities(languages: string[], frameworks: string[], tools: string[]): Record<string, any> {
-    const capabilities: Record<string, any> = {};
+  private buildAgentCapabilities(languages: string[], frameworks: string[], tools: string[]): Record<string, string[] | boolean> {
+    const capabilities: Record<string, string[] | boolean> = {};
 
     // Language capabilities
     if (languages.length > 0) {
       capabilities.languages = languages;
-      capabilities.primaryLanguage = languages[0];
+      capabilities.primaryLanguage = [languages[0]];
     }
 
     // Framework capabilities
     if (frameworks.length > 0) {
       capabilities.frameworks = frameworks;
-      capabilities.primaryFramework = frameworks[0];
+      capabilities.primaryFramework = [frameworks[0]];
     }
 
     // Tool capabilities
@@ -844,7 +851,7 @@ export class ProjectOperations {
       );
     }
 
-    // Derived capabilities
+    // Derived capabilities (boolean flags)
     capabilities.isFullStack = languages.includes('javascript') || languages.includes('typescript');
     capabilities.isMobile = frameworks.some(fw => ['react-native', 'flutter', 'ionic'].includes(fw));
     capabilities.isBackend = frameworks.some(fw => ['node.js', 'express', 'django', 'fastapi', 'spring'].includes(fw));
@@ -860,9 +867,11 @@ export class ProjectOperations {
     languages: string[],
     frameworks: string[],
     tools: string[],
-    config: any
+    config: Record<string, unknown>
   ): number {
-    const baseAgents = config.taskManager.agentSettings.maxAgents;
+    const taskManager = config.taskManager as Record<string, unknown> | undefined;
+    const agentSettings = taskManager?.agentSettings as Record<string, unknown> | undefined;
+    const baseAgents = typeof agentSettings?.maxAgents === 'number' ? agentSettings.maxAgents : 3;
 
     // Complexity factors
     let complexityScore = 0;

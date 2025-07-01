@@ -6,7 +6,7 @@
  */
 
 import * as path from 'path';
-import { FileUtils, FileOperationResult } from './file-utils.js';
+import { FileUtils } from './file-utils.js';
 import logger from '../../../logger.js';
 
 /**
@@ -22,7 +22,7 @@ export interface StorageInitConfig {
   /** Index files to create with their default data */
   indexFiles: Array<{
     path: string;
-    defaultData: any;
+    defaultData: Record<string, unknown>;
   }>;
   /** Whether to validate paths for security */
   validatePaths?: boolean;
@@ -188,7 +188,7 @@ export class StorageInitializer {
   /**
    * Create standard index data structure
    */
-  static createIndexData(entityType: string, version = '1.0.0'): any {
+  static createIndexData(entityType: string, version = '1.0.0'): Record<string, unknown> {
     return {
       [entityType]: [],
       lastUpdated: new Date().toISOString(),

@@ -14,6 +14,20 @@ import type { AtomicTask } from '../types/task.js';
 import { validateSecurePath } from '../utils/path-security-validator.js';
 
 /**
+ * Sub-task structure used during parsing
+ */
+interface TaskListSubTask {
+  id: string;
+  goal?: string;
+  task?: string;
+  rationale?: string;
+  expectedOutcome?: string;
+  implementationPrompt?: string;
+  objectives?: string[];
+  exampleCode?: string;
+}
+
+/**
  * Task List parsing result
  */
 export interface TaskListResult {
@@ -401,8 +415,7 @@ export class TaskListIntegrationService {
       let currentPhase: string = '';
       let currentPhaseDescription: string = '';
       let currentTask: Partial<TaskListItem> | null = null;
-      let currentSubTask: any = null;
-      let taskCounter = 1;
+      let currentSubTask: TaskListSubTask | null = null;
       let inTaskBlock = false;
 
       for (let i = 0; i < lines.length; i++) {
@@ -479,7 +492,19 @@ export class TaskListIntegrationService {
             // Finalize previous sub-task
             if (currentSubTask) {
               currentTask.subTasks = currentTask.subTasks || [];
-              currentTask.subTasks.push(currentSubTask);
+              // Convert TaskListSubTask to TaskListItem
+              const taskListItem: TaskListItem = {
+                id: currentSubTask.id,
+                title: currentSubTask.task || currentSubTask.goal || 'Untitled Sub-task',
+                description: currentSubTask.rationale || currentSubTask.expectedOutcome || '',
+                userStory: currentSubTask.objectives?.join('; ') || '',
+                priority: 'medium' as const,
+                dependencies: [],
+                estimatedEffort: '1-2 hours',
+                phase: currentPhase,
+                markdownContent: `Sub-task: ${currentSubTask.task || currentSubTask.goal || ''}`
+              };
+              currentTask.subTasks.push(taskListItem);
             }
 
             // Start new sub-task
@@ -611,14 +636,24 @@ export class TaskListIntegrationService {
         if (currentPhase && !line.startsWith('- **') && !line.startsWith('#') && line.length > 0 && !inTaskBlock) {
           currentPhaseDescription += line + ' ';
         }
-
-        taskCounter++;
       }
 
       // Finalize last sub-task
       if (currentSubTask && currentTask) {
         currentTask.subTasks = currentTask.subTasks || [];
-        currentTask.subTasks.push(currentSubTask);
+        // Convert TaskListSubTask to TaskListItem
+        const taskListItem: TaskListItem = {
+          id: currentSubTask.id,
+          title: currentSubTask.task || currentSubTask.goal || 'Untitled Sub-task',
+          description: currentSubTask.rationale || currentSubTask.expectedOutcome || '',
+          userStory: currentSubTask.objectives?.join('; ') || '',
+          priority: 'medium' as const,
+          dependencies: [],
+          estimatedEffort: '1-2 hours',
+          phase: currentPhase,
+          markdownContent: `Sub-task: ${currentSubTask.task || currentSubTask.goal || ''}`
+        };
+        currentTask.subTasks.push(taskListItem);
       }
 
       // Finalize last task

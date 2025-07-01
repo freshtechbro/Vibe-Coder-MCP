@@ -3,10 +3,9 @@
  * Validates environment variables, configuration files, and runtime settings
  */
 
-import { VibeTaskManagerConfig, VibeTaskManagerSecurityConfig, PerformanceConfig } from './config-loader.js';
+import { VibeTaskManagerConfig, VibeTaskManagerSecurityConfig } from './config-loader.js';
 import logger from '../../../logger.js';
 import fs from 'fs/promises';
-import path from 'path';
 
 /**
  * Configuration validation result
@@ -128,14 +127,15 @@ export class ConfigValidator {
       'VIBE_CODER_OUTPUT_DIR'
     ];
 
-    const optional = [
-      'VIBE_TASK_MANAGER_READ_DIR',
-      'VIBE_TASK_MANAGER_SECURITY_MODE',
-      'VIBE_SECURITY_ENABLED',
-      'VIBE_SECURITY_STRICT_MODE',
-      'VIBE_SECURITY_PERFORMANCE_THRESHOLD',
-      'NODE_ENV'
-    ];
+    // Optional environment variables (for documentation purposes)
+    // const _optional = [
+    //   'VIBE_TASK_MANAGER_READ_DIR',
+    //   'VIBE_TASK_MANAGER_SECURITY_MODE',
+    //   'VIBE_SECURITY_ENABLED',
+    //   'VIBE_SECURITY_STRICT_MODE',
+    //   'VIBE_SECURITY_PERFORMANCE_THRESHOLD',
+    //   'NODE_ENV'
+    // ];
 
     const missing: string[] = [];
     const invalid: string[] = [];
@@ -197,18 +197,18 @@ export class ConfigValidator {
       // Validate directory paths exist and are accessible
       try {
         await fs.access(config.allowedReadDirectory, fs.constants.R_OK);
-      } catch (error) {
+      } catch {
         errors.push(`Read directory not accessible: ${config.allowedReadDirectory}`);
       }
 
       try {
         await fs.access(config.allowedWriteDirectory, fs.constants.W_OK);
-      } catch (error) {
+      } catch {
         // Try to create the directory if it doesn't exist
         try {
           await fs.mkdir(config.allowedWriteDirectory, { recursive: true });
           suggestions.push(`Created write directory: ${config.allowedWriteDirectory}`);
-        } catch (createError) {
+        } catch {
           errors.push(`Write directory not accessible and cannot be created: ${config.allowedWriteDirectory}`);
         }
       }
@@ -247,7 +247,7 @@ export class ConfigValidator {
   /**
    * Validate LLM configuration
    */
-  private validateLLMConfig(config: any): { errors: string[]; warnings: string[] } {
+  private validateLLMConfig(config: unknown): { errors: string[]; warnings: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -256,15 +256,17 @@ export class ConfigValidator {
       return { errors, warnings };
     }
 
-    if (!config.apiKey) {
+    const llmConfig = config as Record<string, unknown>;
+
+    if (!llmConfig.apiKey) {
       errors.push('LLM API key is required');
     }
 
-    if (!config.baseURL) {
+    if (!llmConfig.baseURL) {
       warnings.push('LLM base URL not specified, using default');
     }
 
-    if (config.timeout && (config.timeout < 1000 || config.timeout > 300000)) {
+    if (llmConfig.timeout && (typeof llmConfig.timeout === 'number' && (llmConfig.timeout < 1000 || llmConfig.timeout > 300000))) {
       warnings.push('LLM timeout should be between 1 second and 5 minutes');
     }
 
@@ -274,7 +276,7 @@ export class ConfigValidator {
   /**
    * Validate MCP configuration
    */
-  private validateMCPConfig(config: any): { errors: string[]; warnings: string[] } {
+  private validateMCPConfig(config: unknown): { errors: string[]; warnings: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -283,8 +285,9 @@ export class ConfigValidator {
       return { errors, warnings };
     }
 
-    if (config.transport && !['stdio', 'sse', 'websocket', 'http'].includes(config.transport)) {
-      errors.push(`Invalid MCP transport: ${config.transport}`);
+    const mcpConfig = config as Record<string, unknown>;
+    if (mcpConfig.transport && typeof mcpConfig.transport === 'string' && !['stdio', 'sse', 'websocket', 'http'].includes(mcpConfig.transport)) {
+      errors.push(`Invalid MCP transport: ${mcpConfig.transport}`);
     }
 
     return { errors, warnings };
@@ -293,7 +296,7 @@ export class ConfigValidator {
   /**
    * Validate Task Manager configuration
    */
-  private validateTaskManagerConfig(config: any): { errors: string[]; warnings: string[]; suggestions: string[] } {
+  private validateTaskManagerConfig(config: unknown): { errors: string[]; warnings: string[]; suggestions: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
     const suggestions: string[] = [];
@@ -303,23 +306,27 @@ export class ConfigValidator {
       return { errors, warnings, suggestions };
     }
 
+    const taskConfig = config as Record<string, unknown>;
+
     // Validate numeric ranges
-    if (config.maxConcurrentTasks && (config.maxConcurrentTasks < 1 || config.maxConcurrentTasks > 100)) {
+    if (taskConfig.maxConcurrentTasks && typeof taskConfig.maxConcurrentTasks === 'number' && (taskConfig.maxConcurrentTasks < 1 || taskConfig.maxConcurrentTasks > 100)) {
       errors.push('maxConcurrentTasks must be between 1 and 100');
     }
 
-    if (config.performanceTargets?.maxResponseTime && config.performanceTargets.maxResponseTime > 1000) {
+    const performanceTargets = taskConfig.performanceTargets as Record<string, unknown> | undefined;
+    if (performanceTargets?.maxResponseTime && typeof performanceTargets.maxResponseTime === 'number' && performanceTargets.maxResponseTime > 1000) {
       warnings.push('Response time target above 1 second may impact user experience');
     }
 
-    if (config.agentSettings?.maxAgents && config.agentSettings.maxAgents > 50) {
+    const agentSettings = taskConfig.agentSettings as Record<string, unknown> | undefined;
+    if (agentSettings?.maxAgents && typeof agentSettings.maxAgents === 'number' && agentSettings.maxAgents > 50) {
       warnings.push('High number of agents may impact performance');
     }
 
     // Validate coordination strategy
     const validStrategies = ['round_robin', 'least_loaded', 'capability_based', 'priority_based'];
-    if (config.agentSettings?.coordinationStrategy && !validStrategies.includes(config.agentSettings.coordinationStrategy)) {
-      errors.push(`Invalid coordination strategy: ${config.agentSettings.coordinationStrategy}`);
+    if (agentSettings?.coordinationStrategy && typeof agentSettings.coordinationStrategy === 'string' && !validStrategies.includes(agentSettings.coordinationStrategy)) {
+      errors.push(`Invalid coordination strategy: ${agentSettings.coordinationStrategy}`);
     }
 
     return { errors, warnings, suggestions };
@@ -328,7 +335,7 @@ export class ConfigValidator {
   /**
    * Validate performance configuration
    */
-  private validatePerformanceConfig(config: any): { errors: string[]; warnings: string[] } {
+  private validatePerformanceConfig(config: unknown): { errors: string[]; warnings: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -337,14 +344,19 @@ export class ConfigValidator {
       return { errors, warnings };
     }
 
+    const perfConfig = config as Record<string, unknown>;
+
     // Validate memory management
-    if (config.memoryManagement?.maxMemoryPercentage && 
-        (config.memoryManagement.maxMemoryPercentage < 10 || config.memoryManagement.maxMemoryPercentage > 90)) {
+    const memoryManagement = perfConfig.memoryManagement as Record<string, unknown> | undefined;
+    if (memoryManagement?.maxMemoryPercentage && 
+        typeof memoryManagement.maxMemoryPercentage === 'number' &&
+        (memoryManagement.maxMemoryPercentage < 10 || memoryManagement.maxMemoryPercentage > 90)) {
       errors.push('Memory percentage must be between 10% and 90%');
     }
 
     // Validate caching configuration
-    if (config.caching?.maxCacheSize && config.caching.maxCacheSize < 1024 * 1024) {
+    const caching = perfConfig.caching as Record<string, unknown> | undefined;
+    if (caching?.maxCacheSize && typeof caching.maxCacheSize === 'number' && caching.maxCacheSize < 1024 * 1024) {
       warnings.push('Cache size below 1MB may not be effective');
     }
 

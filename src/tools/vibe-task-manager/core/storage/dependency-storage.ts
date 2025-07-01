@@ -1,8 +1,35 @@
 import path from 'path';
 import { FileUtils, FileOperationResult } from '../../utils/file-utils.js';
-import { Dependency, DependencyGraph, DependencyType } from '../../types/dependency.js';
+import { Dependency, DependencyGraph } from '../../types/dependency.js';
 import { getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
 import logger from '../../../../logger.js';
+
+/**
+ * Dependency index structure
+ */
+interface DependencyIndex {
+  dependencies: Array<{
+    id: string;
+    fromTaskId: string;
+    toTaskId: string;
+    type: string;
+    critical: boolean;
+    createdAt: Date;
+  }>;
+  lastUpdated: string;
+  version: string;
+}
+
+/**
+ * Type guard for dependency index
+ */
+function isDependencyIndex(data: unknown): data is DependencyIndex {
+  if (!data || typeof data !== 'object') return false;
+  const index = data as Record<string, unknown>;
+  return Array.isArray(index.dependencies) && 
+         typeof index.lastUpdated === 'string' && 
+         typeof index.version === 'string';
+}
 
 /**
  * Dependency storage interface
@@ -618,26 +645,42 @@ export class DependencyStorage implements DependencyStorageOperations {
       const graphData = loadResult.data!;
 
       // Convert object back to Map with proper typing
-      const graphData_: any = graphData;
+      const graphData_: Record<string, unknown> = graphData as Record<string, unknown>;
+      
+      // Safe type guards for array and object properties
+      const edges = Array.isArray(graphData_.edges) ? graphData_.edges : [];
+      const executionOrder = Array.isArray(graphData_.executionOrder) ? graphData_.executionOrder : [];
+      const criticalPath = Array.isArray(graphData_.criticalPath) ? graphData_.criticalPath : [];
+      
+      // Safe extraction of statistics with defaults
+      const statisticsData = graphData_.statistics && typeof graphData_.statistics === 'object' ? graphData_.statistics as Record<string, unknown> : {};
+      const statistics = {
+        totalTasks: typeof statisticsData.totalTasks === 'number' ? statisticsData.totalTasks : 0,
+        totalDependencies: typeof statisticsData.totalDependencies === 'number' ? statisticsData.totalDependencies : 0,
+        maxDepth: typeof statisticsData.maxDepth === 'number' ? statisticsData.maxDepth : 0,
+        cyclicDependencies: Array.isArray(statisticsData.cyclicDependencies) ? statisticsData.cyclicDependencies : [],
+        orphanedTasks: Array.isArray(statisticsData.orphanedTasks) ? statisticsData.orphanedTasks : []
+      };
+      
+      // Safe extraction of metadata with defaults
+      const metadataData = graphData_.metadata && typeof graphData_.metadata === 'object' ? graphData_.metadata as Record<string, unknown> : {};
+      const metadata = {
+        generatedAt: typeof metadataData.generatedAt === 'string' || typeof metadataData.generatedAt === 'number' 
+          ? new Date(metadataData.generatedAt) 
+          : new Date(),
+        version: typeof metadataData.version === 'string' ? metadataData.version : '1.0.0',
+        isValid: typeof metadataData.isValid === 'boolean' ? metadataData.isValid : true,
+        validationErrors: Array.isArray(metadataData.validationErrors) ? metadataData.validationErrors : []
+      };
+      
       const graph: DependencyGraph = {
-        projectId: graphData_.projectId || '',
+        projectId: (graphData_.projectId as string) || '',
         nodes: new Map(Object.entries(graphData_.nodes || {})),
-        edges: graphData_.edges || [],
-        executionOrder: graphData_.executionOrder || [],
-        criticalPath: graphData_.criticalPath || [],
-        statistics: graphData_.statistics || {
-          totalTasks: 0,
-          totalDependencies: 0,
-          maxDepth: 0,
-          cyclicDependencies: [],
-          orphanedTasks: []
-        },
-        metadata: graphData_.metadata || {
-          generatedAt: new Date(),
-          version: '1.0.0',
-          isValid: true,
-          validationErrors: []
-        }
+        edges,
+        executionOrder,
+        criticalPath,
+        statistics,
+        metadata
       };
 
       return {
@@ -773,30 +816,48 @@ export class DependencyStorage implements DependencyStorageOperations {
   /**
    * Check if dependency belongs to a project (helper method)
    */
-  private isDependencyInProject(dependency: Dependency, projectId: string): boolean {
+  private isDependencyInProject(_dependency: Dependency, _projectId: string): boolean {
     // This would need to be implemented based on how we determine project membership
     // For now, we'll assume all dependencies belong to all projects
     return true;
   }
 
   /**
-   * Load dependency index
+   * Load dependency index with proper typing
    */
-  private async loadIndex(): Promise<FileOperationResult<any>> {
+  private async loadIndex(): Promise<FileOperationResult<DependencyIndex>> {
     if (!await FileUtils.fileExists(this.dependencyIndexFile)) {
       const initResult = await this.initialize();
       if (!initResult.success) {
-        return initResult as FileOperationResult<any>;
+        return initResult as FileOperationResult<DependencyIndex>;
       }
     }
 
-    return await FileUtils.readJsonFile(this.dependencyIndexFile);
+    const result = await FileUtils.readJsonFile(this.dependencyIndexFile);
+    if (!result.success) {
+      return result as FileOperationResult<DependencyIndex>;
+    }
+
+    // Validate the loaded data
+    if (!isDependencyIndex(result.data)) {
+      return {
+        success: false,
+        error: 'Invalid dependency index format',
+        metadata: result.metadata
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      metadata: result.metadata
+    };
   }
 
   /**
    * Update dependency index
    */
-  private async updateIndex(operation: 'add' | 'update' | 'remove', dependencyId: string, dependencyInfo?: any): Promise<FileOperationResult<void>> {
+  private async updateIndex(operation: 'add' | 'update' | 'remove', dependencyId: string, dependencyInfo?: DependencyIndex['dependencies'][0]): Promise<FileOperationResult<void>> {
     try {
       const indexResult = await this.loadIndex();
       if (!indexResult.success) {
@@ -807,24 +868,25 @@ export class DependencyStorage implements DependencyStorageOperations {
 
       switch (operation) {
         case 'add':
-          if (!index.dependencies.find((d: any) => d.id === dependencyId)) {
+          if (!index.dependencies.find(d => d.id === dependencyId) && dependencyInfo) {
             index.dependencies.push(dependencyInfo);
           }
           break;
 
-        case 'update':
-          const updateIndex = index.dependencies.findIndex((d: any) => d.id === dependencyId);
-          if (updateIndex !== -1) {
+        case 'update': {
+          const updateIndex = index.dependencies.findIndex(d => d.id === dependencyId);
+          if (updateIndex !== -1 && dependencyInfo) {
             index.dependencies[updateIndex] = dependencyInfo;
           }
           break;
+        }
 
         case 'remove':
-          index.dependencies = index.dependencies.filter((d: any) => d.id !== dependencyId);
+          index.dependencies = index.dependencies.filter(d => d.id !== dependencyId);
           break;
       }
 
-      index.lastUpdated = new Date().toISOString();
+      (index as DependencyIndex).lastUpdated = new Date().toISOString();
 
       return await FileUtils.writeJsonFile(this.dependencyIndexFile, index);
 

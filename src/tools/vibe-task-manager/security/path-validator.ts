@@ -11,10 +11,8 @@
 
 import fs from 'fs-extra';
 import path from 'path';
-import { VibeTaskManagerConfig } from '../utils/config-loader.js';
-import { AppError, ValidationError } from '../../../utils/errors.js';
-import { getUnifiedSecurityConfig } from './unified-security-config.js';
 import logger from '../../../logger.js';
+import { getUnifiedSecurityConfig } from './unified-security-config.js';
 
 /**
  * Path validation result
@@ -87,14 +85,22 @@ export class PathSecurityValidator {
         blockedPatterns: [
           /\.\./g, // Directory traversal
           /~\//g, // Home directory access
+          // eslint-disable-next-line no-useless-escape
           /\/etc\//g, // System config access
+          // eslint-disable-next-line no-useless-escape
           /\/proc\//g, // Process info access
+          // eslint-disable-next-line no-useless-escape
           /\/sys\//g, // System info access
+          // eslint-disable-next-line no-useless-escape
           /\/dev\//g, // Device access
+          // eslint-disable-next-line no-useless-escape
           /\/var\/log\//g, // System logs
+          // eslint-disable-next-line no-useless-escape
           /\/root\//g, // Root directory
+          // eslint-disable-next-line no-useless-escape
           /\/home\/[^\/]+\/\.[^\/]+/g, // Hidden files in home dirs
           /\0/g, // Null bytes
+          // eslint-disable-next-line no-control-regex
           /[\x00-\x1f\x7f-\x9f]/g // Control characters
         ],
         allowSymlinks: false,
@@ -131,14 +137,22 @@ export class PathSecurityValidator {
         blockedPatterns: [
           /\.\./g, // Directory traversal
           /~\//g, // Home directory access
+          // eslint-disable-next-line no-useless-escape
           /\/etc\//g, // System config access
+          // eslint-disable-next-line no-useless-escape
           /\/proc\//g, // Process info access
+          // eslint-disable-next-line no-useless-escape
           /\/sys\//g, // System info access
+          // eslint-disable-next-line no-useless-escape
           /\/dev\//g, // Device access
+          // eslint-disable-next-line no-useless-escape
           /\/var\/log\//g, // System logs
+          // eslint-disable-next-line no-useless-escape
           /\/root\//g, // Root directory
+          // eslint-disable-next-line no-useless-escape
           /\/home\/[^\/]+\/\.[^\/]+/g, // Hidden files in home dirs
           /\0/g, // Null bytes
+          // eslint-disable-next-line no-control-regex
           /[\x00-\x1f\x7f-\x9f]/g // Control characters
         ],
         allowSymlinks: false,
@@ -169,7 +183,7 @@ export class PathSecurityValidator {
    */
   async validatePath(
     filePath: string,
-    operation: 'read' | 'write' | 'execute' = 'read',
+    _operation: 'read' | 'write' | 'execute' = 'read',
     context?: { sessionId?: string; userAgent?: string }
   ): Promise<PathValidationResult> {
     const startTime = Date.now();
@@ -201,6 +215,7 @@ export class PathSecurityValidator {
       try {
         canonicalPath = path.resolve(filePath);
       } catch (error) {
+        logger.debug({ error, filePath }, 'Path canonicalization failed');
         return this.createValidationResult(false, auditInfo, 'Path canonicalization failed', 'malformed');
       }
 
@@ -280,9 +295,6 @@ export class PathSecurityValidator {
    * Check if path contains directory traversal
    */
   private containsTraversal(canonicalPath: string, originalPath: string): boolean {
-    // Check if the canonical path is different from what we'd expect
-    const expectedCanonical = path.resolve(originalPath);
-
     // Check for common traversal patterns
     const traversalPatterns = ['../', '..\\', '%2e%2e%2f', '%2e%2e%5c'];
     return traversalPatterns.some(pattern => originalPath.toLowerCase().includes(pattern));
@@ -330,7 +342,7 @@ export class PathSecurityValidator {
     violationType?: string,
     context?: { sessionId?: string; userAgent?: string },
     validationTime?: number,
-    error?: any
+    error?: Error | unknown
   ): void {
     const auditEvent: PathSecurityAuditEvent = {
       id: `path_audit_${++this.auditCounter}_${Date.now()}`,
@@ -342,7 +354,7 @@ export class PathSecurityValidator {
       sessionId: context?.sessionId,
       timestamp: new Date(),
       validationTime: validationTime || 0,
-      stackTrace: error?.stack
+      stackTrace: error instanceof Error ? error.stack : undefined
     };
 
     this.auditEvents.push(auditEvent);
@@ -363,7 +375,7 @@ export class PathSecurityValidator {
     } else if (type === 'validation_failure') {
       logger.error({
         auditEvent,
-        error: error?.message
+        error: error instanceof Error ? error.message : String(error || 'Unknown error')
       }, 'Path validation failed');
     } else {
       logger.debug({

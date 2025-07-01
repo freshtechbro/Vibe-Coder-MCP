@@ -3,7 +3,7 @@
  * Orchestrates multi-strategy intent recognition with pattern matching and LLM fallback
  */
 
-import { Intent, RecognizedIntent, IntentRecognitionConfig, ConfidenceLevel } from '../types/nl.js';
+import { Intent, IntentRecognitionConfig, ConfidenceLevel } from '../types/nl.js';
 import { IntentPatternEngine, IntentMatch } from './patterns.js';
 import { LLMFallbackSystem } from './llm-fallback.js';
 import { ConfigLoader, VibeTaskManagerConfig } from '../utils/config-loader.js';
@@ -21,7 +21,7 @@ export interface RecognitionResult {
   intent: Intent;
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  entities: Record<string, any>;
+  entities: Record<string, unknown>;
   strategy: RecognitionStrategy;
   alternatives: Array<{
     intent: Intent;
@@ -143,7 +143,7 @@ export class IntentRecognitionEngine {
   /**
    * Recognize intent from natural language text
    */
-  async recognizeIntent(text: string, context?: Record<string, any>): Promise<RecognitionResult | null> {
+  async recognizeIntent(text: string, context?: Record<string, unknown>): Promise<RecognitionResult | null> {
     const startTime = Date.now();
     this.recognitionStats.totalRequests++;
 
@@ -204,7 +204,7 @@ export class IntentRecognitionEngine {
    */
   private async recognizeWithPatterns(
     text: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     startTime?: number
   ): Promise<RecognitionResult | null> {
     const matches = this.patternEngine.matchIntent(text);
@@ -240,7 +240,7 @@ export class IntentRecognitionEngine {
    */
   private async recognizeWithLLM(
     text: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     startTime?: number
   ): Promise<RecognitionResult | null> {
     const llmResult = await this.llmFallback.recognizeIntent(text, 0, context);
@@ -255,7 +255,15 @@ export class IntentRecognitionEngine {
       intent: llmResult.intent,
       confidence: llmResult.confidence,
       confidenceLevel: llmResult.confidenceLevel,
-      entities: llmResult.entities,
+      entities: Array.isArray(llmResult.entities) 
+        ? llmResult.entities.reduce((acc: Record<string, unknown>, entity: unknown) => {
+            if (entity && typeof entity === 'object' && 'type' in entity) {
+              const entityObj = entity as { type: string; value?: unknown; text?: unknown };
+              acc[entityObj.type] = entityObj.value || entityObj.text || entity;
+            }
+            return acc;
+          }, {})
+        : llmResult.entities || {},
       strategy: 'llm',
       alternatives: llmResult.alternatives.map(alt => ({
         intent: alt.intent,
@@ -275,7 +283,7 @@ export class IntentRecognitionEngine {
    */
   private async recognizeWithHybrid(
     text: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     startTime?: number
   ): Promise<RecognitionResult | null> {
     // First try pattern matching
@@ -320,7 +328,7 @@ export class IntentRecognitionEngine {
    */
   private async tryFallbackStrategy(
     text: string,
-    context: Record<string, any> | undefined,
+    context: Record<string, unknown> | undefined,
     startTime: number,
     primaryResult: RecognitionResult | null
   ): Promise<RecognitionResult | null> {
@@ -362,7 +370,7 @@ export class IntentRecognitionEngine {
   async disambiguateIntents(
     text: string,
     candidates: RecognitionResult[],
-    context?: Record<string, any>
+    _context?: Record<string, unknown>
   ): Promise<RecognitionResult | null> {
     if (candidates.length <= 1) {
       return candidates[0] || null;
@@ -379,7 +387,7 @@ export class IntentRecognitionEngine {
 
     // Use LLM for disambiguation if enabled
     if (this.config.useLlmForAmbiguous) {
-      const disambiguationPrompt = this.buildDisambiguationPrompt(text, candidates);
+      // const disambiguationPrompt = this.buildDisambiguationPrompt(text, candidates);
       // This would require a specialized disambiguation LLM call
       // For now, return the highest confidence result
     }

@@ -1,5 +1,5 @@
 import { AtomicTask } from '../types/task.js';
-import { Dependency, DependencyType, DependencyNode } from '../types/dependency.js';
+import { DependencyNode } from '../types/dependency.js';
 import logger from '../../../logger.js';
 
 /**
@@ -1262,7 +1262,7 @@ export class OptimizedDependencyGraph {
   private identifyParallelismOpportunities(): ResourceOptimization['parallelismOpportunities'] {
     const opportunities: ResourceOptimization['parallelismOpportunities'] = [];
 
-    for (const [taskId, node] of this.nodes) {
+    for (const [taskId] of this.nodes) {
       const canRunWith = this.findParallelizableTasks(taskId);
       if (canRunWith.length > 0) {
         const estimatedSavings = this.calculateParallelSavings(taskId, canRunWith);
@@ -1602,7 +1602,7 @@ export class OptimizedDependencyGraph {
     const taskDependencies = new Map<string, ExtendedDependencyType[]>();
 
     // Group dependencies by task
-    for (const [_, edge] of this.edges) {
+    for (const [, edge] of this.edges) {
       if (!taskDependencies.has(edge.from)) {
         taskDependencies.set(edge.from, []);
       }
@@ -1847,7 +1847,7 @@ export class OptimizedDependencyGraph {
   private suggestDependencyTypeImprovements(): DependencySuggestion[] {
     const suggestions: DependencySuggestion[] = [];
 
-    for (const [edgeId, edge] of this.edges) {
+    for (const [, edge] of this.edges) {
       const fromNode = this.nodes.get(edge.from);
       const toNode = this.nodes.get(edge.to);
 
@@ -1904,10 +1904,9 @@ export class OptimizedDependencyGraph {
    */
   private suggestParallelizationOpportunities(): DependencySuggestion[] {
     const suggestions: DependencySuggestion[] = [];
-    const parallelBatches = this.getParallelBatches();
 
     // Look for tasks that could be parallelized by removing unnecessary dependencies
-    for (const [edgeId, edge] of this.edges) {
+    for (const [, edge] of this.edges) {
       if (this.couldBeParallelized(edge.from, edge.to)) {
         suggestions.push({
           type: 'remove',
@@ -1975,7 +1974,7 @@ export class OptimizedDependencyGraph {
 
     // Check for duplicate dependencies (same tasks, different types)
     const taskPairs = new Map<string, ExtendedDependencyType[]>();
-    for (const [_, edge] of this.edges) {
+    for (const [, edge] of this.edges) {
       const pairKey = `${edge.from}->${edge.to}`;
       if (!taskPairs.has(pairKey)) {
         taskPairs.set(pairKey, []);
@@ -2184,7 +2183,7 @@ export class OptimizedDependencyGraph {
     const warnings: string[] = [];
 
     // 1. Validate checksum
-    const calculatedChecksum = this.calculateChecksum(serializedGraph);
+    const calculatedChecksum = this.calculateChecksum(serializedGraph as unknown as Record<string, unknown>);
     const checksumValid = calculatedChecksum === serializedGraph.checksum;
     if (!checksumValid) {
       errors.push('Checksum validation failed - data may be corrupted');
@@ -2209,7 +2208,6 @@ export class OptimizedDependencyGraph {
     let dataConsistent = true;
     if (structureValid) {
       const nodeIds = Object.keys(serializedGraph.nodes);
-      const edgeIds = Object.keys(serializedGraph.edges);
 
       // Check if all edge references point to existing nodes
       for (const [edgeId, edge] of Object.entries(serializedGraph.edges)) {
@@ -2400,7 +2398,7 @@ export class OptimizedDependencyGraph {
   /**
    * Calculate checksum for data integrity
    */
-  private calculateChecksum(data: any): string {
+  private calculateChecksum(data: Record<string, unknown>): string {
     // Create a copy without the checksum field and timestamp to avoid circular dependency
     // and ensure deterministic checksums
     const dataForChecksum = { ...data };
@@ -2424,7 +2422,7 @@ export class OptimizedDependencyGraph {
   /**
    * Recursively sort object keys for deterministic serialization
    */
-  private sortObjectKeysRecursively(obj: any): any {
+  private sortObjectKeysRecursively(obj: unknown): unknown {
     if (obj === null || typeof obj !== 'object') {
       return obj;
     }
@@ -2433,11 +2431,11 @@ export class OptimizedDependencyGraph {
       return obj.map(item => this.sortObjectKeysRecursively(item));
     }
 
-    const sortedObj: any = {};
-    const sortedKeys = Object.keys(obj).sort();
+    const sortedObj: Record<string, unknown> = {};
+    const sortedKeys = Object.keys(obj as Record<string, unknown>).sort();
 
     for (const key of sortedKeys) {
-      sortedObj[key] = this.sortObjectKeysRecursively(obj[key]);
+      sortedObj[key] = this.sortObjectKeysRecursively((obj as Record<string, unknown>)[key]);
     }
 
     return sortedObj;
@@ -2519,10 +2517,10 @@ export class OptimizedDependencyGraph {
     // This is a simplified YAML parser for our specific format
     // In production, use a proper YAML library like 'yaml' or 'js-yaml'
     const lines = content.split('\n');
-    const result: any = {};
+    const result: Record<string, unknown> = {};
 
     let currentSection = '';
-    let currentObject: any = null;
+    let currentObject: Record<string, unknown> | null = null;
     let currentKey = '';
 
     for (const line of lines) {
@@ -2544,8 +2542,8 @@ export class OptimizedDependencyGraph {
         if (currentSection === 'nodes' || currentSection === 'edges') {
           if (cleanKey.startsWith('"') && cleanKey.endsWith('":')) {
             currentKey = cleanKey.slice(1, -2);
-            result[currentSection][currentKey] = {};
-            currentObject = result[currentSection][currentKey];
+            (result[currentSection] as Record<string, unknown>)[currentKey] = {};
+            currentObject = (result[currentSection] as Record<string, unknown>)[currentKey] as Record<string, unknown>;
           } else if (currentObject) {
             if (cleanValue === 'true' || cleanValue === 'false') {
               currentObject[cleanKey] = cleanValue === 'true';
@@ -2561,11 +2559,11 @@ export class OptimizedDependencyGraph {
         } else if (currentSection === 'metadata') {
           if (cleanValue.startsWith('[') && cleanValue.endsWith(']')) {
             const arrayContent = cleanValue.slice(1, -1);
-            result[currentSection][cleanKey] = arrayContent ? arrayContent.split(', ').map(item => item.replace(/^"(.*)"$/, '$1')) : [];
+            (result[currentSection] as Record<string, unknown>)[cleanKey] = arrayContent ? arrayContent.split(', ').map(item => item.replace(/^"(.*)"$/, '$1')) : [];
           } else if (!isNaN(Number(cleanValue))) {
-            result[currentSection][cleanKey] = Number(cleanValue);
+            (result[currentSection] as Record<string, unknown>)[cleanKey] = Number(cleanValue);
           } else {
-            result[currentSection][cleanKey] = cleanValue;
+            (result[currentSection] as Record<string, unknown>)[cleanKey] = cleanValue;
           }
         } else {
           if (!isNaN(Number(cleanValue))) {
@@ -2577,7 +2575,7 @@ export class OptimizedDependencyGraph {
       }
     }
 
-    return result as SerializedGraph;
+    return result as unknown as SerializedGraph;
   }
 
   /**
@@ -2623,7 +2621,6 @@ export class OptimizedDependencyGraph {
    */
   private async attemptRecovery(filePath: string, integrityResult: GraphIntegrityResult): Promise<GraphRecoveryResult> {
     const recoveryActions: string[] = [];
-    let recovered = false;
 
     try {
       // 1. Try to find backup files
@@ -2632,7 +2629,6 @@ export class OptimizedDependencyGraph {
         recoveryActions.push('Found backup file, attempting recovery');
         const backupResult = await this.loadFromFile(backupPath);
         if (backupResult.success) {
-          recovered = true;
           recoveryActions.push('Successfully recovered from backup');
           return {
             success: true,
@@ -2646,7 +2642,6 @@ export class OptimizedDependencyGraph {
       }
 
       // 2. Try to find version files
-      const versionPattern = `${filePath}.v`;
       // In a real implementation, we would scan for version files
       // For now, just log the attempt
       recoveryActions.push('Searched for version files (none found)');
@@ -2700,7 +2695,7 @@ export class OptimizedDependencyGraph {
 
     // Calculate average degree
     let totalDegree = 0;
-    for (const [_, adjacentNodes] of this.adjacencyList) {
+    for (const [, adjacentNodes] of this.adjacencyList) {
       totalDegree += adjacentNodes.size;
     }
     const averageDegree = this.nodes.size > 0 ? totalDegree / this.nodes.size : 0;
@@ -2726,7 +2721,7 @@ export class OptimizedDependencyGraph {
   private findOrphanedNodes(): string[] {
     const orphaned: string[] = [];
 
-    for (const [nodeId, node] of this.nodes) {
+    for (const [nodeId] of this.nodes) {
       const hasIncoming = (this.reverseIndex.get(nodeId)?.size || 0) > 0;
       const hasOutgoing = (this.adjacencyList.get(nodeId)?.size || 0) > 0;
 
@@ -2743,7 +2738,7 @@ export class OptimizedDependencyGraph {
   /**
    * Check if file exists
    */
-  private async fileExists(filePath: string): Promise<boolean> {
+  private async fileExists(_filePath: string): Promise<boolean> {
     // This would be implemented with actual file system access
     // For now, return false as file operations are not yet implemented
     return false;
@@ -2752,7 +2747,7 @@ export class OptimizedDependencyGraph {
   /**
    * Read file content
    */
-  private async readFile(filePath: string): Promise<string> {
+  private async readFile(_filePath: string): Promise<string> {
     // This would be implemented with actual file system access
     throw new Error('File system access not implemented in this context');
   }
@@ -2760,7 +2755,7 @@ export class OptimizedDependencyGraph {
   /**
    * Write file content
    */
-  private async writeFile(filePath: string, content: string): Promise<void> {
+  private async writeFile(_filePath: string, _content: string): Promise<void> {
     // This would be implemented with actual file system access
     throw new Error('File system access not implemented in this context');
   }
@@ -3182,7 +3177,7 @@ export class OptimizedDependencyGraph {
     }
 
     // Report conflicts where multiple tasks modify the same file
-    for (const [filePath, taskIds] of fileMap) {
+    for (const [, taskIds] of fileMap) {
       if (taskIds.length > 1) {
         // Check if these tasks have dependency relationships
         const hasRelationship = taskIds.some(taskId1 => 

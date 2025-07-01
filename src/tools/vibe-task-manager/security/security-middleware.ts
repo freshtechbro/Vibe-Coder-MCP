@@ -13,8 +13,6 @@ import { PathSecurityValidator, PathValidationResult } from './path-validator.js
 import { DataSanitizer, SanitizationResult } from './data-sanitizer.js';
 import { ConcurrentAccessManager, LockAcquisitionResult } from './concurrent-access.js';
 import { CommandExecutionContext } from '../nl/command-handlers.js';
-import { AtomicTask } from '../types/task.js';
-import { ValidationError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
 /**
@@ -22,9 +20,9 @@ import logger from '../../../logger.js';
  */
 export interface SecurityValidationResult {
   valid: boolean;
-  sanitizedData?: any;
+  sanitizedData?: unknown;
   pathValidation?: PathValidationResult;
-  sanitizationResult?: SanitizationResult<any>;
+  sanitizationResult?: SanitizationResult<unknown>;
   lockResult?: LockAcquisitionResult;
   violations: SecurityViolation[];
   performanceMetrics: {
@@ -43,9 +41,9 @@ export interface SecurityViolation {
   severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
   field?: string;
-  originalValue?: any;
-  sanitizedValue?: any;
-  context?: Record<string, any>;
+  originalValue?: unknown;
+  sanitizedValue?: unknown;
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -117,7 +115,7 @@ export class SecurityMiddleware {
    * Validate security for command execution
    */
   async validateCommandSecurity(
-    data: any,
+    data: unknown,
     context: CommandExecutionContext,
     operationContext: SecurityOperationContext
   ): Promise<SecurityValidationResult> {
@@ -125,7 +123,7 @@ export class SecurityMiddleware {
     const violations: SecurityViolation[] = [];
     let sanitizedData = data;
     let pathValidation: PathValidationResult | undefined;
-    let sanitizationResult: SanitizationResult<any> | undefined;
+    let sanitizationResult: SanitizationResult<unknown> | undefined;
     let lockResult: LockAcquisitionResult | undefined;
 
     try {
@@ -305,9 +303,9 @@ export class SecurityMiddleware {
     valid: boolean,
     violations: SecurityViolation[],
     performanceMetrics: SecurityValidationResult['performanceMetrics'],
-    sanitizedData?: any,
+    sanitizedData?: unknown,
     pathValidation?: PathValidationResult,
-    sanitizationResult?: SanitizationResult<any>,
+    sanitizationResult?: SanitizationResult<unknown>,
     lockResult?: LockAcquisitionResult
   ): SecurityValidationResult {
     return {
@@ -349,7 +347,7 @@ export class SecurityMiddleware {
  * Convenience function for command security validation
  */
 export async function validateCommandSecurity(
-  data: any,
+  data: unknown,
   context: CommandExecutionContext,
   operationContext: SecurityOperationContext
 ): Promise<SecurityValidationResult> {

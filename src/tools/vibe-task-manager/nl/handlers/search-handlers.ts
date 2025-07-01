@@ -53,10 +53,10 @@ export class SearchFilesHandler implements CommandHandler {
       // Perform search
       const results = await fileSearchService.searchFiles(projectPath, {
         pattern: searchPattern,
-        searchStrategy: searchOptions.strategy || 'fuzzy',
-        fileTypes: searchOptions.extensions,
-        excludeDirs: searchOptions.excludePatterns,
-        maxResults: searchOptions.maxResults || 20,
+        searchStrategy: (searchOptions.strategy as 'fuzzy' | 'exact' | 'regex' | 'glob' | 'content') || 'fuzzy',
+        fileTypes: searchOptions.extensions as string[] | undefined,
+        excludeDirs: searchOptions.excludePatterns as string[] | undefined,
+        maxResults: (searchOptions.maxResults as number) || 20,
         cacheResults: true
       });
 
@@ -142,8 +142,6 @@ export class SearchFilesHandler implements CommandHandler {
     }
 
     // Pattern matching from original input
-    const input = recognizedIntent.originalInput.toLowerCase();
-
     // Look for "find X files" or "search for X"
     const patterns = [
       /(?:find|search\s+for|locate)\s+(.+?)\s+files?/i,
@@ -165,8 +163,8 @@ export class SearchFilesHandler implements CommandHandler {
   /**
    * Extract search options from natural language input
    */
-  private extractSearchOptions(recognizedIntent: RecognizedIntent, toolParams: Record<string, unknown>): any {
-    const options: any = {};
+  private extractSearchOptions(recognizedIntent: RecognizedIntent, _toolParams: Record<string, unknown>): Record<string, unknown> {
+    const options: Record<string, unknown> = {};
     const input = recognizedIntent.originalInput.toLowerCase();
 
     // Extract file extensions
@@ -275,10 +273,10 @@ export class SearchContentHandler implements CommandHandler {
       const results = await fileSearchService.searchFiles(projectPath, {
         content: searchQuery,
         searchStrategy: 'content',
-        fileTypes: searchOptions.extensions,
-        excludeDirs: searchOptions.excludePatterns || ['node_modules', '.git', 'dist', 'build'],
-        maxResults: searchOptions.maxResults || 15,
-        caseSensitive: searchOptions.caseSensitive || false,
+        fileTypes: searchOptions.extensions as string[] | undefined,
+        excludeDirs: (searchOptions.excludePatterns as string[]) || ['node_modules', '.git', 'dist', 'build'],
+        maxResults: (searchOptions.maxResults as number) || 15,
+        caseSensitive: (searchOptions.caseSensitive as boolean) || false,
         cacheResults: true
       });
 
@@ -306,7 +304,7 @@ export class SearchContentHandler implements CommandHandler {
         // Show preview if available
         if (result.preview) {
           const lines = result.preview.split('\n').slice(0, 2);
-          lines.forEach((line, lineIndex) => {
+          lines.forEach((line, _lineIndex) => {
             const lineText = line.trim();
             responseText += `   \`${lineText.substring(0, 80)}${lineText.length > 80 ? '...' : ''}\`\n`;
           });
@@ -401,8 +399,8 @@ export class SearchContentHandler implements CommandHandler {
   /**
    * Extract search options from natural language input
    */
-  private extractSearchOptions(recognizedIntent: RecognizedIntent, toolParams: Record<string, unknown>): any {
-    const options: any = {};
+  private extractSearchOptions(recognizedIntent: RecognizedIntent, _toolParams: Record<string, unknown>): Record<string, unknown> {
+    const options: Record<string, unknown> = {};
     const input = recognizedIntent.originalInput.toLowerCase();
 
     // Extract file extensions

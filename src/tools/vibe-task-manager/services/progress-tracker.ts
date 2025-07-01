@@ -7,8 +7,6 @@
 
 import { AtomicTask } from '../types/task.js';
 import { AppError } from '../../../utils/errors.js';
-import { DecompositionService } from './decomposition-service.js';
-import { getDependencyGraph } from '../core/dependency-graph.js';
 import logger from '../../../logger.js';
 
 /**
@@ -154,7 +152,7 @@ export interface ProgressEventData {
   progressPercentage?: number;
   estimatedCompletion?: Date;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   // Enhanced properties for dependency tracking
   dependencyId?: string;
   // Enhanced properties for schedule deviation
@@ -446,7 +444,7 @@ export class ProgressTracker {
     }
 
     // Check for blockers
-    const blockers = task.dependencies?.filter(dep =>
+    const blockers = task.dependencies?.filter(_dep =>
       // In a real implementation, check if dependencies are blocking
       false // Placeholder
     ) || [];
@@ -592,17 +590,19 @@ export class ProgressTracker {
     if (items.length === 0) return 0;
 
     switch (this.config.method) {
-      case 'task_count':
+      case 'task_count': {
         const totalTasks = items.reduce((sum, item) => sum + item.total, 0);
         const completedTasks = items.reduce((sum, item) => sum + item.completed, 0);
         return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+      }
 
-      case 'estimated_hours':
+      case 'estimated_hours': {
         const totalHours = items.reduce((sum, item) => sum + (item.estimatedHours || 0), 0);
         const actualHours = items.reduce((sum, item) => sum + (item.actualHours || 0), 0);
         return totalHours > 0 ? Math.min((actualHours / totalHours) * 100, 100) : 0;
+      }
 
-      case 'weighted':
+      case 'weighted': {
         // Combine task count and hours with weights
         const taskProgress = this.calculateProgressPercentage(items.map(item => ({
           completed: item.completed,
@@ -613,6 +613,7 @@ export class ProgressTracker {
           total: item.estimatedHours || 0
         })));
         return (taskProgress * 0.6) + (hourProgress * 0.4);
+      }
 
       default:
         return this.calculateProgressPercentage(items.map(item => ({
@@ -882,7 +883,7 @@ export class ProgressTracker {
         stepName: step.phase,
         message: step.message,
         decompositionProgress: {
-          phase: step.phase as any,
+          phase: step.phase as 'research' | 'context_gathering' | 'decomposition' | 'validation' | 'dependency_detection',
           progress: currentProgress,
           message: step.message
         }
@@ -898,7 +899,7 @@ export class ProgressTracker {
           progressPercentage: currentProgress,
           timestamp: new Date(),
           decompositionProgress: {
-            phase: step.phase as any,
+            phase: step.phase as 'research' | 'context_gathering' | 'decomposition' | 'validation' | 'dependency_detection',
             progress: currentProgress,
             message: step.message
           }
@@ -1133,8 +1134,8 @@ export class ProgressTracker {
    * Get real-time progress for a specific component
    */
   async getComponentProgress(
-    componentName: string,
-    projectId?: string
+    _componentName: string,
+    _projectId?: string
   ): Promise<{
     isActive: boolean;
     currentStep?: number;

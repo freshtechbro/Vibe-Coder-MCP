@@ -4,6 +4,8 @@ import { DependencyStorage, DependencyStorageOperations } from './dependency-sto
 import { FileOperationResult } from '../../utils/file-utils.js';
 import { getVibeTaskManagerConfig, getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
 import logger from '../../../../logger.js';
+import { Project, AtomicTask, Epic, TaskStatus, TaskPriority } from '../../types/task.js';
+import { Dependency, DependencyGraph } from '../../types/dependency.js';
 
 /**
  * Unified storage manager that coordinates all storage operations
@@ -180,17 +182,17 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
   }
 
   // Project Storage Operations
-  async createProject(project: any): Promise<FileOperationResult<any>> {
+  async createProject(project: Project): Promise<FileOperationResult<Project>> {
     await this.ensureInitialized();
     return this.projectStorage.createProject(project);
   }
 
-  async getProject(projectId: string): Promise<FileOperationResult<any>> {
+  async getProject(projectId: string): Promise<FileOperationResult<Project>> {
     await this.ensureInitialized();
     return this.projectStorage.getProject(projectId);
   }
 
-  async updateProject(projectId: string, updates: any): Promise<FileOperationResult<any>> {
+  async updateProject(projectId: string, updates: Partial<Project>): Promise<FileOperationResult<Project>> {
     await this.ensureInitialized();
     return this.projectStorage.updateProject(projectId, updates);
   }
@@ -220,7 +222,7 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
     return this.projectStorage.deleteProject(projectId);
   }
 
-  async listProjects(): Promise<FileOperationResult<any[]>> {
+  async listProjects(): Promise<FileOperationResult<Project[]>> {
     await this.ensureInitialized();
     return this.projectStorage.listProjects();
   }
@@ -230,28 +232,28 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
     return this.projectStorage.projectExists(projectId);
   }
 
-  async getProjectsByStatus(status: string): Promise<FileOperationResult<any[]>> {
+  async getProjectsByStatus(status: string): Promise<FileOperationResult<Project[]>> {
     await this.ensureInitialized();
     return this.projectStorage.getProjectsByStatus(status);
   }
 
-  async searchProjects(query: string): Promise<FileOperationResult<any[]>> {
+  async searchProjects(query: string): Promise<FileOperationResult<Project[]>> {
     await this.ensureInitialized();
     return this.projectStorage.searchProjects(query);
   }
 
   // Task Storage Operations
-  async createTask(task: any): Promise<FileOperationResult<any>> {
+  async createTask(task: AtomicTask): Promise<FileOperationResult<AtomicTask>> {
     await this.ensureInitialized();
     return this.taskStorage.createTask(task);
   }
 
-  async getTask(taskId: string): Promise<FileOperationResult<any>> {
+  async getTask(taskId: string): Promise<FileOperationResult<AtomicTask>> {
     await this.ensureInitialized();
     return this.taskStorage.getTask(taskId);
   }
 
-  async updateTask(taskId: string, updates: any): Promise<FileOperationResult<any>> {
+  async updateTask(taskId: string, updates: Partial<AtomicTask>): Promise<FileOperationResult<AtomicTask>> {
     await this.ensureInitialized();
     return this.taskStorage.updateTask(taskId, updates);
   }
@@ -277,22 +279,22 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
     return this.taskStorage.deleteTask(taskId);
   }
 
-  async listTasks(projectId?: string, epicId?: string): Promise<FileOperationResult<any[]>> {
+  async listTasks(projectId?: string, epicId?: string): Promise<FileOperationResult<AtomicTask[]>> {
     await this.ensureInitialized();
     return this.taskStorage.listTasks(projectId, epicId);
   }
 
-  async getTasksByStatus(status: any, projectId?: string): Promise<FileOperationResult<any[]>> {
+  async getTasksByStatus(status: TaskStatus, projectId?: string): Promise<FileOperationResult<AtomicTask[]>> {
     await this.ensureInitialized();
     return this.taskStorage.getTasksByStatus(status, projectId);
   }
 
-  async getTasksByPriority(priority: any, projectId?: string): Promise<FileOperationResult<any[]>> {
+  async getTasksByPriority(priority: TaskPriority, projectId?: string): Promise<FileOperationResult<AtomicTask[]>> {
     await this.ensureInitialized();
     return this.taskStorage.getTasksByPriority(priority, projectId);
   }
 
-  async searchTasks(query: string, projectId?: string): Promise<FileOperationResult<any[]>> {
+  async searchTasks(query: string, projectId?: string): Promise<FileOperationResult<AtomicTask[]>> {
     await this.ensureInitialized();
     return this.taskStorage.searchTasks(query, projectId);
   }
@@ -303,17 +305,17 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
   }
 
   // Epic Operations
-  async createEpic(epic: any): Promise<FileOperationResult<any>> {
+  async createEpic(epic: Epic): Promise<FileOperationResult<Epic>> {
     await this.ensureInitialized();
     return this.taskStorage.createEpic(epic);
   }
 
-  async getEpic(epicId: string): Promise<FileOperationResult<any>> {
+  async getEpic(epicId: string): Promise<FileOperationResult<Epic>> {
     await this.ensureInitialized();
     return this.taskStorage.getEpic(epicId);
   }
 
-  async updateEpic(epicId: string, updates: any): Promise<FileOperationResult<any>> {
+  async updateEpic(epicId: string, updates: Partial<Epic>): Promise<FileOperationResult<Epic>> {
     await this.ensureInitialized();
     return this.taskStorage.updateEpic(epicId, updates);
   }
@@ -323,7 +325,7 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
     return this.taskStorage.deleteEpic(epicId);
   }
 
-  async listEpics(projectId?: string): Promise<FileOperationResult<any[]>> {
+  async listEpics(projectId?: string): Promise<FileOperationResult<Epic[]>> {
     await this.ensureInitialized();
     return this.taskStorage.listEpics(projectId);
   }
@@ -334,17 +336,17 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
   }
 
   // Dependency Storage Operations
-  async createDependency(dependency: any): Promise<FileOperationResult<any>> {
+  async createDependency(dependency: Dependency): Promise<FileOperationResult<Dependency>> {
     await this.ensureInitialized();
     return this.dependencyStorage.createDependency(dependency);
   }
 
-  async getDependency(dependencyId: string): Promise<FileOperationResult<any>> {
+  async getDependency(dependencyId: string): Promise<FileOperationResult<Dependency>> {
     await this.ensureInitialized();
     return this.dependencyStorage.getDependency(dependencyId);
   }
 
-  async updateDependency(dependencyId: string, updates: any): Promise<FileOperationResult<any>> {
+  async updateDependency(dependencyId: string, updates: Partial<Dependency>): Promise<FileOperationResult<Dependency>> {
     await this.ensureInitialized();
     return this.dependencyStorage.updateDependency(dependencyId, updates);
   }
@@ -354,17 +356,17 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
     return this.dependencyStorage.deleteDependency(dependencyId);
   }
 
-  async listDependencies(projectId?: string): Promise<FileOperationResult<any[]>> {
+  async listDependencies(projectId?: string): Promise<FileOperationResult<Dependency[]>> {
     await this.ensureInitialized();
     return this.dependencyStorage.listDependencies(projectId);
   }
 
-  async getDependenciesForTask(taskId: string): Promise<FileOperationResult<any[]>> {
+  async getDependenciesForTask(taskId: string): Promise<FileOperationResult<Dependency[]>> {
     await this.ensureInitialized();
     return this.dependencyStorage.getDependenciesForTask(taskId);
   }
 
-  async getDependentsForTask(taskId: string): Promise<FileOperationResult<any[]>> {
+  async getDependentsForTask(taskId: string): Promise<FileOperationResult<Dependency[]>> {
     await this.ensureInitialized();
     return this.dependencyStorage.getDependentsForTask(taskId);
   }
@@ -375,12 +377,12 @@ export class StorageManager implements ProjectStorageOperations, TaskStorageOper
   }
 
   // Dependency Graph Operations
-  async saveDependencyGraph(projectId: string, graph: any): Promise<FileOperationResult<void>> {
+  async saveDependencyGraph(projectId: string, graph: DependencyGraph): Promise<FileOperationResult<void>> {
     await this.ensureInitialized();
     return this.dependencyStorage.saveDependencyGraph(projectId, graph);
   }
 
-  async loadDependencyGraph(projectId: string): Promise<FileOperationResult<any>> {
+  async loadDependencyGraph(projectId: string): Promise<FileOperationResult<DependencyGraph>> {
     await this.ensureInitialized();
     return this.dependencyStorage.loadDependencyGraph(projectId);
   }

@@ -11,7 +11,7 @@ import { getTaskOperations } from '../../core/operations/task-operations.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
 import { ProjectAnalyzer } from '../../utils/project-analyzer.js';
 import { CLIUtils } from './index.js';
-import { AppError, ValidationError } from '../../../../utils/errors.js';
+import { ValidationError } from '../../../../utils/errors.js';
 import { OpenRouterConfigManager } from '../../../../utils/openrouter-config-manager.js';
 import { AtomicTask } from '../../types/task.js';
 import logger from '../../../../logger.js';

@@ -9,7 +9,7 @@ import logger from '../../../logger.js';
 
 export interface ServiceInstance {
   name: string;
-  instance: any;
+  instance: unknown;
   isStarted: boolean;
   isDisposed: boolean;
   startMethod?: string;
@@ -182,8 +182,8 @@ export class ServiceLifecycleManager {
       }
 
       // Start the service
-      if (service.startMethod && typeof service.instance[service.startMethod] === 'function') {
-        await service.instance[service.startMethod]();
+      if (service.startMethod && typeof (service.instance as Record<string, unknown>)[service.startMethod] === 'function') {
+        await ((service.instance as Record<string, unknown>)[service.startMethod] as () => Promise<void>)();
       }
 
       service.isStarted = true;
@@ -204,8 +204,8 @@ export class ServiceLifecycleManager {
     }
 
     try {
-      if (service.stopMethod && typeof service.instance[service.stopMethod] === 'function') {
-        await service.instance[service.stopMethod]();
+      if (service.stopMethod && typeof (service.instance as Record<string, unknown>)[service.stopMethod] === 'function') {
+        await ((service.instance as Record<string, unknown>)[service.stopMethod] as () => Promise<void>)();
       }
 
       service.isStarted = false;
@@ -232,13 +232,13 @@ export class ServiceLifecycleManager {
       }
 
       // Dispose the service
-      if (service.disposeMethod && typeof service.instance[service.disposeMethod] === 'function') {
-        await service.instance[service.disposeMethod]();
+      if (service.disposeMethod && typeof (service.instance as Record<string, unknown>)[service.disposeMethod] === 'function') {
+        await ((service.instance as Record<string, unknown>)[service.disposeMethod] as () => Promise<void>)();
       }
 
       // Reset static state if method exists
-      if (service.resetStaticMethod && typeof service.instance.constructor[service.resetStaticMethod] === 'function') {
-        service.instance.constructor[service.resetStaticMethod]();
+      if (service.resetStaticMethod && typeof ((service.instance as Record<string, unknown>).constructor as unknown as Record<string, unknown>)[service.resetStaticMethod] === 'function') {
+        (((service.instance as Record<string, unknown>).constructor as unknown as Record<string, unknown>)[service.resetStaticMethod] as () => void)();
       }
 
       service.isDisposed = true;

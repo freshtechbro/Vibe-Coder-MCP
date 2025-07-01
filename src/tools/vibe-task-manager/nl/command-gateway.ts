@@ -3,11 +3,8 @@
  * Processes natural language commands and routes them to appropriate handlers
  */
 
-import { Intent, RecognizedIntent, CommandProcessingResult, NLResponse, Entity } from '../types/nl.js';
+import { RecognizedIntent, CommandProcessingResult, Entity } from '../types/nl.js';
 import { IntentRecognitionEngine } from './intent-recognizer.js';
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { ConfigLoader, VibeTaskManagerConfig } from '../utils/config-loader.js';
-import { OpenRouterConfig } from '../../../types/workflow.js';
 import logger from '../../../logger.js';
 
 /**
@@ -125,7 +122,7 @@ export class CommandGateway {
         intent: recognitionResult.intent,
         confidence: recognitionResult.confidence,
         confidenceLevel: recognitionResult.confidenceLevel,
-        entities: this.convertEntitiesToArray(recognitionResult.entities as any),
+        entities: this.convertEntitiesToArray(recognitionResult.entities as Record<string, unknown>),
         originalInput: input,
         processedInput: input.toLowerCase().trim(),
         alternatives: recognitionResult.alternatives.map(alt => ({
@@ -250,7 +247,7 @@ export class CommandGateway {
   /**
    * Build recognition context from command context
    */
-  private buildRecognitionContext(context: CommandContext): Record<string, any> {
+  private buildRecognitionContext(context: CommandContext): Record<string, unknown> {
     return {
       currentProject: context.currentProject,
       currentTask: context.currentTask,
@@ -856,7 +853,7 @@ export class CommandGateway {
   /**
    * Convert entities from Record format to Entity array format
    */
-  private convertEntitiesToArray(entities: Record<string, any> | Entity[]): Entity[] {
+  private convertEntitiesToArray(entities: Record<string, unknown> | Entity[]): Entity[] {
     // If already an array of entities, return as-is
     if (Array.isArray(entities)) {
       return entities.map(entity => ({
@@ -1018,7 +1015,14 @@ export class CommandGateway {
     lastUpdated: Date;
     recentFailures?: Array<{ input: string; error: string; timestamp: Date }>;
   }> {
-    const stats: Record<string, any> = {};
+    const stats: Record<string, {
+      intent: string;
+      total: number;
+      successRate: number;
+      failureRate: number;
+      lastUpdated: Date;
+      recentFailures?: Array<{ input: string; error: string; timestamp: Date }>;
+    }> = {};
 
     for (const [intent, metrics] of this.intentSuccessMetrics.entries()) {
       const successRate = metrics.total > 0 ? metrics.successful / metrics.total : 0;

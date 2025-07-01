@@ -10,7 +10,6 @@ import fs from 'fs/promises';
 import path from 'path';
 import logger from '../../../logger.js';
 import type { PRDInfo, ParsedPRD } from '../types/artifact-types.js';
-import type { ProjectContext } from '../types/project-context.js';
 import { PathSecurityValidator } from '../utils/path-security-validator.js';
 
 /**
@@ -600,7 +599,7 @@ export class PRDIntegrationService {
 
       const stats = await fs.stat(prdFilePath);
       const fileName = path.basename(prdFilePath);
-      const { projectName, createdAt } = this.extractPRDMetadataFromFilename(fileName);
+      const { createdAt } = this.extractPRDMetadataFromFilename(fileName);
 
       // Get performance metrics if available
       const performanceMetrics = this.performanceMetrics.get(prdFilePath) || {

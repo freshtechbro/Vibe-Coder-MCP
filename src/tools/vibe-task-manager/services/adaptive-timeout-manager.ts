@@ -3,7 +3,7 @@
  * Implements progress-aware timeouts with cancellation tokens and exponential backoff
  */
 
-import { getTimeoutManager, TimeoutOperation } from '../utils/timeout-manager.js';
+import { getTimeoutManager } from '../utils/timeout-manager.js';
 import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
 

@@ -10,7 +10,8 @@ import { AgentOrchestrator } from '../../services/agent-orchestrator.js';
 import { TaskStreamer } from '../../services/task-streamer.js';
 import { FeedbackProcessor } from '../../services/feedback-processor.js';
 import { CLIUtils } from '../commands/index.js';
-import { AppError, ValidationError } from '../../../../utils/errors.js';
+import { ValidationError } from '../../../../utils/errors.js';
+import { AgentCapability } from '../../services/agent-orchestrator.js';
 import logger from '../../../../logger.js';
 
 /**
@@ -63,7 +64,7 @@ function createRegisterCommand(): Command {
         await orchestrator.registerAgent({
           id: options.id,
           name: options.name,
-          capabilities: capabilities as any[],
+          capabilities: capabilities as AgentCapability[],
           maxConcurrentTasks,
           currentTasks: [],
           status: 'available',
@@ -354,7 +355,7 @@ function createStatusCommand(): Command {
             performanceScore: performance ? performance.performanceScore.toFixed(2) : 'N/A'
           };
 
-          console.log(CLIUtils.formatOutput(agentStatus, options.format as any));
+          console.log(CLIUtils.formatOutput(agentStatus, options.format as 'table' | 'json' | 'yaml'));
         } else {
           // Show all agents status
           const agents = orchestrator.getAgents();
@@ -379,7 +380,7 @@ function createStatusCommand(): Command {
             }));
 
             console.log('=== Registered Agents ===');
-            console.log(CLIUtils.formatOutput(agentList, options.format as any));
+            console.log(CLIUtils.formatOutput(agentList, options.format as 'table' | 'json' | 'yaml'));
           }
         }
 
@@ -426,7 +427,7 @@ function createListCommand(): Command {
           }));
 
           console.log(`=== Tasks for Agent ${options.agentId} ===`);
-          console.log(CLIUtils.formatOutput(taskList, options.format as any));
+          console.log(CLIUtils.formatOutput(taskList, options.format as 'table' | 'json' | 'yaml'));
 
         } else {
           // Show available tasks
@@ -451,7 +452,7 @@ function createListCommand(): Command {
             }));
 
             console.log('=== Ready Tasks ===');
-            console.log(CLIUtils.formatOutput(taskList, options.format as any));
+            console.log(CLIUtils.formatOutput(taskList, options.format as 'table' | 'json' | 'yaml'));
           } else {
             CLIUtils.info('No tasks ready for execution');
           }

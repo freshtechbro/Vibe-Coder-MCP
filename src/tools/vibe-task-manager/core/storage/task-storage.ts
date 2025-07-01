@@ -1,8 +1,58 @@
-import path, { join } from 'path';
+import path from 'path';
 import { FileUtils, FileOperationResult } from '../../utils/file-utils.js';
 import { AtomicTask, Epic, TaskStatus, TaskPriority } from '../../types/task.js';
 import { getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
 import logger from '../../../../logger.js';
+
+/**
+ * Task index structure
+ */
+interface TaskIndex {
+  tasks: Array<{
+    id: string;
+    title: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    projectId: string;
+    epicId: string;
+    estimatedHours: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  lastUpdated: string;
+  version: string;
+}
+
+/**
+ * Type guard for task index
+ */
+function isTaskIndex(data: unknown): data is TaskIndex {
+  if (!data || typeof data !== 'object') return false;
+  const index = data as Record<string, unknown>;
+  return Array.isArray(index.tasks) && 
+         typeof index.lastUpdated === 'string' && 
+         typeof index.version === 'string';
+}
+
+/**
+ * Epic index structure
+ */
+interface EpicIndex {
+  epics: string[];
+  lastUpdated: string;
+  version: string;
+}
+
+/**
+ * Type guard for epic index
+ */
+function isEpicIndex(data: unknown): data is EpicIndex {
+  if (!data || typeof data !== 'object') return false;
+  const index = data as Record<string, unknown>;
+  return Array.isArray(index.epics) && 
+         typeof index.lastUpdated === 'string' && 
+         typeof index.version === 'string';
+}
 
 /**
  * Task storage interface
@@ -467,11 +517,11 @@ export class TaskStorage implements TaskStorageOperations {
 
       // Apply filters
       if (projectId) {
-        taskInfos = taskInfos.filter((task: any) => task.projectId === projectId);
+        taskInfos = taskInfos.filter(task => task.projectId === projectId);
       }
 
       if (epicId) {
-        taskInfos = taskInfos.filter((task: any) => task.epicId === epicId);
+        taskInfos = taskInfos.filter(task => task.epicId === epicId);
       }
 
       const tasks: AtomicTask[] = [];
@@ -899,7 +949,7 @@ export class TaskStorage implements TaskStorageOperations {
       logger.debug({ projectId }, 'Listing epics');
 
       // Read epic index
-      const indexResult = await FileUtils.readJsonFile<any>(this.epicIndexFile);
+      const indexResult = await FileUtils.readJsonFile<Record<string, unknown>>(this.epicIndexFile);
       if (!indexResult.success) {
         return {
           success: false,
@@ -912,8 +962,21 @@ export class TaskStorage implements TaskStorageOperations {
         };
       }
 
-      const epicIndex = indexResult.data!;
-      const epicIds: string[] = epicIndex.epics || [];
+      // Validate epic index
+      if (!isEpicIndex(indexResult.data)) {
+        return {
+          success: false,
+          error: 'Invalid epic index format',
+          metadata: {
+            filePath: this.epicIndexFile,
+            operation: 'list_epics',
+            timestamp: new Date()
+          }
+        };
+      }
+
+      const epicIndex = indexResult.data;
+      const epicIds: string[] = epicIndex.epics;
 
       // Load all epics
       const epics: Epic[] = [];
@@ -1025,21 +1088,39 @@ export class TaskStorage implements TaskStorageOperations {
   /**
    * Load task index
    */
-  private async loadTaskIndex(): Promise<FileOperationResult<any>> {
+  private async loadTaskIndex(): Promise<FileOperationResult<TaskIndex>> {
     if (!await FileUtils.fileExists(this.taskIndexFile)) {
       const initResult = await this.initialize();
       if (!initResult.success) {
-        return initResult as FileOperationResult<any>;
+        return initResult as FileOperationResult<TaskIndex>;
       }
     }
 
-    return await FileUtils.readJsonFile(this.taskIndexFile);
+    const result = await FileUtils.readJsonFile(this.taskIndexFile);
+    if (!result.success) {
+      return result as FileOperationResult<TaskIndex>;
+    }
+
+    // Validate the loaded data
+    if (!isTaskIndex(result.data)) {
+      return {
+        success: false,
+        error: 'Invalid task index format',
+        metadata: result.metadata
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      metadata: result.metadata
+    };
   }
 
   /**
    * Update task index
    */
-  private async updateTaskIndex(operation: 'add' | 'update' | 'remove', taskId: string, taskInfo?: any): Promise<FileOperationResult<void>> {
+  private async updateTaskIndex(operation: 'add' | 'update' | 'remove', taskId: string, taskInfo?: Record<string, unknown>): Promise<FileOperationResult<void>> {
     try {
       const indexResult = await this.loadTaskIndex();
       if (!indexResult.success) {
@@ -1050,20 +1131,21 @@ export class TaskStorage implements TaskStorageOperations {
 
       switch (operation) {
         case 'add':
-          if (!index.tasks.find((t: any) => t.id === taskId)) {
-            index.tasks.push(taskInfo);
+          if (!index.tasks.find(t => t.id === taskId) && taskInfo) {
+            index.tasks.push(taskInfo as TaskIndex['tasks'][0]);
           }
           break;
 
-        case 'update':
-          const updateIndex = index.tasks.findIndex((t: any) => t.id === taskId);
-          if (updateIndex !== -1) {
-            index.tasks[updateIndex] = taskInfo;
+        case 'update': {
+          const updateIndex = index.tasks.findIndex(t => t.id === taskId);
+          if (updateIndex !== -1 && taskInfo) {
+            index.tasks[updateIndex] = taskInfo as TaskIndex['tasks'][0];
           }
           break;
+        }
 
         case 'remove':
-          index.tasks = index.tasks.filter((t: any) => t.id !== taskId);
+          index.tasks = index.tasks.filter(t => t.id !== taskId);
           break;
       }
 
@@ -1168,8 +1250,13 @@ export class TaskStorage implements TaskStorageOperations {
   private async updateEpicIndex(epicId: string, operation: 'create' | 'delete'): Promise<void> {
     try {
       // Read current index
-      const indexResult = await FileUtils.readJsonFile<any>(this.epicIndexFile);
-      const epicIndex = indexResult.success ? indexResult.data! : { epics: [], lastUpdated: new Date().toISOString(), version: '1.0.0' };
+      const indexResult = await FileUtils.readJsonFile<Record<string, unknown>>(this.epicIndexFile);
+      const epicIndexData = indexResult.success ? indexResult.data! : { epics: [], lastUpdated: new Date().toISOString(), version: '1.0.0' };
+
+      // Validate or create epic index structure
+      const epicIndex: EpicIndex = isEpicIndex(epicIndexData) 
+        ? epicIndexData 
+        : { epics: [], lastUpdated: new Date().toISOString(), version: '1.0.0' };
 
       // Update index based on operation
       if (operation === 'create') {
@@ -1177,7 +1264,7 @@ export class TaskStorage implements TaskStorageOperations {
           epicIndex.epics.push(epicId);
         }
       } else if (operation === 'delete') {
-        epicIndex.epics = epicIndex.epics.filter((id: string) => id !== epicId);
+        epicIndex.epics = epicIndex.epics.filter(id => id !== epicId);
       }
 
       // Update timestamp

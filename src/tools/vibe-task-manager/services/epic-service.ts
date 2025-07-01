@@ -66,7 +66,7 @@ export interface EpicProgress {
  * Epic service for managing epic-level task organization
  */
 export class EpicService {
-  private static instance: EpicService;
+  private static instance: EpicService | undefined;
 
   private constructor() {}
 
@@ -101,7 +101,7 @@ export class EpicService {
    * Reset singleton instance (for testing)
    */
   static resetInstance(): void {
-    EpicService.instance = undefined as any;
+    EpicService.instance = undefined;
   }
 
   /**
@@ -263,7 +263,7 @@ export class EpicService {
       }
 
       // Prepare update object
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         ...params,
         metadata: {
           updatedAt: new Date(),

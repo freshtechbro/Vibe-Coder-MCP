@@ -13,7 +13,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import { VibeTaskManagerConfig } from './config-loader.js';
 import { TaskManagerMemoryManager, MemoryCleanupResult } from './memory-manager-integration.js';
-import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
 /**

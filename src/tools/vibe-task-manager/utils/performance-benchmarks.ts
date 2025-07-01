@@ -8,7 +8,7 @@
  * - Benchmark result storage and analysis
  */
 
-import { PerformanceMonitor, PerformanceMetric } from './performance-monitor.js';
+import { PerformanceMonitor } from './performance-monitor.js';
 import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
@@ -20,7 +20,7 @@ export interface BenchmarkOperation {
   category: 'task_management' | 'execution' | 'storage' | 'cache' | 'memory' | 'io';
   targetTime: number; // Target time in milliseconds
   description: string;
-  operation: () => Promise<any>;
+  operation: () => Promise<unknown>;
   setup?: () => Promise<void>;
   cleanup?: () => Promise<void>;
 }

@@ -10,9 +10,7 @@
  */
 
 import crypto from 'crypto';
-import { VibeTaskManagerConfig } from '../utils/config-loader.js';
 import { logSecurityEvent } from './audit-logger.js';
-import { AppError, ValidationError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
 /**
@@ -46,7 +44,7 @@ export interface AuthToken {
   userAgent?: string;
   permissions: Permission[];
   role: UserRole;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -63,7 +61,7 @@ export interface UserSession {
   ipAddress?: string;
   userAgent?: string;
   isActive: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -192,7 +190,7 @@ export class AuthenticationIntegration {
     context?: {
       ipAddress?: string;
       userAgent?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }
   ): Promise<AuthenticationResult> {
     if (!this.config.enabled) {
@@ -639,7 +637,7 @@ export class AuthenticationIntegration {
     context?: {
       ipAddress?: string;
       userAgent?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }
   ): Promise<AuthToken> {
     const tokenId = this.generateTokenId();
@@ -777,7 +775,7 @@ export class AuthenticationIntegration {
     sessionsByRole: Record<UserRole, number>;
     averageSessionDuration: number;
   } {
-    const sessionsByRole: Record<UserRole, number> = {} as any;
+    const sessionsByRole: Record<UserRole, number> = {} as Record<UserRole, number>;
     let totalSessionDuration = 0;
     let sessionCount = 0;
 

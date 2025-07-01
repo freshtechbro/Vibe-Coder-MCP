@@ -16,14 +16,22 @@ import {
   ComplexityMetadata,
   PerformanceMetadata,
   QualityMetadata,
-  TagCollection
+  TagCollection,
+  CollaborationMetadata,
+  IntegrationMetadata,
+  ComplexityFactor,
+  QualityGate,
+  ScopeMetadata,
+  ProgressMetadata,
+  ResourceMetadata,
+  ProjectClassification,
+  BusinessMetadata,
+  TechnicalMetadata,
+  GovernanceMetadata
 } from '../types/metadata-types.js';
-import { AtomicTask, Epic, Project, TaskType } from '../types/task.js';
+import { AtomicTask, Epic, Project } from '../types/task.js';
 import { TagManagementService } from './tag-management-service.js';
 import { OpenRouterConfig } from '../../../types/workflow.js';
-import { performFormatAwareLlmCall } from '../../../utils/llmHelper.js';
-import { getLLMModelForOperation } from '../utils/config-loader.js';
-import { getStorageManager } from '../core/storage/storage-manager.js';
 import logger from '../../../logger.js';
 
 /**
@@ -349,7 +357,7 @@ export class MetadataService {
     
     // Record changes
     for (const [field, newValue] of Object.entries(updates)) {
-      const previousValue = (existingMetadata as any)[field];
+      const previousValue = (existingMetadata as unknown as Record<string, MetadataValue>)[field];
       if (JSON.stringify(previousValue) !== JSON.stringify(newValue)) {
         this.recordChange(entityId, {
           timestamp: new Date(),
@@ -654,7 +662,7 @@ export class MetadataService {
   /**
    * Create collaboration metadata
    */
-  private async createCollaborationMetadata(task: AtomicTask): Promise<any> {
+  private async createCollaborationMetadata(task: AtomicTask): Promise<CollaborationMetadata> {
     return {
       assignees: task.assignedAgent ? [task.assignedAgent] : [],
       reviewers: [],
@@ -671,7 +679,7 @@ export class MetadataService {
   /**
    * Create integration metadata
    */
-  private async createIntegrationMetadata(task: AtomicTask): Promise<any> {
+  private async createIntegrationMetadata(task: AtomicTask): Promise<IntegrationMetadata> {
     return {
       externalSystems: [],
       dependencies: {
@@ -761,7 +769,7 @@ export class MetadataService {
   /**
    * Identify complexity factors
    */
-  private async identifyComplexityFactors(task: AtomicTask): Promise<any[]> {
+  private async identifyComplexityFactors(task: AtomicTask): Promise<ComplexityFactor[]> {
     const factors = [];
     
     if (task.filePaths.length > 5) {
@@ -769,7 +777,7 @@ export class MetadataService {
         name: 'Multiple Files',
         weight: 0.3,
         description: 'Task affects multiple files',
-        category: 'technical'
+        category: 'technical' as const
       });
     }
     
@@ -778,7 +786,7 @@ export class MetadataService {
         name: 'Complex Dependencies',
         weight: 0.4,
         description: 'Task has multiple dependencies',
-        category: 'integration'
+        category: 'integration' as const
       });
     }
     
@@ -787,7 +795,7 @@ export class MetadataService {
         name: 'Critical Priority',
         weight: 0.5,
         description: 'Task is business critical',
-        category: 'business'
+        category: 'business' as const
       });
     }
     
@@ -836,15 +844,16 @@ export class MetadataService {
   /**
    * Create quality gates
    */
-  private async createQualityGates(task: AtomicTask): Promise<any[]> {
+  private async createQualityGates(task: AtomicTask): Promise<QualityGate[]> {
     const gates = [];
     
     if (task.testingRequirements.coverageTarget > 0) {
       gates.push({
         name: 'Test Coverage',
         criteria: `Minimum ${task.testingRequirements.coverageTarget}% coverage`,
-        status: 'pending',
+        status: 'pending' as const,
         result: {
+          value: 0,
           threshold: task.testingRequirements.coverageTarget,
           message: 'Test coverage gate'
         }
@@ -855,7 +864,7 @@ export class MetadataService {
       gates.push({
         name: 'TypeScript Compliance',
         criteria: 'No TypeScript errors',
-        status: 'pending'
+        status: 'pending' as const
       });
     }
     
@@ -908,7 +917,7 @@ export class MetadataService {
   /**
    * Calculate completeness by type
    */
-  private calculateCompletenessByType(metadata: BaseMetadata[]): Record<string, number> {
+  private calculateCompletenessByType(_metadata: BaseMetadata[]): Record<string, number> {
     // Mock implementation - would need entity type information
     return {
       task: 0.8,
@@ -934,7 +943,7 @@ export class MetadataService {
       byLifecycle[m.lifecycle].push(m);
     });
     
-    const result: Record<EntityLifecycle, number> = {} as any;
+    const result: Record<EntityLifecycle, number> = {} as Record<EntityLifecycle, number>;
     for (const [lifecycle, items] of Object.entries(byLifecycle)) {
       result[lifecycle as EntityLifecycle] = this.calculateAverageCompleteness(items);
     }
@@ -945,7 +954,7 @@ export class MetadataService {
   /**
    * Calculate change frequency
    */
-  private calculateChangeFrequency(changes: MetadataChange[]): any {
+  private calculateChangeFrequency(changes: MetadataChange[]): { daily: number; weekly: number; monthly: number; } {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -961,7 +970,7 @@ export class MetadataService {
   /**
    * Calculate active users
    */
-  private calculateActiveUsers(changes: MetadataChange[]): any[] {
+  private calculateActiveUsers(changes: MetadataChange[]): Array<{ user: string; changes: number; percentage: number; }> {
     const userChanges = new Map<string, number>();
     
     changes.forEach(change => {
@@ -984,7 +993,7 @@ export class MetadataService {
   /**
    * Calculate common attributes
    */
-  private calculateCommonAttributes(metadata: BaseMetadata[]): any[] {
+  private calculateCommonAttributes(metadata: BaseMetadata[]): Array<{ attribute: string; usage: number; percentage: number; }> {
     const attributeCounts = new Map<string, number>();
     let totalAttributes = 0;
     
@@ -1009,7 +1018,7 @@ export class MetadataService {
   /**
    * Calculate quality metrics
    */
-  private calculateQualityMetrics(metadata: BaseMetadata[]): any {
+  private calculateQualityMetrics(_metadata: BaseMetadata[]): { average: number; distribution: Record<string, number>; trends: { improving: number; stable: number; declining: number; }; } {
     // Mock implementation
     return {
       average: 0.8,
@@ -1046,9 +1055,9 @@ export class MetadataService {
   /**
    * Placeholder implementations for missing methods
    */
-  private async createScopeMetadata(epic: Epic): Promise<any> {
+  private async createScopeMetadata(_epic: Epic): Promise<ScopeMetadata> {
     return {
-      definition: epic.description,
+      definition: _epic.description,
       boundaries: [],
       includes: [],
       excludes: [],
@@ -1056,7 +1065,7 @@ export class MetadataService {
     };
   }
   
-  private async createProgressMetadata(epic: Epic): Promise<any> {
+  private async createProgressMetadata(_epic: Epic): Promise<ProgressMetadata> {
     return {
       percentage: 0,
       milestones: [],
@@ -1069,7 +1078,7 @@ export class MetadataService {
     };
   }
   
-  private async createResourceMetadata(epic: Epic): Promise<any> {
+  private async createResourceMetadata(_epic: Epic): Promise<ResourceMetadata> {
     return {
       allocated: {
         people: 1,
@@ -1089,7 +1098,7 @@ export class MetadataService {
     };
   }
   
-  private async createProjectClassification(project: Project): Promise<any> {
+  private async createProjectClassification(_project: Project): Promise<ProjectClassification> {
     return {
       type: 'greenfield',
       size: 'medium',
@@ -1099,7 +1108,7 @@ export class MetadataService {
     };
   }
   
-  private async createBusinessMetadata(project: Project): Promise<any> {
+  private async createBusinessMetadata(_project: Project): Promise<BusinessMetadata> {
     return {
       objectives: [],
       successMetrics: [],
@@ -1117,15 +1126,15 @@ export class MetadataService {
     };
   }
   
-  private async createTechnicalMetadata(project: Project): Promise<any> {
+  private async createTechnicalMetadata(project: Project): Promise<TechnicalMetadata> {
     return {
       architecture: [],
       stack: {
-        frontend: project.techStack.frameworks.filter(f => ['react', 'vue', 'angular'].includes(f.toLowerCase())),
-        backend: project.techStack.frameworks.filter(f => ['express', 'fastify', 'koa'].includes(f.toLowerCase())),
+        frontend: project.techStack?.frameworks?.filter(f => ['react', 'vue', 'angular'].includes(f.toLowerCase())) || [],
+        backend: project.techStack?.frameworks?.filter(f => ['express', 'fastify', 'koa'].includes(f.toLowerCase())) || [],
         database: [],
         infrastructure: [],
-        tools: project.techStack.tools
+        tools: project.techStack?.tools || []
       },
       constraints: [],
       performance: {
@@ -1142,7 +1151,7 @@ export class MetadataService {
     };
   }
   
-  private async createGovernanceMetadata(project: Project): Promise<any> {
+  private async createGovernanceMetadata(_project: Project): Promise<GovernanceMetadata> {
     return {
       approvals: [],
       compliance: [],

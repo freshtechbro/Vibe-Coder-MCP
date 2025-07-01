@@ -3,13 +3,13 @@
  * Implements regex-based pattern matching for intent recognition
  */
 
-import { Intent, IntentPattern, RecognizedIntent, ConfidenceLevel } from '../types/nl.js';
+import { Intent, IntentPattern, ConfidenceLevel } from '../types/nl.js';
 import logger from '../../../logger.js';
 
 /**
  * Entity extractor function type
  */
-export type EntityExtractor = (text: string, match: RegExpMatchArray) => Record<string, any>;
+export type EntityExtractor = (text: string, match: RegExpMatchArray) => Record<string, unknown>;
 
 /**
  * Intent match result
@@ -18,7 +18,7 @@ export interface IntentMatch {
   intent: Intent;
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  entities: Record<string, any>;
+  entities: Record<string, unknown>;
   pattern: IntentPattern;
   matchedText: string;
   processingTime: number;
@@ -45,8 +45,8 @@ export class EntityExtractors {
   /**
    * Extract project name from text
    */
-  static projectName(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static projectName(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Look for project name in quotes or after keywords
     const projectPatterns = [
@@ -87,8 +87,8 @@ export class EntityExtractors {
   /**
    * Extract task information from text
    */
-  static taskInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static taskInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract task title - try patterns with and without quotes
     const titlePatterns = [
@@ -131,8 +131,8 @@ export class EntityExtractors {
   /**
    * Extract status information from text
    */
-  static statusInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static statusInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract status
     const statusMatch = text.match(/\b(pending|in_progress|completed|blocked|cancelled)\b/i);
@@ -161,8 +161,8 @@ export class EntityExtractors {
   /**
    * Extract agent information from text
    */
-  static agentInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static agentInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract agent name
     const agentPatterns = [
@@ -186,8 +186,8 @@ export class EntityExtractors {
   /**
    * Extract description information from text
    */
-  static descriptionInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static descriptionInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract description from various patterns
     const descriptionPatterns = [
@@ -213,8 +213,8 @@ export class EntityExtractors {
   /**
    * Extract search information from text
    */
-  static searchInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static searchInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract search pattern from various formats
     const searchPatterns = [
@@ -249,8 +249,8 @@ export class EntityExtractors {
   /**
    * Extract content search information from text
    */
-  static contentInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static contentInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract search query from various patterns
     const contentPatterns = [
@@ -286,8 +286,8 @@ export class EntityExtractors {
   /**
    * Extract artifact information from text
    */
-  static artifactInfo(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static artifactInfo(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract artifact type
     const artifactTypePatterns = [
@@ -337,8 +337,8 @@ export class EntityExtractors {
   /**
    * Extract general entities from text
    */
-  static general(text: string, match: RegExpMatchArray): Record<string, any> {
-    const entities: Record<string, any> = {};
+  static general(text: string, _match: RegExpMatchArray): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Extract tags
     const tagMatches = text.match(/#(\w+)/g);
@@ -893,7 +893,7 @@ export class IntentPatternEngine {
     const matches: IntentMatch[] = [];
     const normalizedText = text.toLowerCase().trim();
 
-    for (const [intent, intentPatterns] of this.patterns) {
+    for (const [intent, intentPatterns] of Array.from(this.patterns.entries())) {
       for (const pattern of intentPatterns) {
         if (!pattern.active) continue;
 
@@ -933,7 +933,7 @@ export class IntentPatternEngine {
    */
   private matchPattern(text: string, pattern: IntentPattern, originalText: string): {
     confidence: number;
-    entities: Record<string, any>;
+    entities: Record<string, unknown>;
     matchedText: string;
   } | null {
     let bestMatch: RegExpMatchArray | null = null;
@@ -1001,8 +1001,8 @@ export class IntentPatternEngine {
   /**
    * Extract entities from matched text
    */
-  private extractEntities(originalText: string, match: RegExpMatchArray, pattern: IntentPattern): Record<string, any> {
-    const entities: Record<string, any> = {};
+  private extractEntities(originalText: string, match: RegExpMatchArray, pattern: IntentPattern): Record<string, unknown> {
+    const entities: Record<string, unknown> = {};
 
     // Apply built-in entity extractors based on intent using original text to preserve case
     switch (pattern.intent) {
@@ -1080,7 +1080,7 @@ export class IntentPatternEngine {
    */
   getTotalPatternCount(): number {
     let total = 0;
-    for (const patterns of this.patterns.values()) {
+    for (const patterns of Array.from(this.patterns.values())) {
       total += patterns.length;
     }
     return total;
@@ -1128,7 +1128,7 @@ export class IntentPatternEngine {
    */
   exportPatterns(): Record<string, IntentPattern[]> {
     const exported: Record<string, IntentPattern[]> = {};
-    for (const [intent, patterns] of this.patterns) {
+    for (const [intent, patterns] of Array.from(this.patterns.entries())) {
       exported[intent] = patterns;
     }
     return exported;

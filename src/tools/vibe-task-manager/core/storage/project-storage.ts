@@ -1,10 +1,35 @@
 import path from 'path';
 import { FileUtils, FileOperationResult } from '../../utils/file-utils.js';
-import { Project, ProjectConfig } from '../../types/task.js';
-import { getVibeTaskManagerConfig, getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
+import { Project } from '../../types/task.js';
+import { getVibeTaskManagerOutputDir } from '../../utils/config-loader.js';
 import { DisposableService } from '../../utils/disposable-patterns.js';
 import { initializeStorage } from '../../utils/storage-initialization.js';
 import logger from '../../../../logger.js';
+
+/**
+ * Project index structure
+ */
+interface ProjectIndex {
+  projects: Array<{
+    id: string;
+    name: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  lastUpdated: string;
+  version: string;
+}
+
+/**
+ * Type guard for project index
+ */
+function isProjectIndex(data: unknown): data is ProjectIndex {
+  if (!data || typeof data !== 'object') return false;
+  const index = data as Record<string, unknown>;
+  return Array.isArray(index.projects) && 
+         typeof index.lastUpdated === 'string' && 
+         typeof index.version === 'string';
+}
 
 /**
  * Project storage interface
@@ -162,7 +187,6 @@ export class ProjectStorage extends DisposableService implements ProjectStorageO
       const indexUpdateResult = await this.updateIndex('add', project.id, {
         id: project.id,
         name: project.name,
-        status: project.status,
         createdAt: projectToSave.metadata.createdAt,
         updatedAt: projectToSave.metadata.updatedAt
       });
@@ -316,7 +340,6 @@ export class ProjectStorage extends DisposableService implements ProjectStorageO
       const indexUpdateResult = await this.updateIndex('update', projectId, {
         id: updatedProject.id,
         name: updatedProject.name,
-        status: updatedProject.status,
         createdAt: updatedProject.metadata.createdAt,
         updatedAt: updatedProject.metadata.updatedAt
       });
@@ -569,21 +592,39 @@ export class ProjectStorage extends DisposableService implements ProjectStorageO
   /**
    * Load project index
    */
-  private async loadIndex(): Promise<FileOperationResult<any>> {
+  private async loadIndex(): Promise<FileOperationResult<ProjectIndex>> {
     if (!await FileUtils.fileExists(this.indexFile)) {
       const initResult = await this.initialize();
       if (!initResult.success) {
-        return initResult as FileOperationResult<any>;
+        return initResult as FileOperationResult<ProjectIndex>;
       }
     }
 
-    return await FileUtils.readJsonFile(this.indexFile);
+    const result = await FileUtils.readJsonFile(this.indexFile);
+    if (!result.success) {
+      return result as FileOperationResult<ProjectIndex>;
+    }
+
+    // Validate the loaded data
+    if (!isProjectIndex(result.data)) {
+      return {
+        success: false,
+        error: 'Invalid project index format',
+        metadata: result.metadata
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      metadata: result.metadata
+    };
   }
 
   /**
    * Update project index with mutex lock to prevent concurrent modifications
    */
-  private async updateIndex(operation: 'add' | 'update' | 'remove', projectId: string, projectInfo?: any): Promise<FileOperationResult<void>> {
+  private async updateIndex(operation: 'add' | 'update' | 'remove', projectId: string, projectInfo?: ProjectIndex['projects'][0]): Promise<FileOperationResult<void>> {
     // Wait for any existing index update to complete and acquire lock
     this.indexUpdateLock = this.indexUpdateLock.then(async (): Promise<FileOperationResult<void>> => {
       try {
@@ -598,24 +639,25 @@ export class ProjectStorage extends DisposableService implements ProjectStorageO
 
         switch (operation) {
           case 'add':
-            if (!index.projects.find((p: any) => p.id === projectId)) {
+            if (!index.projects.find(p => p.id === projectId) && projectInfo) {
               index.projects.push(projectInfo);
             }
             break;
 
-          case 'update':
-            const updateIndex = index.projects.findIndex((p: any) => p.id === projectId);
-            if (updateIndex !== -1) {
+          case 'update': {
+            const updateIndex = index.projects.findIndex(p => p.id === projectId);
+            if (updateIndex !== -1 && projectInfo) {
               index.projects[updateIndex] = projectInfo;
             }
             break;
+          }
 
           case 'remove':
-            index.projects = index.projects.filter((p: any) => p.id !== projectId);
+            index.projects = index.projects.filter(p => p.id !== projectId);
             break;
         }
 
-        index.lastUpdated = new Date().toISOString();
+        (index as ProjectIndex).lastUpdated = new Date().toISOString();
 
         const writeResult = await FileUtils.writeJsonFile(this.indexFile, index);
         logger.debug({ operation, projectId, success: writeResult.success }, 'Index update completed');

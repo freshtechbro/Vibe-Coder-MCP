@@ -22,7 +22,7 @@ export interface AgentRegistration {
   registeredAt?: number;
   lastSeen?: number;
   currentTasks?: string[];
-  websocketConnection?: any;
+  websocketConnection?: WebSocket;
   httpEndpoint?: string;
   httpAuthToken?: string;
 }
@@ -66,15 +66,16 @@ export interface UnifiedAgent {
   // Transport-specific
   httpEndpoint?: string;
   httpAuthToken?: string;
-  websocketConnection?: any;
+  websocketConnection?: WebSocket;
   
   // Metadata
   metadata: {
     version: string;
     supportedProtocols: string[];
-    preferences: Record<string, any>;
+    preferences: Record<string, unknown>;
   };
 }
+
 
 /**
  * Agent Integration Bridge Service
@@ -83,8 +84,10 @@ export interface UnifiedAgent {
 export class AgentIntegrationBridge {
   private static instance: AgentIntegrationBridge;
   private static isInitializing = false; // Initialization guard to prevent circular initialization
-  private agentRegistry: any;
-  private agentOrchestrator: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private agentRegistry: any | null = null; // Dynamic import from dependency container
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private agentOrchestrator: any | null = null; // Dynamic import from dependency container
   private syncEnabled = true;
   private syncInterval?: NodeJS.Timeout;
   private registrationInProgress = new Set<string>(); // Prevent circular registration
@@ -208,15 +211,15 @@ export class AgentIntegrationBridge {
       agentId: orchestratorAgent.id,
       capabilities: orchestratorAgent.capabilities.map(cap => cap.toString()),
       transportType: transportType as 'stdio' | 'sse' | 'websocket' | 'http',
-      sessionId,
+      sessionId: sessionId as string,
       maxConcurrentTasks: orchestratorAgent.maxConcurrentTasks,
-      pollingInterval: orchestratorAgent.metadata.preferences?.pollingInterval || 5000,
+      pollingInterval: (orchestratorAgent.metadata?.preferences?.pollingInterval as number) || 5000,
       status: registryStatus,
       registeredAt: Date.now(),
       lastSeen: orchestratorAgent.lastHeartbeat.getTime(),
       currentTasks: orchestratorAgent.currentTasks,
-      httpEndpoint: orchestratorAgent.metadata.preferences?.httpEndpoint,
-      httpAuthToken: orchestratorAgent.metadata.preferences?.httpAuthToken
+      httpEndpoint: orchestratorAgent.metadata?.preferences?.httpEndpoint as string | undefined,
+      httpAuthToken: orchestratorAgent.metadata?.preferences?.httpAuthToken as string | undefined
     };
   }
 
@@ -349,7 +352,7 @@ export class AgentIntegrationBridge {
       maxConcurrentTasks: unifiedAgent.maxConcurrentTasks,
       pollingInterval: unifiedAgent.pollingInterval,
       status: unifiedAgent.status === 'available' ? 'online' : 
-              unifiedAgent.status === 'error' ? 'offline' : unifiedAgent.status as any,
+              unifiedAgent.status === 'error' ? 'offline' : (unifiedAgent.status as 'online' | 'offline' | 'busy'),
       registeredAt: unifiedAgent.registeredAt,
       lastSeen: unifiedAgent.lastSeen,
       currentTasks: unifiedAgent.currentTasks,
@@ -369,7 +372,7 @@ export class AgentIntegrationBridge {
       capabilities: this.mapCapabilities(unifiedAgent.capabilities),
       maxConcurrentTasks: unifiedAgent.maxConcurrentTasks,
       currentTasks: unifiedAgent.currentTasks,
-      status: unifiedAgent.status === 'online' ? 'available' : unifiedAgent.status as any,
+      status: unifiedAgent.status === 'online' ? 'available' : (unifiedAgent.status as 'available' | 'busy' | 'offline' | 'error'),
       metadata: unifiedAgent.metadata
     };
   }
@@ -377,14 +380,15 @@ export class AgentIntegrationBridge {
   /**
    * Register agent in registry only (without triggering bridge)
    */
-  private async registerInRegistryOnly(registryData: any): Promise<void> {
-    // Temporarily disable bridge integration in registry
-    const originalMethod = this.agentRegistry.registerAgent;
+  private async registerInRegistryOnly(registryData: AgentRegistration): Promise<void> {
+    if (!this.agentRegistry) {
+      throw new AppError('Agent registry not initialized');
+    }
 
     // Create a direct registration method that bypasses bridge
-    const directRegister = async (data: any) => {
+    const directRegister = async (data: AgentRegistration) => {
       // Call the original registry logic without bridge integration
-      this.agentRegistry.validateRegistration(data);
+      this.agentRegistry!.validateRegistration(data);
 
       const existingAgent = this.agentRegistry.agents?.get(data.agentId);
       if (existingAgent) {
@@ -402,7 +406,11 @@ export class AgentIntegrationBridge {
   /**
    * Register agent in orchestrator only (without triggering bridge)
    */
-  private async registerInOrchestratorOnly(orchestratorData: any): Promise<void> {
+  private async registerInOrchestratorOnly(orchestratorData: Omit<AgentInfo, 'lastHeartbeat' | 'performance'>): Promise<void> {
+    if (!this.agentOrchestrator) {
+      throw new AppError('Agent orchestrator not initialized');
+    }
+
     // Direct registration in orchestrator without triggering bridge
     const fullAgentInfo = {
       ...orchestratorData,
@@ -508,7 +516,7 @@ export class AgentIntegrationBridge {
 
       if (source === 'orchestrator') {
         // Update registry status
-        const registryStatus = this.mapOrchestratorStatusToRegistry(newStatus as any);
+        const registryStatus = this.mapOrchestratorStatusToRegistry(newStatus as AgentInfo['status']);
         await this.agentRegistry.updateAgentStatus(agentId, registryStatus);
         logger.debug({ agentId, registryStatus }, 'Status propagated from orchestrator to registry');
       } else if (source === 'registry') {
@@ -634,7 +642,7 @@ export class AgentIntegrationBridge {
       id: registryAgent.agentId,
       name: registryAgent.agentId,
       capabilities: registryAgent.capabilities,
-      status: registryAgent.status === 'online' ? 'available' : registryAgent.status as any,
+      status: registryAgent.status === 'online' ? 'available' : (registryAgent.status as 'available' | 'busy' | 'offline' | 'error'),
       maxConcurrentTasks: registryAgent.maxConcurrentTasks,
       currentTasks: registryAgent.currentTasks || [],
       transportType: registryAgent.transportType,
@@ -667,18 +675,18 @@ export class AgentIntegrationBridge {
       id: orchestratorAgent.id,
       name: orchestratorAgent.name,
       capabilities: orchestratorAgent.capabilities.map(cap => cap.toString()),
-      status: orchestratorAgent.status === 'available' ? 'online' : orchestratorAgent.status as any,
+      status: orchestratorAgent.status === 'available' ? 'online' : (orchestratorAgent.status as 'online' | 'offline' | 'busy'),
       maxConcurrentTasks: orchestratorAgent.maxConcurrentTasks,
       currentTasks: orchestratorAgent.currentTasks,
-      transportType: orchestratorAgent.metadata.preferences?.transportType || 'stdio',
-      sessionId: orchestratorAgent.metadata.preferences?.sessionId,
-      pollingInterval: orchestratorAgent.metadata.preferences?.pollingInterval,
+      transportType: (orchestratorAgent.metadata?.preferences?.transportType as 'stdio' | 'sse' | 'websocket' | 'http') || 'stdio',
+      sessionId: orchestratorAgent.metadata?.preferences?.sessionId as string | undefined,
+      pollingInterval: orchestratorAgent.metadata?.preferences?.pollingInterval as number | undefined,
       registeredAt: Date.now(),
       lastSeen: orchestratorAgent.lastHeartbeat.getTime(),
       lastHeartbeat: orchestratorAgent.lastHeartbeat,
       performance: orchestratorAgent.performance,
-      httpEndpoint: orchestratorAgent.metadata.preferences?.httpEndpoint,
-      httpAuthToken: orchestratorAgent.metadata.preferences?.httpAuthToken,
+      httpEndpoint: orchestratorAgent.metadata?.preferences?.httpEndpoint as string | undefined,
+      httpAuthToken: orchestratorAgent.metadata?.preferences?.httpAuthToken as string | undefined,
       metadata: orchestratorAgent.metadata
     };
   }

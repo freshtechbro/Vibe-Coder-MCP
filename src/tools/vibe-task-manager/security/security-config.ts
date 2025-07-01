@@ -77,8 +77,10 @@ const DEFAULT_SECURITY_CONFIG: UnifiedSecurityConfig = {
       /\/dev\//g, // Device access
       /\/var\/log\//g, // System logs
       /\/root\//g, // Root directory
+      // eslint-disable-next-line no-useless-escape
       /\/home\/[^\/]+\/\.[^\/]+/g, // Hidden files in home dirs
       /\0/g, // Null bytes
+      // eslint-disable-next-line no-control-regex
       /[\x00-\x1f\x7f-\x9f]/g // Control characters
     ],
     allowSymlinks: false,
@@ -125,7 +127,7 @@ const DEFAULT_SECURITY_CONFIG: UnifiedSecurityConfig = {
   },
 
   // Environment settings
-  environment: (process.env.NODE_ENV as any) || 'development',
+  environment: (process.env.NODE_ENV === 'test' ? 'testing' : process.env.NODE_ENV as 'development' | 'testing' | 'staging' | 'production') || 'development',
   debugMode: process.env.NODE_ENV !== 'production',
   auditLevel: 'standard',
 
@@ -180,7 +182,7 @@ const ENVIRONMENT_OVERRIDES: Record<string, Partial<UnifiedSecurityConfig>> = {
 export class SecurityConfigManager {
   private static instance: SecurityConfigManager | null = null;
   private config: UnifiedSecurityConfig;
-  private configCache = new Map<string, any>();
+  private configCache = new Map<string, unknown>();
   private lastCacheUpdate = 0;
 
   private constructor() {
@@ -207,7 +209,7 @@ export class SecurityConfigManager {
    * Load configuration from environment and defaults
    */
   private loadConfiguration(): UnifiedSecurityConfig {
-    const environment = (process.env.NODE_ENV as any) || 'development';
+    const environment = (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development';
 
     try {
       // Try to get configuration from unified security config manager first
@@ -356,7 +358,10 @@ export class SecurityConfigManager {
     if (this.config.cacheSecurityResults &&
         this.configCache.has(cacheKey) &&
         (now - this.lastCacheUpdate) < (this.config.cacheTTLSeconds * 1000)) {
-      return this.configCache.get(cacheKey);
+      const cachedValue = this.configCache.get(cacheKey) as T | undefined;
+      if (cachedValue !== undefined) {
+        return cachedValue;
+      }
     }
 
     const value = factory();

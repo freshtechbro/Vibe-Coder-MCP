@@ -9,7 +9,6 @@ import { EventEmitter } from 'events';
 import { AtomicTask, TaskStatus } from '../types/task.js';
 import { OptimizedDependencyGraph } from '../core/dependency-graph.js';
 import { getTaskOperations } from '../core/operations/task-operations.js';
-import { FileOperationResult } from '../utils/file-utils.js';
 import logger from '../../../logger.js';
 
 /**
@@ -22,7 +21,7 @@ export interface TaskTransition {
   timestamp: Date;
   reason?: string;
   triggeredBy?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   isAutomated: boolean;
 }
 
@@ -34,7 +33,7 @@ export interface TaskTransitionResult {
   taskId: string;
   transition?: TaskTransition;
   error?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -157,7 +156,7 @@ export class TaskLifecycleService extends EventEmitter {
     options: {
       reason?: string;
       triggeredBy?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
       isAutomated?: boolean;
     } = {}
   ): Promise<TaskTransitionResult> {
@@ -364,7 +363,7 @@ export class TaskLifecycleService extends EventEmitter {
   async processDependencyCascade(
     completedTaskId: string,
     tasks: AtomicTask[],
-    dependencyGraph: OptimizedDependencyGraph
+    _dependencyGraph: OptimizedDependencyGraph
   ): Promise<TaskTransitionResult[]> {
     const results: TaskTransitionResult[] = [];
 
@@ -406,7 +405,7 @@ export class TaskLifecycleService extends EventEmitter {
   /**
    * Get tasks ready for execution (no dependencies or all dependencies completed)
    */
-  getReadyTasks(tasks: AtomicTask[], dependencyGraph: OptimizedDependencyGraph): AtomicTask[] {
+  getReadyTasks(tasks: AtomicTask[], _dependencyGraph: OptimizedDependencyGraph): AtomicTask[] {
     return tasks.filter(task => {
       if (task.status !== 'pending') {
         return false;
@@ -423,7 +422,7 @@ export class TaskLifecycleService extends EventEmitter {
   /**
    * Get tasks blocked by dependencies
    */
-  getBlockedTasks(tasks: AtomicTask[], dependencyGraph: OptimizedDependencyGraph): AtomicTask[] {
+  getBlockedTasks(tasks: AtomicTask[], _dependencyGraph: OptimizedDependencyGraph): AtomicTask[] {
     return tasks.filter(task => {
       if (task.status !== 'pending') {
         return false;

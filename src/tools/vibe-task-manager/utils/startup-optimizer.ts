@@ -48,6 +48,29 @@ export interface ConnectionPoolConfig {
 }
 
 /**
+ * Connection object for pool management
+ */
+export interface PoolConnection {
+  id: number;
+  type: 'http' | 'websocket';
+  created: Date;
+  lastUsed: Date;
+  isActive: boolean;
+}
+
+/**
+ * Connection pool interface
+ */
+export interface ConnectionPool {
+  config: ConnectionPoolConfig;
+  connections: Map<number, PoolConnection>;
+  available: PoolConnection[];
+  busy: Set<number>;
+  acquire(): Promise<PoolConnection>;
+  release(connection: PoolConnection): Promise<void>;
+}
+
+/**
  * Startup metrics
  */
 export interface StartupMetrics {
@@ -68,7 +91,7 @@ export class StartupOptimizer {
   private static instance: StartupOptimizer;
   private services: Map<string, ServiceDefinition> = new Map();
   private initializedServices: Set<string> = new Set();
-  private connectionPools: Map<string, any> = new Map();
+  private connectionPools: Map<string, ConnectionPool> = new Map();
   private performanceConfig: PerformanceConfig;
   private startupMetrics: StartupMetrics | null = null;
   private startTime: number = 0;
@@ -209,37 +232,55 @@ export class StartupOptimizer {
     };
 
     // HTTP connection pool
-    const httpPool = {
+    const httpPool: ConnectionPool = {
       config: poolConfig,
-      connections: new Map(),
+      connections: new Map<number, PoolConnection>(),
       available: [],
-      busy: new Set(),
+      busy: new Set<number>(),
 
-      async acquire(): Promise<any> {
+      async acquire(): Promise<PoolConnection> {
         // Simplified connection pool implementation
-        return { id: Date.now(), type: 'http' };
+        const now = new Date();
+        return {
+          id: Date.now(),
+          type: 'http',
+          created: now,
+          lastUsed: now,
+          isActive: true
+        };
       },
 
-      async release(connection: any): Promise<void> {
+      async release(connection: PoolConnection): Promise<void> {
         // Release connection back to pool
+        connection.lastUsed = new Date();
+        connection.isActive = false;
       }
     };
 
     this.connectionPools.set('http', httpPool);
 
     // WebSocket connection pool
-    const wsPool = {
+    const wsPool: ConnectionPool = {
       config: poolConfig,
-      connections: new Map(),
+      connections: new Map<number, PoolConnection>(),
       available: [],
-      busy: new Set(),
+      busy: new Set<number>(),
 
-      async acquire(): Promise<any> {
-        return { id: Date.now(), type: 'websocket' };
+      async acquire(): Promise<PoolConnection> {
+        const now = new Date();
+        return {
+          id: Date.now(),
+          type: 'websocket',
+          created: now,
+          lastUsed: now,
+          isActive: true
+        };
       },
 
-      async release(connection: any): Promise<void> {
+      async release(connection: PoolConnection): Promise<void> {
         // Release connection back to pool
+        connection.lastUsed = new Date();
+        connection.isActive = false;
       }
     };
 
@@ -389,7 +430,7 @@ export class StartupOptimizer {
   /**
    * Get connection pool by type
    */
-  getConnectionPool(type: string): any {
+  getConnectionPool(type: string): ConnectionPool | undefined {
     return this.connectionPools.get(type);
   }
 

@@ -2,16 +2,11 @@ import { ContextEnrichmentService } from '../services/context-enrichment-service
 import { FileSearchService, FileReaderService } from '../../../services/file-search-service/index.js';
 import type {
   ContextRequest,
-  ContextResult,
-  RelevanceFactors
+  ContextResult
 } from '../services/context-enrichment-service.js';
-import type {
-  FileSearchOptions,
-  FileContent,
-  FileReadOptions
-} from '../../../services/file-search-service/index.js';
 import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
+import crypto from 'crypto';
 
 /**
  * Enhanced context request with integration-specific features
@@ -159,7 +154,7 @@ export class ContextServiceIntegration extends EventEmitter {
   private sessionContexts = new Map<string, EnhancedContextResult[]>();
   private contextSubscriptions = new Map<string, ContextUpdateCallback[]>();
   private progressSubscriptions = new Map<string, ContextProgressCallback[]>();
-  private performanceMetrics = new Map<string, any>();
+  private performanceMetrics = new Map<string, unknown>();
   private cleanupInterval?: NodeJS.Timeout;
 
   private constructor(config?: Partial<ContextServiceConfig>) {
@@ -597,7 +592,6 @@ export class ContextServiceIntegration extends EventEmitter {
   private generateRequestId(request: EnhancedContextRequest): string {
     const key = `${request.projectPath}-${request.taskDescription}-${request.enrichmentDepth}-${request.priority}`;
     // Use a hash instead of truncated base64 to avoid collisions
-    const crypto = require('crypto');
     return crypto.createHash('md5').update(key).digest('hex').slice(0, 16);
   }
 
@@ -751,7 +745,7 @@ export class ContextServiceIntegration extends EventEmitter {
    */
   private async analyzeDependencies(
     contextResult: ContextResult,
-    projectPath: string
+    _projectPath: string
   ): Promise<EnhancedContextResult['dependencyAnalysis']> {
     const directDependencies: string[] = [];
     const transitiveDependencies: string[] = [];

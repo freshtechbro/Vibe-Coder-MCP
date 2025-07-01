@@ -34,7 +34,7 @@ export interface LLMFallbackConfig {
 interface LLMIntentResponse {
   intent: Intent;
   confidence: number;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   context: {
     temporal?: string;
     project_scope?: string;
@@ -111,7 +111,7 @@ export class LLMFallbackSystem {
   async recognizeIntent(
     text: string,
     patternConfidence: number = 0,
-    context?: Record<string, any>
+    context?: Record<string, unknown>
   ): Promise<RecognizedIntent | null> {
     const startTime = Date.now();
 
@@ -176,7 +176,7 @@ export class LLMFallbackSystem {
   /**
    * Build user prompt for LLM intent recognition
    */
-  private buildUserPrompt(text: string, context?: Record<string, any>): string {
+  private buildUserPrompt(text: string, context?: Record<string, unknown>): string {
     let prompt = `Please analyze the following user input and identify the intent:\n\n"${text}"\n\n`;
 
     if (context) {
@@ -316,7 +316,7 @@ export class LLMFallbackSystem {
   /**
    * Convert parameters to Entity array format
    */
-  private convertParametersToEntities(parameters: Record<string, any>): Entity[] {
+  private convertParametersToEntities(parameters: Record<string, unknown>): Entity[] {
     const entityArray: Entity[] = [];
 
     for (const [type, value] of Object.entries(parameters)) {

@@ -8,7 +8,7 @@
 
 import path from 'path';
 import { OpenRouterConfig } from '../../../types/workflow.js';
-import { extractVibeTaskManagerSecurityConfig, VibeTaskManagerSecurityConfig } from '../utils/config-loader.js';
+import { extractVibeTaskManagerSecurityConfig } from '../utils/config-loader.js';
 import logger from '../../../logger.js';
 
 /**

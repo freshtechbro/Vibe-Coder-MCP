@@ -10,7 +10,6 @@ import { CommandHandler, CommandExecutionContext, CommandExecutionResult } from 
 import { PRDIntegrationService } from '../../integrations/prd-integration.js';
 import { TaskListIntegrationService } from '../../integrations/task-list-integration.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
-import { DecompositionService } from '../../services/decomposition-service.js';
 import logger from '../../../../logger.js';
 
 /**
@@ -91,7 +90,7 @@ export class ParsePRDHandler implements CommandHandler {
 
       // Create project from PRD
       const projectOperations = getProjectOperations();
-      const projectResult = await projectOperations.createProjectFromPRD(prdInfo, context.sessionId);
+      const projectResult = await projectOperations.createProjectFromPRD(prdInfo as unknown as Record<string, unknown>, context.sessionId);
 
       if (!projectResult.success) {
         return {
@@ -294,7 +293,7 @@ export class ParseTasksHandler implements CommandHandler {
 
       // Create project and tasks from task list
       const projectOperations = getProjectOperations();
-      const projectResult = await projectOperations.createProjectFromTaskList(taskListInfo, context.sessionId);
+      const projectResult = await projectOperations.createProjectFromTaskList(taskListInfo as unknown as Record<string, unknown>, context.sessionId);
 
       if (!projectResult.success) {
         return {
@@ -469,15 +468,17 @@ export class ImportArtifactHandler implements CommandHandler {
       // Route to appropriate handler based on artifact type
       switch (artifactType.toLowerCase()) {
         case 'prd':
-        case 'product_requirements_document':
+        case 'product_requirements_document': {
           const prdHandler = new ParsePRDHandler();
           return await prdHandler.handle(recognizedIntent, toolParams, context);
+        }
 
         case 'task_list':
         case 'tasks':
-        case 'task-list':
+        case 'task-list': {
           const taskHandler = new ParseTasksHandler();
           return await taskHandler.handle(recognizedIntent, toolParams, context);
+        }
 
         default:
           return {

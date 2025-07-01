@@ -10,7 +10,7 @@ import { ContextEnrichmentService } from '../../services/context-enrichment-serv
 import { getTaskOperations } from '../../core/operations/task-operations.js';
 import { getProjectOperations } from '../../core/operations/project-operations.js';
 import { CLIUtils } from './index.js';
-import { AppError, ValidationError } from '../../../../utils/errors.js';
+import { ValidationError } from '../../../../utils/errors.js';
 import logger from '../../../../logger.js';
 import path from 'path';
 

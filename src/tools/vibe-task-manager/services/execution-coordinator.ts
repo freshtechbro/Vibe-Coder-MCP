@@ -10,7 +10,7 @@ import { ParallelBatch } from '../core/dependency-graph.js';
 import { TaskScheduler, ScheduledTask } from './task-scheduler.js';
 import { StartupOptimizer } from '../utils/startup-optimizer.js';
 import { PerformanceMonitor } from '../utils/performance-monitor.js';
-import { ConcurrentAccessManager, LockAcquisitionResult } from '../security/concurrent-access.js';
+import { ConcurrentAccessManager } from '../security/concurrent-access.js';
 import logger from '../../../logger.js';
 
 /**
@@ -179,7 +179,7 @@ export interface ExecutionStateChangeEvent {
   previousStatus: ExecutionStatus;
   newStatus: ExecutionStatus;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -408,7 +408,7 @@ export class ExecutionCoordinator {
           if (status.isConfigured && !status.isStarted) {
             throw new Error('Transport Manager not ready');
           }
-        } catch (error) {
+        } catch {
           // Transport Manager might not be available in all environments
           logger.debug('Transport Manager not available, continuing without it');
         }
@@ -417,7 +417,7 @@ export class ExecutionCoordinator {
         logger.info('All dependencies ready for ExecutionCoordinator');
         return;
 
-      } catch (error) {
+      } catch {
         // Wait before next check
         await new Promise(resolve => setTimeout(resolve, checkInterval));
       }
@@ -829,6 +829,13 @@ export class ExecutionCoordinator {
   }
 
   /**
+   * Get coordinator running status
+   */
+  public getRunningStatus(): boolean {
+    return this.isRunning;
+  }
+
+  /**
    * Cancel a task execution
    */
   async cancelExecution(executionId: string): Promise<boolean> {
@@ -933,7 +940,7 @@ export class ExecutionCoordinator {
       if ((execution.status as ExecutionStatus) === 'failed') {
         logger.error('Task retry execution failed', {
           executionId,
-          error: (execution.result as any)?.error || 'Unknown error'
+          error: (execution.result as unknown as { error?: string })?.error || 'Unknown error'
         });
       }
 
@@ -1288,8 +1295,8 @@ export class ExecutionCoordinator {
       const { AgentOrchestrator } = await import('./agent-orchestrator.js');
       const orchestrator = AgentOrchestrator.getInstance();
 
-      // Get the communication channel from orchestrator
-      const communicationChannel = (orchestrator as any).communicationChannel;
+      // Get the communication channel from orchestrator using public method
+      const communicationChannel = orchestrator.getCommunicationChannel();
 
       if (!communicationChannel) {
         throw new Error('Communication channel not available');
@@ -1380,7 +1387,7 @@ export class ExecutionCoordinator {
       // Import communication channel
       const { AgentOrchestrator } = await import('./agent-orchestrator.js');
       const orchestrator = AgentOrchestrator.getInstance();
-      const communicationChannel = (orchestrator as any).communicationChannel;
+      const communicationChannel = orchestrator.getCommunicationChannel();
 
       while (Date.now() - startTime < timeoutMs) {
         // Check if execution was cancelled
@@ -1453,7 +1460,7 @@ export class ExecutionCoordinator {
           exitCode: parsed.exitCode || (parsed.success ? 0 : 1)
         };
       }
-    } catch (error) {
+    } catch {
       // Not JSON, treat as plain text
       logger.debug({ response: response.substring(0, 100) }, 'Agent response is not JSON, treating as plain text');
     }
@@ -1846,26 +1853,30 @@ export class ExecutionCoordinator {
       case 'queued':
         return 'Task is queued for execution';
 
-      case 'running':
+      case 'running': {
         const elapsedMs = now.getTime() - startTime.getTime();
         const elapsedMinutes = Math.round(elapsedMs / (1000 * 60));
         return `Task is running (${elapsedMinutes} minutes elapsed)`;
+      }
 
-      case 'completed':
+      case 'completed': {
         const duration = endTime ? Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)) : 0;
         return `Task completed successfully in ${duration} minutes`;
+      }
 
-      case 'failed':
+      case 'failed': {
         const failureReason = result?.error || 'Unknown error';
         const retryInfo = metadata.retryCount > 0 ? ` (${metadata.retryCount} retries)` : '';
         return `Task failed: ${failureReason}${retryInfo}`;
+      }
 
       case 'cancelled':
         return 'Task was cancelled';
 
-      case 'timeout':
+      case 'timeout': {
         const timeoutInfo = metadata.timeoutCount > 0 ? ` (${metadata.timeoutCount} timeouts)` : '';
         return `Task timed out${timeoutInfo}`;
+      }
 
       default:
         return `Task status: ${status}`;
@@ -2074,7 +2085,7 @@ export class ExecutionCoordinator {
 
     try {
       if (hookName === 'onExecutionFailed' && error) {
-        await (hook as any)(execution, error);
+        await (hook as (execution: TaskExecution, error: Error) => Promise<void>)(execution, error);
       } else if (hookName === 'onExecutionProgress') {
         // Calculate progress based on execution time vs estimated time
         const elapsed = Date.now() - execution.startTime.getTime();

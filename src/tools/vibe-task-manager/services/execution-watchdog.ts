@@ -6,11 +6,11 @@
  * escalation procedures, and health checks.
  */
 
-import { AtomicTask } from '../types/task.js';
-import { AgentOrchestrator, TaskAssignment } from './agent-orchestrator.js';
+import { AgentOrchestrator } from './agent-orchestrator.js';
 import { TaskStreamer } from './task-streamer.js';
 import { FeedbackProcessor } from './feedback-processor.js';
-import { AppError, ValidationError } from '../../../utils/errors.js';
+import { AtomicTask } from '../types/task.js';
+import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
 /**

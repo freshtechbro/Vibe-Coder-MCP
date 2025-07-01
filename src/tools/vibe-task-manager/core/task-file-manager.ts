@@ -14,10 +14,10 @@ import path from 'path';
 import { promisify } from 'util';
 import { gzip, gunzip } from 'zlib';
 import { AtomicTask } from '../types/task.js';
-import { FileUtils, FileOperationResult } from '../utils/file-utils.js';
+import { FileOperationResult } from '../utils/file-utils.js';
 import { VibeTaskManagerConfig } from '../utils/config-loader.js';
 import { TaskManagerMemoryManager, MemoryCleanupResult } from '../utils/memory-manager-integration.js';
-import { validateSecurePath, PathValidationResult } from '../security/path-validator.js';
+import { validateSecurePath } from '../security/path-validator.js';
 import { AppError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
 
@@ -201,7 +201,7 @@ export class TaskFileManager {
             filePath,
             operation: 'save_task',
             timestamp: new Date()
-          } as any
+          }
         };
       }
 
@@ -308,7 +308,7 @@ export class TaskFileManager {
             filePath: indexEntry.filePath,
             operation: 'load_task',
             timestamp: new Date()
-          } as any
+          }
         };
       }
 

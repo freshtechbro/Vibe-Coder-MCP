@@ -1,5 +1,5 @@
 import { jobManager, Job, JobStatus } from '../../../services/job-manager/index.js';
-import { getTimeoutManager, TimeoutOperation } from '../utils/timeout-manager.js';
+import { getTimeoutManager } from '../utils/timeout-manager.js';
 import logger from '../../../logger.js';
 import { EventEmitter } from 'events';
 
@@ -283,7 +283,7 @@ export class JobManagerIntegrationService extends EventEmitter {
    */
   async completeJob(
     jobId: string,
-    result: any,
+    result: unknown,
     finalMetrics?: Partial<JobMetrics>
   ): Promise<boolean> {
     try {

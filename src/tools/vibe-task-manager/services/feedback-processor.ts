@@ -5,9 +5,8 @@
  * and manages agent performance metrics.
  */
 
-import { AtomicTask } from '../types/task.js';
-import { AgentResponse, AgentStatus } from '../cli/sentinel-protocol.js';
-import { AgentOrchestrator, TaskAssignment } from './agent-orchestrator.js';
+import { AgentResponse } from '../cli/sentinel-protocol.js';
+import { AgentOrchestrator } from './agent-orchestrator.js';
 import { TaskStreamer } from './task-streamer.js';
 import { AppError, ValidationError } from '../../../utils/errors.js';
 import logger from '../../../logger.js';
@@ -460,7 +459,7 @@ export class FeedbackProcessor {
   private async updateAgentPerformance(
     agentId: string,
     action: 'completed' | 'failed' | 'help_requested' | 'blocked',
-    response: AgentResponse
+    _response: AgentResponse
   ): Promise<void> {
     let metrics = this.performanceMetrics.get(agentId);
 

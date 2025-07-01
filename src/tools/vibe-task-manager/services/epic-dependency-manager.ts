@@ -307,7 +307,7 @@ export class EpicDependencyManager {
       if (!validationResult.isValid) {
         return {
           success: false,
-          error: `Epic dependency validation failed: ${validationResult.errors.map((e: any) => e.message).join(', ')}`,
+          error: `Epic dependency validation failed: ${validationResult.errors.map((e: { message: string }) => e.message).join(', ')}`,
           metadata: {
             filePath: 'epic-dependency-manager',
             operation: 'create_epic_dependency',
@@ -632,7 +632,7 @@ export class EpicDependencyManager {
     epics: Epic[],
     epicDependencies: EpicDependency[],
     tasks: AtomicTask[],
-    taskDependencies: Dependency[]
+    _taskDependencies: Dependency[]
   ): Promise<EpicRecommendation[]> {
     const recommendations: EpicRecommendation[] = [];
 
@@ -656,7 +656,7 @@ export class EpicDependencyManager {
   /**
    * Validate epic dependency
    */
-  private async validateEpicDependency(fromEpicId: string, toEpicId: string): Promise<any> {
+  private async validateEpicDependency(fromEpicId: string, toEpicId: string): Promise<{ isValid: boolean; errors: { message: string }[] }> {
     // Use the existing dependency validator for basic validation
     return await this.dependencyValidator.validateDependencyBeforeCreation(fromEpicId, toEpicId, 'project-id');
   }
@@ -1081,8 +1081,8 @@ export class EpicDependencyManager {
             fromEpicId,
             toEpicId,
             sharedFilePaths: sharedPaths,
-            conflictType: primaryConflictType as any,
-            severity: severity as any,
+            conflictType: primaryConflictType as 'modification' | 'creation' | 'deletion' | 'read_dependency',
+            severity: severity as 'low' | 'medium' | 'high',
             resolutionSuggestion
           });
 

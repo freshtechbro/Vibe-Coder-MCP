@@ -117,7 +117,7 @@ export function resetTestServices(): void {
   try {
     // Reset TimeoutManager
     const timeoutManager = TimeoutManager.getInstance();
-    (timeoutManager as any).config = null;
+    (timeoutManager as Record<string, unknown>).config = null;
 
     logger.debug('Test services reset successfully');
   } catch (error) {
@@ -140,7 +140,7 @@ export const epicTestUtils = {
   /**
    * Create test project for epic creation tests
    */
-  createTestProject: (overrides: any = {}) => ({
+  createTestProject: (overrides: unknown = {}) => ({
     name: 'Test Project',
     description: 'Test project for epic creation',
     languages: ['typescript'],
@@ -156,7 +156,7 @@ export const epicTestUtils = {
   /**
    * Create test task for epic resolution
    */
-  createTestTask: (overrides: any = {}) => ({
+  createTestTask: (overrides: unknown = {}) => ({
     title: 'Test Task',
     description: 'Test task for epic resolution',
     priority: 'medium' as const,
@@ -206,7 +206,7 @@ export const epicTestUtils = {
   /**
    * Generate test task with specific functional area
    */
-  generateTaskForArea: (area: string, overrides: any = {}) => {
+  generateTaskForArea: (area: string, overrides: unknown = {}) => {
     const testCase = epicTestUtils.functionalAreaTestCases.find(tc => tc.area === area);
     if (!testCase) {
       throw new Error(`Unknown functional area: ${area}`);
@@ -224,7 +224,7 @@ export const epicTestUtils = {
   /**
    * Validate epic creation result
    */
-  validateEpicCreation: (result: any, expectedArea?: string) => {
+  validateEpicCreation: (result: unknown, expectedArea?: string) => {
     if (!result) {
       throw new Error('Epic creation result is null or undefined');
     }

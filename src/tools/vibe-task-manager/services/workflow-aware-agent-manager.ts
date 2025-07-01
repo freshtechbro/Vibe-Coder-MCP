@@ -7,9 +7,9 @@
 
 import { EventEmitter } from 'events';
 import { AgentOrchestrator } from './agent-orchestrator.js';
-import { WorkflowStateManager, WorkflowPhase, WorkflowState } from './workflow-state-manager.js';
+import { WorkflowStateManager, WorkflowPhase } from './workflow-state-manager.js';
 import { DecompositionService } from './decomposition-service.js';
-import { getTimeoutManager } from '../utils/timeout-manager.js';
+// Timeout manager not used in this implementation
 import { createErrorContext, ValidationError } from '../utils/enhanced-errors.js';
 import { InitializationMonitor } from '../../../utils/initialization-monitor.js';
 import logger from '../../../logger.js';
@@ -47,7 +47,7 @@ export interface WorkflowAwareAgentState {
     taskCount?: number;
     estimatedCompletion?: Date;
     lastActivityUpdate?: Date;
-    [key: string]: any; // Allow additional metadata fields
+    [key: string]: unknown; // Allow additional metadata fields
   };
 }
 
@@ -93,7 +93,7 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   private config: WorkflowTimeoutConfig;
   private agentStates = new Map<string, WorkflowAwareAgentState>();
   private agentOrchestrator: AgentOrchestrator | null = null;
-  private workflowStateManager: WorkflowStateManager;
+  private workflowStateManager: WorkflowStateManager | null = null;
   private decompositionService: DecompositionService | null = null;
   
   private monitoringInterval: NodeJS.Timeout | null = null;
@@ -110,8 +110,8 @@ export class WorkflowAwareAgentManager extends EventEmitter {
     try {
       this.workflowStateManager = WorkflowStateManager.getInstance();
     } catch (error) {
-      logger.warn({ err: error }, 'WorkflowStateManager getInstance not available, using fallback');
-      this.workflowStateManager = { on: () => {}, emit: () => {} } as any;
+      logger.warn({ err: error }, 'WorkflowStateManager getInstance not available, using null fallback');
+      this.workflowStateManager = null;
     }
 
     // Initialize decomposition service with config (following TaskRefinementService pattern)
@@ -270,7 +270,7 @@ export class WorkflowAwareAgentManager extends EventEmitter {
       sessionId?: string;
       expectedDuration?: number;
       isWorkflowCritical?: boolean;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     } = {}
   ): Promise<void> {
     const now = new Date();
@@ -325,7 +325,7 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   async updateAgentProgress(
     agentId: string,
     progressPercentage: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const agentState = this.agentStates.get(agentId);
     if (!agentState) {
@@ -382,7 +382,7 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   async completeAgentActivity(
     agentId: string,
     success: boolean = true,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const agentState = this.agentStates.get(agentId);
     if (!agentState) {
@@ -483,15 +483,15 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   private setupEventListeners(): void {
     // Listen to workflow state changes (with fallback for services that don't support events)
     try {
-      const workflowStateManagerAny = this.workflowStateManager as any;
+      const workflowStateManagerAny = this.workflowStateManager as EventEmitter;
       if (typeof workflowStateManagerAny.on === 'function') {
-        workflowStateManagerAny.on('workflow_phase_changed', (data: any) => {
+        workflowStateManagerAny.on('workflow_phase_changed', (data: Record<string, unknown>) => {
           this.handleWorkflowPhaseChange(data).catch(error => {
             logger.error({ err: error, data }, 'Error handling workflow phase change');
           });
         });
 
-        workflowStateManagerAny.on('workflow_progress_updated', (data: any) => {
+        workflowStateManagerAny.on('workflow_progress_updated', (data: Record<string, unknown>) => {
           this.handleWorkflowProgressUpdate(data).catch(error => {
             logger.error({ err: error, data }, 'Error handling workflow progress update');
           });
@@ -505,21 +505,21 @@ export class WorkflowAwareAgentManager extends EventEmitter {
 
     // Listen to decomposition events (with fallback for services that don't support events)
     try {
-      const decompositionServiceAny = this.decompositionService as any;
+      const decompositionServiceAny = this.decompositionService as EventEmitter;
       if (decompositionServiceAny && typeof decompositionServiceAny.on === 'function') {
-        decompositionServiceAny.on('decomposition_started', (data: any) => {
+        decompositionServiceAny.on('decomposition_started', (data: Record<string, unknown>) => {
           this.handleDecompositionStarted(data).catch(error => {
             logger.error({ err: error, data }, 'Error handling decomposition started');
           });
         });
 
-        decompositionServiceAny.on('decomposition_progress', (data: any) => {
+        decompositionServiceAny.on('decomposition_progress', (data: Record<string, unknown>) => {
           this.handleDecompositionProgress(data).catch(error => {
             logger.error({ err: error, data }, 'Error handling decomposition progress');
           });
         });
 
-        decompositionServiceAny.on('decomposition_completed', (data: any) => {
+        decompositionServiceAny.on('decomposition_completed', (data: Record<string, unknown>) => {
           this.handleDecompositionCompleted(data).catch(error => {
             logger.error({ err: error, data }, 'Error handling decomposition completed');
           });
@@ -679,10 +679,10 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   /**
    * Handle workflow phase change
    */
-  private async handleWorkflowPhaseChange(data: any): Promise<void> {
+  private async handleWorkflowPhaseChange(data: Record<string, unknown>): Promise<void> {
     const { workflowId, sessionId, fromPhase, toPhase, agentId } = data;
 
-    if (!agentId) return;
+    if (!agentId || typeof agentId !== 'string') return;
 
     const agentState = this.agentStates.get(agentId);
     if (!agentState) return;
@@ -710,8 +710,8 @@ export class WorkflowAwareAgentManager extends EventEmitter {
     }
 
     await this.registerAgentActivity(agentId, newActivity, {
-      workflowId,
-      sessionId,
+      workflowId: workflowId as string,
+      sessionId: sessionId as string,
       isWorkflowCritical,
       metadata: {
         workflowPhase: toPhase,
@@ -723,14 +723,14 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   /**
    * Handle workflow progress update
    */
-  private async handleWorkflowProgressUpdate(data: any): Promise<void> {
+  private async handleWorkflowProgressUpdate(data: Record<string, unknown>): Promise<void> {
     const { workflowId, sessionId, progress, agentId } = data;
 
-    if (!agentId || typeof progress !== 'number') return;
+    if (!agentId || typeof agentId !== 'string' || typeof progress !== 'number') return;
 
     await this.updateAgentProgress(agentId, progress, {
-      workflowId,
-      sessionId,
+      workflowId: workflowId as string,
+      sessionId: sessionId as string,
       lastWorkflowUpdate: new Date()
     });
   }
@@ -738,14 +738,14 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   /**
    * Handle decomposition started
    */
-  private async handleDecompositionStarted(data: any): Promise<void> {
+  private async handleDecompositionStarted(data: Record<string, unknown>): Promise<void> {
     const { sessionId, agentId, taskId, projectId } = data;
 
-    if (!agentId) return;
+    if (!agentId || typeof agentId !== 'string') return;
 
     await this.registerAgentActivity(agentId, 'decomposition', {
-      sessionId,
-      workflowId: sessionId, // Use sessionId as workflowId for decomposition
+      sessionId: sessionId as string,
+      workflowId: sessionId as string, // Use sessionId as workflowId for decomposition
       isWorkflowCritical: true,
       expectedDuration: 10 * 60 * 1000, // 10 minutes expected
       metadata: {
@@ -759,13 +759,13 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   /**
    * Handle decomposition progress
    */
-  private async handleDecompositionProgress(data: any): Promise<void> {
+  private async handleDecompositionProgress(data: Record<string, unknown>): Promise<void> {
     const { sessionId, agentId, progress } = data;
 
-    if (!agentId || typeof progress !== 'number') return;
+    if (!agentId || typeof agentId !== 'string' || typeof progress !== 'number') return;
 
     await this.updateAgentProgress(agentId, progress, {
-      sessionId,
+      sessionId: sessionId as string,
       lastDecompositionUpdate: new Date()
     });
   }
@@ -773,13 +773,13 @@ export class WorkflowAwareAgentManager extends EventEmitter {
   /**
    * Handle decomposition completed
    */
-  private async handleDecompositionCompleted(data: any): Promise<void> {
+  private async handleDecompositionCompleted(data: Record<string, unknown>): Promise<void> {
     const { sessionId, agentId, success = true } = data;
 
-    if (!agentId) return;
+    if (!agentId || typeof agentId !== 'string') return;
 
-    await this.completeAgentActivity(agentId, success, {
-      sessionId,
+    await this.completeAgentActivity(agentId, success as boolean, {
+      sessionId: sessionId as string,
       decompositionCompleted: new Date()
     });
   }

@@ -3,7 +3,7 @@
  * Centralizes all default values and environment variable handling for Vibe Task Manager
  */
 
-import { VibeTaskManagerConfig, PerformanceConfig } from './config-loader.js';
+import { PerformanceConfig } from './config-loader.js';
 import { createErrorContext, ValidationError } from './enhanced-errors.js';
 import logger from '../../../logger.js';
 import fs from 'fs';
@@ -19,8 +19,8 @@ export interface EnvironmentVariableConfig {
   type: 'string' | 'number' | 'boolean';
   required: boolean;
   description: string;
-  validation?: (value: any) => boolean;
-  transform?: (value: string) => any;
+  validation?: (value: unknown) => boolean;
+  transform?: (value: string) => unknown;
 }
 
 /**
@@ -87,7 +87,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum number of concurrent tasks',
-    validation: (value: number) => value >= 1 && value <= 100
+    validation: (value: unknown) => typeof value === 'number' && value >= 1 && value <= 100
   },
 
   VIBE_DEFAULT_TASK_TEMPLATE: {
@@ -114,7 +114,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum response time target in milliseconds',
-    validation: (value: number) => value >= 10 && value <= 10000
+    validation: (value: unknown) => typeof value === 'number' && value >= 10 && value <= 10000
   },
 
   VIBE_MAX_MEMORY_USAGE: {
@@ -123,7 +123,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum memory usage in MB',
-    validation: (value: number) => value >= 100 && value <= 8192
+    validation: (value: unknown) => typeof value === 'number' && value >= 100 && value <= 8192
   },
 
   VIBE_MIN_TEST_COVERAGE: {
@@ -132,7 +132,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Minimum test coverage percentage',
-    validation: (value: number) => value >= 0 && value <= 100
+    validation: (value: unknown) => typeof value === 'number' && value >= 0 && value <= 100
   },
 
   // Agent Settings
@@ -142,7 +142,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum number of agents',
-    validation: (value: number) => value >= 1 && value <= 50
+    validation: (value: unknown) => typeof value === 'number' && value >= 1 && value <= 50
   },
 
   VIBE_DEFAULT_AGENT: {
@@ -159,7 +159,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'string',
     required: false,
     description: 'Agent coordination strategy',
-    validation: (value: string) => ['round_robin', 'least_loaded', 'capability_based', 'priority_based'].includes(value)
+    validation: (value: unknown) => typeof value === 'string' && ['round_robin', 'least_loaded', 'capability_based', 'priority_based'].includes(value)
   },
 
   VIBE_HEALTH_CHECK_INTERVAL: {
@@ -168,7 +168,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Health check interval in seconds',
-    validation: (value: number) => value >= 5 && value <= 300
+    validation: (value: unknown) => typeof value === 'number' && value >= 5 && value <= 300
   },
 
   // NLP Settings
@@ -178,7 +178,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'string',
     required: false,
     description: 'Primary NLP processing method',
-    validation: (value: string) => ['pattern', 'llm', 'hybrid'].includes(value)
+    validation: (value: unknown) => typeof value === 'string' && ['pattern', 'llm', 'hybrid'].includes(value)
   },
 
   VIBE_FALLBACK_NLP_METHOD: {
@@ -187,7 +187,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'string',
     required: false,
     description: 'Fallback NLP processing method',
-    validation: (value: string) => ['pattern', 'llm', 'none'].includes(value)
+    validation: (value: unknown) => typeof value === 'string' && ['pattern', 'llm', 'none'].includes(value)
   },
 
   VIBE_MIN_CONFIDENCE: {
@@ -196,7 +196,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Minimum confidence threshold for NLP operations',
-    validation: (value: number) => value >= 0 && value <= 1,
+    validation: (value: unknown) => typeof value === 'number' && value >= 0 && value <= 1,
     transform: (value: string) => parseFloat(value)
   },
 
@@ -206,7 +206,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum NLP processing time in milliseconds',
-    validation: (value: number) => value >= 10 && value <= 5000
+    validation: (value: unknown) => typeof value === 'number' && value >= 10 && value <= 5000
   },
 
   // Timeout Settings
@@ -216,7 +216,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Task execution timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 3600000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 3600000
   },
 
   VIBE_TASK_DECOMPOSITION_TIMEOUT: {
@@ -225,7 +225,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Task decomposition timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 3600000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 3600000
   },
 
   VIBE_RECURSIVE_TASK_DECOMPOSITION_TIMEOUT: {
@@ -234,7 +234,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Recursive task decomposition timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 3600000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 3600000
   },
 
   VIBE_TASK_REFINEMENT_TIMEOUT: {
@@ -243,7 +243,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Task refinement timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 1800000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 1800000
   },
 
   VIBE_AGENT_COMMUNICATION_TIMEOUT: {
@@ -252,7 +252,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Agent communication timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 300000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 300000
   },
 
   VIBE_LLM_REQUEST_TIMEOUT: {
@@ -261,7 +261,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'LLM request timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 300000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 300000
   },
 
   VIBE_FILE_OPERATIONS_TIMEOUT: {
@@ -270,7 +270,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'File operations timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 60000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 60000
   },
 
   VIBE_DATABASE_OPERATIONS_TIMEOUT: {
@@ -279,7 +279,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Database operations timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 120000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 120000
   },
 
   VIBE_NETWORK_OPERATIONS_TIMEOUT: {
@@ -288,7 +288,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Network operations timeout in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 120000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 120000
   },
 
   // Retry Policy
@@ -298,7 +298,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum number of retry attempts',
-    validation: (value: number) => value >= 0 && value <= 10
+    validation: (value: unknown) => typeof value === 'number' && value >= 0 && value <= 10
   },
 
   VIBE_BACKOFF_MULTIPLIER: {
@@ -307,7 +307,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Exponential backoff multiplier',
-    validation: (value: number) => value >= 1.0 && value <= 10.0,
+    validation: (value: unknown) => typeof value === 'number' && value >= 1.0 && value <= 10.0,
     transform: (value: string) => parseFloat(value)
   },
 
@@ -317,7 +317,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Initial retry delay in milliseconds',
-    validation: (value: number) => value >= 100 && value <= 10000
+    validation: (value: unknown) => typeof value === 'number' && value >= 100 && value <= 10000
   },
 
   VIBE_MAX_DELAY_MS: {
@@ -326,7 +326,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'number',
     required: false,
     description: 'Maximum retry delay in milliseconds',
-    validation: (value: number) => value >= 1000 && value <= 300000
+    validation: (value: unknown) => typeof value === 'number' && value >= 1000 && value <= 300000
   },
 
   VIBE_ENABLE_EXPONENTIAL_BACKOFF: {
@@ -345,7 +345,7 @@ export const ENVIRONMENT_VARIABLES: Record<string, EnvironmentVariableConfig> = 
     type: 'string',
     required: false,
     description: 'Security mode for task manager',
-    validation: (value: string) => ['strict', 'permissive'].includes(value)
+    validation: (value: unknown) => typeof value === 'string' && ['strict', 'permissive'].includes(value)
   },
 
   // LLM Model Fallback
@@ -375,7 +375,7 @@ export const DEFAULT_PERFORMANCE_CONFIG: PerformanceConfig = {
 /**
  * Get environment variable value with validation and transformation
  */
-export function getEnvironmentValue<T = any>(
+export function getEnvironmentValue<T = unknown>(
   envVarConfig: EnvironmentVariableConfig,
   context?: string
 ): T {
@@ -405,7 +405,7 @@ export function getEnvironmentValue<T = any>(
   }
 
   // Transform the value
-  let transformedValue: any = rawValue;
+  let transformedValue: unknown = rawValue;
   
   if (transform) {
     try {
@@ -430,7 +430,7 @@ export function getEnvironmentValue<T = any>(
     switch (type) {
       case 'number':
         transformedValue = parseInt(rawValue, 10);
-        if (isNaN(transformedValue)) {
+        if (isNaN(transformedValue as number)) {
           const errorContext = createErrorContext('ConfigDefaults', 'getEnvironmentValue')
             .metadata({ envVar: key, rawValue, context })
             .build();
@@ -487,7 +487,7 @@ export function validateAllEnvironmentVariables(): {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  for (const [name, config] of Object.entries(ENVIRONMENT_VARIABLES)) {
+  for (const [, config] of Object.entries(ENVIRONMENT_VARIABLES)) {
     try {
       const rawValue = process.env[config.key];
 

@@ -5,7 +5,7 @@
  * for improved natural language understanding in the Vibe Task Manager.
  */
 
-import { Intent, RecognizedIntent, Entity } from '../types/nl.js';
+import { Intent, Entity } from '../types/nl.js';
 import logger from '../../../logger.js';
 
 /**
@@ -61,7 +61,7 @@ export class SemanticIntentMatcher {
    */
   async matchIntent(
     text: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     existingEntities?: Entity[]
   ): Promise<SemanticMatch[]> {
     try {
@@ -102,7 +102,7 @@ export class SemanticIntentMatcher {
   private async analyzeIntentMatch(
     intent: Intent,
     text: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     existingEntities?: Entity[]
   ): Promise<SemanticMatch> {
     const reasoning: string[] = [];
@@ -180,7 +180,7 @@ export class SemanticIntentMatcher {
   private calculateContextScore(
     intent: Intent,
     text: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
     reasoning: string[] = []
   ): number {
     if (!context) return 0;
@@ -224,8 +224,8 @@ export class SemanticIntentMatcher {
     if (context.conversationHistory && Array.isArray(context.conversationHistory)) {
       const recentIntents = context.conversationHistory
         .slice(-3)
-        .map((item: any) => item.intent)
-        .filter(Boolean);
+        .map((item: Record<string, unknown>) => item.intent)
+        .filter((intent): intent is Intent => Boolean(intent) && typeof intent === 'string');
 
       if (this.isRelatedIntent(intent, recentIntents)) {
         score += 0.2;

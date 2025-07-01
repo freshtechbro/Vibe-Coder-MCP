@@ -5,7 +5,6 @@
 
 import { CommandExecutionContext } from '../nl/command-handlers.js';
 import { getProjectOperations } from '../core/operations/project-operations.js';
-import { ProjectAnalyzer } from './project-analyzer.js';
 import logger from '../../../logger.js';
 import path from 'path';
 import fs from 'fs/promises';
@@ -156,13 +155,13 @@ async function extractFromGitRemote(projectPath: string): Promise<ProjectContext
       let projectName = '';
       
       // GitHub/GitLab HTTPS: https://github.com/user/repo.git
-      const httpsMatch = remoteUrl.match(/https:\/\/[^\/]+\/[^\/]+\/([^\/]+)(?:\.git)?$/);
+      const httpsMatch = remoteUrl.match(/https:\/\/[^/]+\/[^/]+\/([^/]+)(?:\.git)?$/);
       if (httpsMatch) {
         projectName = httpsMatch[1];
       }
-      
+
       // SSH: git@github.com:user/repo.git
-      const sshMatch = remoteUrl.match(/git@[^:]+:([^\/]+\/)?([^\/]+)(?:\.git)?$/);
+      const sshMatch = remoteUrl.match(/git@[^:]+:([^/]+\/)?([^/]+)(?:\.git)?$/);
       if (sshMatch) {
         projectName = sshMatch[2];
       }

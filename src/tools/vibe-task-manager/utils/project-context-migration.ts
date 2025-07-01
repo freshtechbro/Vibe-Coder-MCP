@@ -220,41 +220,43 @@ export function migrateToLegacyContext(
 /**
  * Type guard to check if an object is a legacy ProjectContext
  */
-export function isLegacyProjectContext(obj: any): obj is LegacyAtomicProjectContext {
+export function isLegacyProjectContext(obj: unknown): obj is LegacyAtomicProjectContext {
+  if (!obj || typeof obj !== 'object') return false;
+  
+  const context = obj as Record<string, unknown>;
   return (
-    obj &&
-    typeof obj === 'object' &&
-    typeof obj.projectId === 'string' &&
-    Array.isArray(obj.languages) &&
-    Array.isArray(obj.frameworks) &&
-    Array.isArray(obj.tools) &&
-    Array.isArray(obj.existingTasks) &&
-    ['small', 'medium', 'large'].includes(obj.codebaseSize) &&
-    typeof obj.teamSize === 'number' &&
-    ['low', 'medium', 'high'].includes(obj.complexity) &&
+    typeof context.projectId === 'string' &&
+    Array.isArray(context.languages) &&
+    Array.isArray(context.frameworks) &&
+    Array.isArray(context.tools) &&
+    Array.isArray(context.existingTasks) &&
+    ['small', 'medium', 'large'].includes(context.codebaseSize as string) &&
+    typeof context.teamSize === 'number' &&
+    ['low', 'medium', 'high'].includes(context.complexity as string) &&
     // Legacy context lacks projectPath and projectName
-    !obj.projectPath &&
-    !obj.projectName
+    !context.projectPath &&
+    !context.projectName
   );
 }
 
 /**
  * Type guard to check if an object is a unified ProjectContext
  */
-export function isUnifiedProjectContext(obj: any): obj is ProjectContext {
+export function isUnifiedProjectContext(obj: unknown): obj is ProjectContext {
+  if (!obj || typeof obj !== 'object') return false;
+  
+  const context = obj as Record<string, unknown>;
   return (
-    obj &&
-    typeof obj === 'object' &&
-    typeof obj.projectId === 'string' &&
-    typeof obj.projectPath === 'string' &&
-    typeof obj.projectName === 'string' &&
-    Array.isArray(obj.languages) &&
-    Array.isArray(obj.frameworks) &&
-    Array.isArray(obj.tools) &&
-    Array.isArray(obj.existingTasks) &&
-    ['small', 'medium', 'large'].includes(obj.codebaseSize) &&
-    typeof obj.teamSize === 'number' &&
-    ['low', 'medium', 'high'].includes(obj.complexity)
+    typeof context.projectId === 'string' &&
+    typeof context.projectPath === 'string' &&
+    typeof context.projectName === 'string' &&
+    Array.isArray(context.languages) &&
+    Array.isArray(context.frameworks) &&
+    Array.isArray(context.tools) &&
+    Array.isArray(context.existingTasks) &&
+    ['small', 'medium', 'large'].includes(context.codebaseSize as string) &&
+    typeof context.teamSize === 'number' &&
+    ['low', 'medium', 'high'].includes(context.complexity as string)
   );
 }
 
@@ -262,7 +264,7 @@ export function isUnifiedProjectContext(obj: any): obj is ProjectContext {
  * Auto-detect and migrate any ProjectContext to unified format
  */
 export function autoMigrateProjectContext(
-  context: any,
+  context: unknown,
   projectPath?: string,
   projectName?: string
 ): MigrationResult<ProjectContext> {

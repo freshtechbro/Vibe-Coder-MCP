@@ -13,11 +13,11 @@ import { DecompositionService } from '../services/decomposition-service.js';
 import { AtomicTaskDetector } from '../core/atomic-detector.js';
 import { AutoResearchDetector } from '../services/auto-research-detector.js';
 import { ContextEnrichmentService } from '../services/context-enrichment-service.js';
+import { OpenRouterConfig } from '../../../types/workflow.js';
 import { getDependencyGraph } from '../core/dependency-graph.js';
 import { getOpenRouterConfig } from '../../../utils/openrouter-config-manager.js';
 import { AtomicTask, TaskPriority } from '../types/task.js';
 import { ProjectContext } from '../types/project-context.js';
-import logger from '../../../logger.js';
 
 // Colors for console output
 const colors = {
@@ -36,7 +36,7 @@ class ValidationRunner {
   private atomicDetector!: AtomicTaskDetector;
   private autoResearchDetector!: AutoResearchDetector;
   private contextService!: ContextEnrichmentService;
-  private config!: any;
+  private config!: OpenRouterConfig;
 
   // Helper to create valid AtomicTask objects
   private createAtomicTask(partial: Partial<AtomicTask> & { id: string; title: string; description: string }): AtomicTask {
@@ -105,7 +105,7 @@ class ValidationRunner {
     console.log(`${colors.green}✅ All services initialized successfully${colors.reset}\n`);
   }
 
-  private log(title: string, data: any) {
+  private log(title: string, data: unknown) {
     console.log(`${colors.bright}${colors.blue}📊 ${title}${colors.reset}`);
     console.log(JSON.stringify(data, null, 2));
     console.log('');

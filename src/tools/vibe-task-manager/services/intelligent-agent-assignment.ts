@@ -184,8 +184,8 @@ export interface ConfigurationRecommendations {
   currentPerformance: number;
   suggestedChanges: {
     parameter: string;
-    currentValue: any;
-    suggestedValue: any;
+    currentValue: unknown;
+    suggestedValue: unknown;
     reasoning: string;
     expectedImprovement: number;
   }[];
@@ -214,7 +214,7 @@ export class IntelligentAgentAssignmentService extends EventEmitter {
   private config: AgentAssignmentConfig;
   private agents: Map<string, Agent> = new Map();
   private assignments: Map<string, TaskAssignment> = new Map();
-  private performanceHistory: Map<string, any[]> = new Map();
+  private performanceHistory: Map<string, unknown[]> = new Map();
   private roundRobinIndex = 0;
   private statistics = {
     totalAssignments: 0,
@@ -471,17 +471,19 @@ export class IntelligentAgentAssignmentService extends EventEmitter {
         bestScore = 0.7; // Higher score for least loaded
         break;
 
-      case 'capability_first':
+      case 'capability_first': {
         const capResult = this.selectCapabilityFirstAgent(candidates, task);
         bestAgent = capResult.agent;
         bestScore = capResult.score;
         break;
+      }
 
-      case 'performance_based':
+      case 'performance_based': {
         const perfResult = this.selectPerformanceBasedAgent(candidates);
         bestAgent = perfResult.agent;
         bestScore = perfResult.score;
         break;
+      }
 
       case 'intelligent_hybrid':
       default:
