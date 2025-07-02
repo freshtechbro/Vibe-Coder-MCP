@@ -61,8 +61,8 @@ describe('MemoryManager Logging Recursion Fix', () => {
       expect.stringContaining('Started memory monitoring')
     );
 
-    // Advance timers to trigger setImmediate
-    vi.runAllTimers();
+    // Advance timers to trigger only setImmediate (avoid infinite loop from setInterval)
+    vi.runOnlyPendingTimers();
 
     // Now the debug log should have been called
     expect(logger.debug).toHaveBeenCalledWith(
@@ -98,8 +98,8 @@ describe('MemoryManager Logging Recursion Fix', () => {
     (memoryManager as MemoryManagerPrivate).startMonitoring();
     (memoryManager as MemoryManagerPrivate).startMonitoring();
 
-    // Advance timers
-    vi.runAllTimers();
+    // Advance timers to trigger only setImmediate (avoid infinite loop from setInterval)
+    vi.runOnlyPendingTimers();
 
     // Should only log once despite multiple calls
     expect(logger.debug).toHaveBeenCalledTimes(1);
@@ -127,8 +127,8 @@ describe('MemoryManager Logging Recursion Fix', () => {
       expect.stringContaining('Started memory monitoring')
     );
 
-    // Advance timers to trigger deferred logging
-    vi.runAllTimers();
+    // Advance timers to trigger deferred logging (avoid infinite loop from setInterval)
+    vi.runOnlyPendingTimers();
 
     // Now logging should have occurred
     expect(logger.debug).toHaveBeenCalledWith(
@@ -168,8 +168,8 @@ describe('MemoryManager Logging Recursion Fix', () => {
       monitorInterval: 200
     });
 
-    // Advance timers to trigger deferred logging
-    vi.runAllTimers();
+    // Advance timers to trigger deferred logging (avoid infinite loop from setInterval)
+    vi.runOnlyPendingTimers();
 
     // Verify constructor info log comes before monitoring debug log
     const constructorLogIndex = logCalls.findIndex(log => 
