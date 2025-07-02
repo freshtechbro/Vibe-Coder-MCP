@@ -92,7 +92,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
         .mockResolvedValueOnce(mockResearchResults[2]);
 
       // Act
-      await simulateEnhancedResearch('e-commerce platform', mockConfig);
+      const result = await simulateEnhancedResearch('e-commerce platform', mockConfig);
 
       // Assert - Verify 3 research queries were made
       expect(mockPerformResearchQuery).toHaveBeenCalledTimes(3);
@@ -142,7 +142,7 @@ describe('Enhanced Research Integration - Phase 1', () => {
         .mockResolvedValueOnce(mockResearchResults[2]);
 
       // Act
-      await simulateEnhancedResearch('e-commerce platform', mockConfig);
+      const result = await simulateEnhancedResearch('e-commerce platform', mockConfig);
 
       // Assert - Check that research context is properly structured
       expect(mockPerformResearchQuery).toHaveBeenCalledTimes(3);

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs/promises';
 import { FileReaderService } from '../file-reader-service.js';
-import { FileSearchService } from '../file-search-engine.js';
 import { FileReadOptions } from '../file-reader-service.js';
 
 // Mock fs module
@@ -32,11 +31,9 @@ vi.mock('../file-search-engine.js', () => ({
 
 describe('FileReaderService', () => {
   let fileReaderService: FileReaderService;
-  // let mockFileSearchService: unknown; // Currently unused
 
   beforeEach(() => {
     fileReaderService = FileReaderService.getInstance();
-    mockFileSearchService = FileSearchService.getInstance();
     // Clear only fs mocks, not the FileSearchService mock
     mockFs.stat.mockClear();
     mockFs.readFile.mockClear();

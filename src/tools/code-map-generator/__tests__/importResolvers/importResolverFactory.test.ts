@@ -10,7 +10,7 @@ vi.mock('../../importResolvers/importResolverFactory.js', async (importOriginal)
 
   // Create a test version that bypasses filesystem checks
   class TestImportResolverFactory extends actual.ImportResolverFactory {
-    public getImportResolver(filePath: string) {
+    public async getImportResolver(filePath: string) {
       const extension = (await import('path')).extname(filePath).toLowerCase();
 
       // JavaScript/TypeScript files
@@ -158,72 +158,72 @@ describe('ImportResolverFactory', () => {
     await cleanupTestServices();
   });
 
-  it('should return a DependencyCruiserAdapter for JavaScript files', () => {
-    const resolver = factory.getImportResolver('/test/file.js');
+  it('should return a DependencyCruiserAdapter for JavaScript files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.js');
 
     expect(resolver).toBeDefined();
     expect(DependencyCruiserAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a DependencyCruiserAdapter for TypeScript files', () => {
-    const resolver = factory.getImportResolver('/test/file.ts');
+  it('should return a DependencyCruiserAdapter for TypeScript files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.ts');
 
     expect(resolver).toBeDefined();
     expect(DependencyCruiserAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a DependencyCruiserAdapter for JSX files', () => {
-    const resolver = factory.getImportResolver('/test/file.jsx');
+  it('should return a DependencyCruiserAdapter for JSX files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.jsx');
 
     expect(resolver).toBeDefined();
     expect(DependencyCruiserAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a DependencyCruiserAdapter for TSX files', () => {
-    const resolver = factory.getImportResolver('/test/file.tsx');
+  it('should return a DependencyCruiserAdapter for TSX files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.tsx');
 
     expect(resolver).toBeDefined();
     expect(DependencyCruiserAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return an ExtendedPythonImportResolver for Python files', () => {
-    const resolver = factory.getImportResolver('/test/file.py');
+  it('should return an ExtendedPythonImportResolver for Python files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.py');
 
     expect(resolver).toBeDefined();
     expect(resolver).not.toBeNull();
     expect(ExtendedPythonImportResolver).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return an ExtendedPythonImportResolver for Python wheel files', () => {
-    const resolver = factory.getImportResolver('/test/file.pyw');
+  it('should return an ExtendedPythonImportResolver for Python wheel files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.pyw');
 
     expect(resolver).toBeDefined();
     expect(ExtendedPythonImportResolver).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a ClangdAdapter for C files', () => {
-    const resolver = factory.getImportResolver('/test/file.c');
+  it('should return a ClangdAdapter for C files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.c');
 
     expect(resolver).toBeDefined();
     expect(ClangdAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a ClangdAdapter for C++ files', () => {
-    const resolver = factory.getImportResolver('/test/file.cpp');
+  it('should return a ClangdAdapter for C++ files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.cpp');
 
     expect(resolver).toBeDefined();
     expect(ClangdAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a ClangdAdapter for C++ header files', () => {
-    const resolver = factory.getImportResolver('/test/file.hpp');
+  it('should return a ClangdAdapter for C++ header files', async () => {
+    const resolver = await factory.getImportResolver('/test/file.hpp');
 
     expect(resolver).toBeDefined();
     expect(ClangdAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
   });
 
-  it('should return a SemgrepAdapter for unsupported file types when fallback is enabled', () => {
-    const resolver = factory.getImportResolver('/test/file.rb');
+  it('should return a SemgrepAdapter for unsupported file types when fallback is enabled', async () => {
+    const resolver = await factory.getImportResolver('/test/file.rb');
 
     expect(resolver).toBeDefined();
     expect(SemgrepAdapter).toHaveBeenCalledWith(options.allowedDir, options.outputDir);
@@ -232,13 +232,13 @@ describe('ImportResolverFactory', () => {
     expect(ClangdAdapter).not.toHaveBeenCalled();
   });
 
-  it('should return null for unsupported file types when fallback is disabled', () => {
+  it('should return null for unsupported file types when fallback is disabled', async () => {
     const factoryWithDisabledFallback = new ImportResolverFactory({
       ...options,
       disableSemgrepFallback: true
     });
 
-    const resolver = factoryWithDisabledFallback.getImportResolver('/test/file.rb');
+    const resolver = await factoryWithDisabledFallback.getImportResolver('/test/file.rb');
 
     expect(resolver).toBeNull();
     expect(SemgrepAdapter).not.toHaveBeenCalled();
@@ -247,33 +247,33 @@ describe('ImportResolverFactory', () => {
     expect(ClangdAdapter).not.toHaveBeenCalled();
   });
 
-  it('should reuse the same DependencyCruiserAdapter instance', () => {
-    const resolver1 = factory.getImportResolver('/test/file.js');
-    const resolver2 = factory.getImportResolver('/test/file.ts');
+  it('should reuse the same DependencyCruiserAdapter instance', async () => {
+    const resolver1 = await factory.getImportResolver('/test/file.js');
+    const resolver2 = await factory.getImportResolver('/test/file.ts');
 
     expect(resolver1).toBe(resolver2);
     expect(DependencyCruiserAdapter).toHaveBeenCalledTimes(1);
   });
 
-  it('should reuse the same ExtendedPythonImportResolver instance', () => {
-    const resolver1 = factory.getImportResolver('/test/file.py');
-    const resolver2 = factory.getImportResolver('/test/file.pyw');
+  it('should reuse the same ExtendedPythonImportResolver instance', async () => {
+    const resolver1 = await factory.getImportResolver('/test/file.py');
+    const resolver2 = await factory.getImportResolver('/test/file.pyw');
 
     expect(resolver1).toBe(resolver2);
     expect(ExtendedPythonImportResolver).toHaveBeenCalledTimes(1);
   });
 
-  it('should reuse the same ClangdAdapter instance', () => {
-    const resolver1 = factory.getImportResolver('/test/file.cpp');
-    const resolver2 = factory.getImportResolver('/test/file.h');
+  it('should reuse the same ClangdAdapter instance', async () => {
+    const resolver1 = await factory.getImportResolver('/test/file.cpp');
+    const resolver2 = await factory.getImportResolver('/test/file.h');
 
     expect(resolver1).toBe(resolver2);
     expect(ClangdAdapter).toHaveBeenCalledTimes(1);
   });
 
-  it('should reuse the same SemgrepAdapter instance', () => {
-    const resolver1 = factory.getImportResolver('/test/file.rb');
-    const resolver2 = factory.getImportResolver('/test/file.php');
+  it('should reuse the same SemgrepAdapter instance', async () => {
+    const resolver1 = await factory.getImportResolver('/test/file.rb');
+    const resolver2 = await factory.getImportResolver('/test/file.php');
 
     expect(resolver1).toBe(resolver2);
     expect(SemgrepAdapter).toHaveBeenCalledTimes(1);
