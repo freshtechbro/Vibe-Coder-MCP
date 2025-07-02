@@ -5,6 +5,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { vi } from 'vitest';
 import { TimeoutManager } from '../utils/timeout-manager.js';
 import { VibeTaskManagerConfig } from '../utils/config-loader.js';
 import { OpenRouterConfigManager } from '../../../utils/openrouter-config-manager.js';
@@ -60,6 +61,96 @@ export function setupCISafeEnvironment(): void {
 setupCISafeEnvironment();
 
 /**
+ * Setup universal LLM call mocking for CI-safe tests
+ * Prevents all live API calls in test environments
+ */
+export function setupUniversalLLMMocking(): void {
+  const isCIEnvironment = (
+    process.env.CI === 'true' ||
+    process.env.GITHUB_ACTIONS === 'true' ||
+    process.env.VITEST === 'true' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.CI_SAFE_MODE === 'true'
+  );
+
+  if (isCIEnvironment) {
+    // Mock all LLM calls universally - following existing pattern in test-setup.ts
+    vi.mock('../../../utils/llmHelper.js', () => ({
+      performFormatAwareLlmCall: vi.fn().mockImplementation(async (prompt: string, config: unknown, taskName?: string) => {
+        // Generate mock responses based on task type for realistic testing
+        if (taskName?.includes('decomposition') || prompt.includes('decompose')) {
+          return JSON.stringify({
+            contextualInsights: {
+              codebaseAlignment: "Mock alignment with existing patterns",
+              researchIntegration: "Mock research integration",
+              technologySpecifics: "TypeScript, Node.js, Vitest",
+              estimationFactors: "Mock estimation factors"
+            },
+            subTasks: [
+              {
+                title: "Mock decomposed task",
+                description: "Mock task description for testing",
+                type: "development",
+                priority: "medium",
+                estimatedHours: 1,
+                filePaths: ["src/mock/file.ts"],
+                acceptanceCriteria: ["Mock acceptance criterion"],
+                tags: ["mock", "test"],
+                dependencies: [],
+                contextualNotes: {
+                  codebaseReferences: "Mock codebase references",
+                  researchJustification: "Mock research justification",
+                  integrationConsiderations: "Mock integration considerations",
+                  riskMitigation: "Mock risk mitigation"
+                }
+              }
+            ]
+          });
+        }
+        
+        if (taskName?.includes('atomic') || prompt.includes('atomic')) {
+          return JSON.stringify({
+            isAtomic: true,
+            confidence: 0.95,
+            reasoning: "Mock atomic analysis for testing",
+            estimatedHours: 0.5,
+            complexityFactors: ["mock_factor"],
+            recommendations: ["Mock recommendation"]
+          });
+        }
+
+        if (taskName?.includes('research') || prompt.includes('research')) {
+          return JSON.stringify({
+            decision: {
+              shouldTriggerResearch: false,
+              confidence: 0.8,
+              primaryReason: "sufficient_context",
+              reasoning: "Mock research evaluation for testing"
+            }
+          });
+        }
+
+        // Default mock response
+        return JSON.stringify({
+          result: "Mock LLM response for testing",
+          confidence: 0.9,
+          reasoning: "Mock reasoning for test environment"
+        });
+      }),
+      enhancedProgressiveJsonParsing: vi.fn().mockImplementation(async (response: string) => {
+        try {
+          return JSON.parse(response);
+        } catch {
+          return { result: "Mock parsed response", error: false };
+        }
+      })
+    }));
+
+    logger.info('Universal LLM mocking setup for CI environment');
+  }
+}
+
+/**
  * Setup configuration manager mocking for tests
  * Provides safe defaults and prevents real API calls
  */
@@ -85,6 +176,9 @@ export function setupConfigManagerMock(): void {
 
 // Setup configuration mocking immediately for CI environments
 setupConfigManagerMock();
+
+// Setup universal LLM mocking for all test environments
+setupUniversalLLMMocking();
 
 // Set test-specific environment variables
 process.env.NODE_ENV = 'test';

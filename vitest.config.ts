@@ -6,8 +6,13 @@ export default defineConfig(({ mode }) => {
   // Load environment variables
   const env = loadEnv(mode, process.cwd(), '');
   
+  // Enhanced CI detection for performance optimization
+  const isCI = process.env.CI === 'true' || mode === 'ci';
+  const isCIOptimized = isCI || process.env.OPTIMIZE_FOR_CI === 'true';
+  const isTest = mode === 'test' || process.env.NODE_ENV === 'test';
+  
   // Enhanced environment setup for CI/test environments
-  if (process.env.CI === 'true' || mode === 'test' || process.env.NODE_ENV === 'test') {
+  if (isCI || isTest) {
     env.OPENROUTER_API_KEY = env.OPENROUTER_API_KEY || 'ci-test-key-safe-vitest';
     env.OPENROUTER_BASE_URL = env.OPENROUTER_BASE_URL || 'https://test.openrouter.ai/api/v1';
     env.GEMINI_MODEL = env.GEMINI_MODEL || 'google/gemini-2.5-flash-preview-05-20';
@@ -53,59 +58,83 @@ export default defineConfig(({ mode }) => {
           '**/*.d.ts'
         ],
       },
-      // Differentiated timeout settings based on test type
-      testTimeout: process.env.TEST_TYPE === 'unit' ? 5000 : 
-                   process.env.TEST_TYPE === 'integration' ? 60000 : 15000,
-      hookTimeout: 10000, // 10 seconds for setup/teardown hooks
-      teardownTimeout: 5000, // 5 seconds for cleanup
+      // Optimized timeout settings based on test type and CI environment
+      testTimeout: process.env.TEST_TYPE === 'unit' ? (isCIOptimized ? 3000 : 5000) : 
+                   process.env.TEST_TYPE === 'integration' ? (isCIOptimized ? 30000 : 60000) : 
+                   (isCIOptimized ? 10000 : 15000),
+      hookTimeout: isCIOptimized ? 5000 : 10000, // Reduced for CI
+      teardownTimeout: isCIOptimized ? 2000 : 5000, // Reduced for CI
 
-      // Performance optimizations for speed
-      isolate: false, // Disable isolation for faster execution
-      pool: 'forks', // Use forks instead of threads for better cleanup
+      // Performance optimizations - different strategies for CI vs local
+      isolate: false, // Keep disabled for speed
+      pool: isCIOptimized ? 'threads' : 'forks', // Threads faster for unit tests in CI
       poolOptions: {
+        threads: {
+          singleThread: false, // Enable parallel execution in CI
+          isolate: false,
+          maxThreads: isCIOptimized ? 8 : 4,
+          minThreads: 2
+        },
         forks: {
-          singleFork: true, // Use single fork for faster execution
-          isolate: false // Disable isolation for speed
+          singleFork: !isCIOptimized, // Single fork only for local development
+          isolate: false,
+          maxForks: isCIOptimized ? 6 : 4,
+          minForks: isCIOptimized ? 2 : 1
         }
       },
 
-      // Enable concurrent execution for speed
+      // Enhanced concurrent execution for CI
       sequence: {
-        concurrent: true, // Enable concurrent execution
-        shuffle: false // Keep deterministic order
+        concurrent: true,
+        shuffle: false,
+        hooks: isCIOptimized ? 'parallel' : 'stack' // Parallel hooks in CI
       },
 
-      // Disable heavy logging for speed
+      // Optimized logging and reporting
       logHeapUsage: false,
+      silent: isCIOptimized, // Suppress logs in CI for speed
 
-      // Increase concurrency for speed
-      maxConcurrency: 4, // Allow more concurrent tests
-      fileParallelism: true, // Enable file parallelism for speed
+      // Optimized concurrency based on environment
+      maxConcurrency: isCIOptimized ? 12 : 4, // Higher concurrency in CI
+      fileParallelism: true,
 
-      // Minimal reporter for speed
-      reporter: process.env.CI ? ['json'] : ['default'],
+      // Optimized reporting
+      reporter: isCIOptimized ? 
+        [['basic', { summary: false }]] : 
+        (process.env.CI ? ['json'] : ['default']),
 
-      // Disable retries for speed
+      // Fail-fast optimizations for CI
       retry: 0, // No retries for faster execution
+      bail: isCIOptimized ? 5 : 0, // Fail fast in CI after 5 failures
 
-      // No bail for complete test run
-      bail: 0, // Run all tests
-
-      // Disable typecheck for speed (run separately)
+      // Disable expensive features in CI
       typecheck: {
-        enabled: false // Disable during test run for speed
+        enabled: false // Always disabled for speed
       },
 
-      // Disable global setup for speed
-      // globalSetup: './src/tools/vibe-task-manager/__tests__/utils/global-setup.ts',
+      // Coverage optimizations
+      coverage: {
+        enabled: !isCIOptimized, // Disable coverage in optimized CI mode
+        provider: 'v8',
+        reporter: isCIOptimized ? ['text'] : ['text', 'json', 'html'],
+        skipFull: isCIOptimized, // Skip full coverage in CI
+        exclude: [
+          'node_modules',
+          'build',
+          '**/__tests__/**',
+          '**/__integration__/**',
+          '**/tests/**',
+          '**/integration/**',
+          '**/integrations/**',
+          'test/e2e/**',
+          'src/testUtils/**',
+          '**/*.d.ts'
+        ],
+      },
 
-      // Watch mode configuration
-      watch: false, // Disable watch mode by default for speed
-
-      // Force exit to prevent hanging
+      // Watch mode and cleanup configuration
+      watch: false,
       forceRerunTriggers: ['**/vitest.config.*'],
-
-      // Cleanup configuration
       clearMocks: true,
       restoreMocks: true
     }

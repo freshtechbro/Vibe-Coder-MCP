@@ -9,10 +9,23 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     strategy:
       matrix:
         node-version: [18.x, 20.x]
+      fail-fast: false
+
+    env:
+      CI: true
+      NODE_ENV: test
+      CI_SAFE_MODE: true
+      FORCE_REAL_LLM_CONFIG: false
+      OPTIMIZE_FOR_CI: true
+      OPENROUTER_API_KEY: ci-test-key-safe-vitest
+      OPENROUTER_BASE_URL: https://test.openrouter.ai/api/v1
+      GEMINI_MODEL: google/gemini-2.5-flash-preview-05-20
+      PERPLEXITY_MODEL: perplexity/llama-3.1-sonar-small-128k-online
 
     steps:
       - uses: actions/checkout@v4
@@ -33,15 +46,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        timeout-minutes: 5
 
       - name: Build
         run: npm run build
+        timeout-minutes: 5
 
       - name: Lint
         run: npm run lint
+        timeout-minutes: 3
 
       - name: Run CI-safe tests (no live LLM calls)
-        run: npm run test:ci-safe
+        run: npm run test:ci-safe -- --reporter=json --maxConcurrency=8
+        timeout-minutes: 15
 
       # E2E tests excluded from CI/CD - they require live LLM calls
       # Run manually with: npm run test:e2e:real
@@ -50,6 +67,7 @@ jobs:
 
       - name: Generate coverage report
         run: npm run coverage
+        timeout-minutes: 10
 
       - name: Ensure output directories exist
         run: |
