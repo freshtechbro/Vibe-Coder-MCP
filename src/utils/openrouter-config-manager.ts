@@ -514,6 +514,28 @@ export class OpenRouterConfigManager {
   }
 
   /**
+   * Detect CI environment for safe configuration handling
+   */
+  private isCIEnvironment(): boolean {
+    return (
+      process.env.CI === 'true' ||
+      process.env.GITHUB_ACTIONS === 'true' ||
+      process.env.NODE_ENV === 'test' ||
+      process.env.VITEST === 'true'
+    );
+  }
+
+  /**
+   * Determine if missing API key should be allowed in current environment
+   */
+  private shouldAllowMissingApiKey(): boolean {
+    return (
+      this.isCIEnvironment() && 
+      process.env.FORCE_REAL_LLM_CONFIG !== 'true'
+    );
+  }
+
+  /**
    * Read file with retry logic and exponential backoff
    */
   private async readFileWithRetry(filePath: string, maxRetries: number = 3): Promise<string> {
@@ -623,29 +645,54 @@ export class OpenRouterConfigManager {
   }
 
   /**
-   * Validate environment variables
+   * Validate environment variables with CI-aware handling
    */
   private validateEnvironmentVariables(): EnvironmentValidationResult {
     const missing: string[] = [];
     const invalid: string[] = [];
     const warnings: string[] = [];
 
-    // Required environment variables
+    // Handle API key requirement with CI awareness
     if (!process.env.OPENROUTER_API_KEY) {
-      missing.push('OPENROUTER_API_KEY');
+      if (this.shouldAllowMissingApiKey()) {
+        warnings.push('OPENROUTER_API_KEY missing in CI environment - using safe defaults');
+        // Set safe default for CI environment
+        process.env.OPENROUTER_API_KEY = 'ci-test-key-safe';
+        logger.debug('Set CI-safe OPENROUTER_API_KEY for test environment');
+      } else {
+        missing.push('OPENROUTER_API_KEY');
+      }
     }
 
-    // Optional but recommended
-    if (!process.env.OPENROUTER_BASE_URL) {
-      warnings.push('OPENROUTER_BASE_URL not set, using default');
-    }
+    // Set safe defaults for CI environment
+    if (this.isCIEnvironment()) {
+      if (!process.env.OPENROUTER_BASE_URL) {
+        process.env.OPENROUTER_BASE_URL = 'https://test.openrouter.ai/api/v1';
+        warnings.push('OPENROUTER_BASE_URL set to CI-safe default');
+      }
 
-    if (!process.env.GEMINI_MODEL) {
-      warnings.push('GEMINI_MODEL not set, using default');
-    }
+      if (!process.env.GEMINI_MODEL) {
+        process.env.GEMINI_MODEL = 'google/gemini-2.5-flash-preview-05-20';
+        warnings.push('GEMINI_MODEL set to CI-safe default');
+      }
 
-    if (!process.env.PERPLEXITY_MODEL) {
-      warnings.push('PERPLEXITY_MODEL not set, using default');
+      if (!process.env.PERPLEXITY_MODEL) {
+        process.env.PERPLEXITY_MODEL = 'perplexity/llama-3.1-sonar-small-128k-online';
+        warnings.push('PERPLEXITY_MODEL set to CI-safe default');
+      }
+    } else {
+      // Optional but recommended for non-CI environments
+      if (!process.env.OPENROUTER_BASE_URL) {
+        warnings.push('OPENROUTER_BASE_URL not set, using default');
+      }
+
+      if (!process.env.GEMINI_MODEL) {
+        warnings.push('GEMINI_MODEL not set, using default');
+      }
+
+      if (!process.env.PERPLEXITY_MODEL) {
+        warnings.push('PERPLEXITY_MODEL not set, using default');
+      }
     }
 
     // Validate URL format if provided

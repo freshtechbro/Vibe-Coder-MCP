@@ -18,6 +18,9 @@ import { ProgressEventData } from '../../services/progress-tracker.js';
 import { createMockConfig } from '../utils/test-setup.js';
 import { withTestCleanup, registerTestSingleton } from '../utils/test-helpers.js';
 
+// Import the mocked function to access it in tests
+import { performFormatAwareLlmCall } from '../../../../utils/llmHelper.js';
+
 // Import enhanced mock utilities
 import { 
   setTestId, 
@@ -115,8 +118,6 @@ vi.mock('../../services/context-enrichment-service.js', () => ({
 describe('Comprehensive Core Decomposition Tests', () => {
   let mockConfig: OpenRouterConfig;
   let mockProjectContext: ProjectContext;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockPerformFormatAwareLlmCall: unknown;
 
   beforeAll(() => {
     // Register test singletons
@@ -176,12 +177,8 @@ describe('Comprehensive Core Decomposition Tests', () => {
       }
     };
 
-    // Setup mock for LLM calls
-    mockPerformFormatAwareLlmCall = vi.fn();
-    vi.doMock('../../../../utils/llmHelper.js', () => ({
-      performDirectLlmCall: vi.fn(),
-      performFormatAwareLlmCall: mockPerformFormatAwareLlmCall
-    }));
+    // Note: LLM calls are mocked globally at the top of the file
+    // No additional local mocking needed to avoid conflicts
   });
 
   afterEach(() => {
@@ -342,7 +339,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
       (engine as any).atomicDetector = mockAtomicDetector;
 
       // Mock LLM response for decomposition in the format expected by RDD engine
-      mockPerformFormatAwareLlmCall.mockResolvedValue(`## Sub-Tasks
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(`## Sub-Tasks
 
 **Task 1: Design authentication database schema**
 - ID: SUB-001
@@ -469,7 +466,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
       (shallowEngine as any).atomicDetector = mockAtomicDetector;
 
       // Mock decomposition response in string format
-      mockPerformFormatAwareLlmCall.mockResolvedValue(`## Sub-Tasks
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(`## Sub-Tasks
 
 **Task 1: Backend services**
 - ID: L1-001
@@ -498,7 +495,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
       if (result.subTasks && result.subTasks.length > 0) {
         expect(result.subTasks.length).toBeGreaterThan(0);
         expect(result.isAtomic).toBe(false);
-        expect(mockPerformFormatAwareLlmCall).toHaveBeenCalled();
+        expect(vi.mocked(performFormatAwareLlmCall)).toHaveBeenCalled();
       } else {
         // Task was treated as atomic due to max depth limit
         expect(result.isAtomic).toBe(true);
@@ -569,7 +566,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
       (engine as any).atomicDetector = mockAtomicDetector;
 
       // Mock LLM to throw error
-      mockPerformFormatAwareLlmCall.mockRejectedValue(new Error('LLM API error'));
+      vi.mocked(performFormatAwareLlmCall).mockRejectedValue(new Error('LLM API error'));
 
       const result = await engine.decomposeTask(task, mockProjectContext);
 
@@ -992,14 +989,14 @@ describe('Comprehensive Core Decomposition Tests', () => {
       };
 
       // Mock LLM response for atomic analysis
-      mockPerformFormatAwareLlmCall.mockResolvedValue({
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(JSON.stringify({
         isAtomic: true,
         confidence: 0.98,
         reasoning: 'Single file change with minimal complexity',
         estimatedHours: 0.1,
         complexityFactors: [],
         recommendations: []
-      });
+      }));
 
       const analysis = await detector.analyzeTask(atomicTask, mockProjectContext);
 
@@ -1065,7 +1062,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
       };
 
       // Mock LLM response for complex task
-      mockPerformFormatAwareLlmCall.mockResolvedValue({
+      vi.mocked(performFormatAwareLlmCall).mockResolvedValue(JSON.stringify({
         isAtomic: false,
         confidence: 0.95,
         reasoning: 'Extremely complex task with multiple major components',
@@ -1082,7 +1079,7 @@ describe('Comprehensive Core Decomposition Tests', () => {
           'Create separate epics for each component',
           'Consider phased implementation'
         ]
-      });
+      }));
 
       const analysis = await detector.analyzeTask(complexTask, mockProjectContext);
 

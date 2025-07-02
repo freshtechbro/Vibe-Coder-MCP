@@ -5,10 +5,26 @@ import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
 import { createMockConfig } from '../utils/test-setup.js';
 
-// Mock the LLM helper
+// Mock the LLM helper with proper return values
 vi.mock('../../../../utils/llmHelper.js', () => ({
-  performDirectLlmCall: vi.fn(),
-  performFormatAwareLlmCall: vi.fn()
+  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    isAtomic: false,
+    confidence: 0.5,
+    reasoning: 'Task needs decomposition',
+    estimatedHours: 1.0,
+    complexityFactors: ['test'],
+    recommendations: ['test recommendation']
+  })),
+  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
+    tasks: [{
+      title: 'Test Subtask',
+      description: 'Test subtask description',
+      estimatedHours: 0.5,
+      acceptanceCriteria: ['Test criteria'],
+      priority: 'medium',
+      type: 'development'
+    }]
+  }))
 }));
 
 // Mock the config loader
@@ -39,20 +55,13 @@ describe('RDDEngine', () => {
   let mockTask: AtomicTask;
   let mockContext: ProjectContext;
   let mockAtomicDetector: unknown;
-  let mockPerformFormatAwareLlmCall: unknown;
 
   beforeEach(async () => {
     // Clear all mocks first
     vi.clearAllMocks();
 
-    // Create a fresh mock function with all the vitest methods
-    mockPerformFormatAwareLlmCall = vi.fn();
-
-    // Use doMock to replace the module implementation
-    vi.doMock('../../../../utils/llmHelper.js', () => ({
-      performDirectLlmCall: vi.fn(),
-      performFormatAwareLlmCall: mockPerformFormatAwareLlmCall
-    }));
+    // Note: LLM calls are mocked globally at the top of the file
+    // No additional local mocking needed to avoid conflicts
 
     mockConfig = createMockConfig();
 

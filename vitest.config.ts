@@ -5,6 +5,17 @@ import { loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   // Load environment variables
   const env = loadEnv(mode, process.cwd(), '');
+  
+  // Enhanced environment setup for CI/test environments
+  if (process.env.CI === 'true' || mode === 'test' || process.env.NODE_ENV === 'test') {
+    env.OPENROUTER_API_KEY = env.OPENROUTER_API_KEY || 'ci-test-key-safe-vitest';
+    env.OPENROUTER_BASE_URL = env.OPENROUTER_BASE_URL || 'https://test.openrouter.ai/api/v1';
+    env.GEMINI_MODEL = env.GEMINI_MODEL || 'google/gemini-2.5-flash-preview-05-20';
+    env.PERPLEXITY_MODEL = env.PERPLEXITY_MODEL || 'perplexity/llama-3.1-sonar-small-128k-online';
+    env.CI_SAFE_MODE = 'true';
+    env.NODE_ENV = 'test';
+    env.FORCE_REAL_LLM_CONFIG = 'false';
+  }
 
   return {
     test: {

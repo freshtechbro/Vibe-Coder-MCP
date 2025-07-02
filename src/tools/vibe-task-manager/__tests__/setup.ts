@@ -7,25 +7,84 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { TimeoutManager } from '../utils/timeout-manager.js';
 import { VibeTaskManagerConfig } from '../utils/config-loader.js';
+import { OpenRouterConfigManager } from '../../../utils/openrouter-config-manager.js';
+import { setConfigProvider, TestConfigProvider } from '../../../utils/config-provider.js';
 import logger from '../../../logger.js';
 
 // Load environment variables from .env file
 config({ path: resolve(process.cwd(), '.env') });
 
-// Ensure required environment variables are available for tests
-if (!process.env.OPENROUTER_API_KEY) {
-  console.warn('Warning: OPENROUTER_API_KEY not found in environment variables');
+/**
+ * Setup CI-safe environment variables
+ * Provides safe defaults for CI environments without real API keys
+ */
+export function setupCISafeEnvironment(): void {
+  const isCIEnvironment = (
+    process.env.CI === 'true' ||
+    process.env.GITHUB_ACTIONS === 'true' ||
+    process.env.VITEST === 'true' ||
+    process.env.NODE_ENV === 'test'
+  );
+
+  if (isCIEnvironment) {
+    // Set safe defaults for CI environment
+    process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'ci-test-key-safe-default';
+    process.env.OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://test.openrouter.ai/api/v1';
+    process.env.GEMINI_MODEL = process.env.GEMINI_MODEL || 'google/gemini-2.5-flash-preview-05-20';
+    process.env.PERPLEXITY_MODEL = process.env.PERPLEXITY_MODEL || 'perplexity/llama-3.1-sonar-small-128k-online';
+    
+    // Set CI-specific flags
+    process.env.CI_SAFE_MODE = 'true';
+    process.env.FORCE_REAL_LLM_CONFIG = 'false';
+    
+    logger.info('CI-safe environment variables configured');
+  } else {
+    // Ensure required environment variables are available for local tests
+    if (!process.env.OPENROUTER_API_KEY) {
+      console.warn('Warning: OPENROUTER_API_KEY not found in environment variables');
+    }
+
+    if (!process.env.GEMINI_MODEL) {
+      // Set default if not provided
+      process.env.GEMINI_MODEL = 'google/gemini-2.5-flash-preview-05-20';
+    }
+
+    if (!process.env.OPENROUTER_BASE_URL) {
+      // Set default if not provided
+      process.env.OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+    }
+  }
 }
 
-if (!process.env.GEMINI_MODEL) {
-  // Set default if not provided
-  process.env.GEMINI_MODEL = 'google/gemini-2.5-flash-preview-05-20';
+// Initialize CI-safe environment immediately
+setupCISafeEnvironment();
+
+/**
+ * Setup configuration manager mocking for tests
+ * Provides safe defaults and prevents real API calls
+ */
+export function setupConfigManagerMock(): void {
+  const isCIEnvironment = (
+    process.env.CI === 'true' ||
+    process.env.GITHUB_ACTIONS === 'true' ||
+    process.env.VITEST === 'true' ||
+    process.env.NODE_ENV === 'test'
+  );
+
+  if (isCIEnvironment) {
+    // Use test configuration provider for CI environments
+    const testProvider = new TestConfigProvider();
+    setConfigProvider(testProvider);
+    
+    // Reset OpenRouterConfigManager singleton to ensure clean state
+    OpenRouterConfigManager.resetInstance();
+    
+    logger.info('Configuration manager mocking setup for CI environment');
+  }
 }
 
-if (!process.env.OPENROUTER_BASE_URL) {
-  // Set default if not provided
-  process.env.OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-}
+// Setup configuration mocking immediately for CI environments
+setupConfigManagerMock();
 
 // Set test-specific environment variables
 process.env.NODE_ENV = 'test';
@@ -256,6 +315,9 @@ export const epicTestUtils = {
     try {
       // Reset test services
       resetTestServices();
+
+      // Reset configuration manager for clean state
+      OpenRouterConfigManager.resetInstance();
 
       // Clean up test files and directories
       const fs = await import('fs/promises');
