@@ -567,6 +567,11 @@ CRITICAL REMINDER:
    */
   private parseSplitResponse(response: string, originalTask: AtomicTask): AtomicTask[] {
     try {
+      // Add null safety check for response
+      if (!response || typeof response !== 'string') {
+        throw new Error('Invalid or empty response received from LLM');
+      }
+
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON found in response');

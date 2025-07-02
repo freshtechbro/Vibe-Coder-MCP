@@ -27,10 +27,17 @@ describe('Enhanced Decomposition Live Validation', () => {
   let contextService: ContextEnrichmentService;
   let config: Record<string, unknown>;
 
-  // Real project context for testing
+  // Real project context for testing with CI-aware path
+  const getProjectPath = () => {
+    if (process.env.CI === 'true' || process.env.NODE_ENV === 'test') {
+      return process.cwd(); // Use current working directory in CI
+    }
+    return '/Users/bishopdotun/Documents/Dev Projects/Vibe-Coder-MCP';
+  };
+
   const testProjectContext: ProjectContext = {
     projectId: 'vibe-coder-mcp-test',
-    projectPath: '/Users/bishopdotun/Documents/Dev Projects/Vibe-Coder-MCP',
+    projectPath: getProjectPath(),
     projectName: 'Vibe Coder MCP',
     description: 'AI-powered development tools MCP server with enhanced task decomposition',
     languages: ['TypeScript', 'JavaScript'],

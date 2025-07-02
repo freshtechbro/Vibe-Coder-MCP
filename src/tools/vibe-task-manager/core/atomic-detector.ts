@@ -235,6 +235,11 @@ Please provide your analysis in the following JSON format:
    */
   private parseAnalysisResponse(response: string): AtomicityAnalysis {
     try {
+      // Add null safety check for response
+      if (!response || typeof response !== 'string') {
+        throw new Error('Invalid or empty response received from LLM');
+      }
+
       // Extract JSON from response (handle potential markdown formatting)
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {

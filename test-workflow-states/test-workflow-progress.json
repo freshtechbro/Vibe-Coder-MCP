@@ -1,0 +1,24 @@
+{
+  "workflowId": "test-workflow-progress",
+  "sessionId": "session-progress",
+  "projectId": "project-progress",
+  "currentPhase": "initialization",
+  "currentState": "pending",
+  "overallProgress": 0,
+  "startTime": "2025-07-02T18:12:03.466Z",
+  "phases": {
+    "initialization": {
+      "phase": "initialization",
+      "state": "pending",
+      "startTime": "2025-07-02T18:12:03.466Z",
+      "progress": 0,
+      "metadata": {},
+      "retryCount": 0,
+      "maxRetries": 3
+    }
+  },
+  "transitions": [],
+  "metadata": {},
+  "persistedAt": "2025-07-02T18:12:03.466Z",
+  "version": "1.0.0"
+}

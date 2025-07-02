@@ -20,9 +20,19 @@ export function createMockConfig(overrides?: Partial<OpenRouterConfig>): OpenRou
  * Note: This bypasses the centralized manager and should only be used when async is not possible
  */
 export function createSyncMockConfig(overrides?: Partial<OpenRouterConfig>): OpenRouterConfig {
+  // Use CI-aware URL configuration to match vitest.config.ts setup
+  const isCIOrTest = (
+    process.env.CI === 'true' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.VITEST === 'true' ||
+    process.env.CI_SAFE_MODE === 'true'
+  );
+  
+  const baseUrl = isCIOrTest ? 'https://test.openrouter.ai/api/v1' : 'https://openrouter.ai/api/v1';
+  
   return {
     apiKey: 'test-api-key',
-    baseUrl: 'https://openrouter.ai/api/v1',
+    baseUrl,
     geminiModel: 'google/gemini-2.5-flash-preview',
     perplexityModel: 'perplexity/llama-3.1-sonar-small-128k-online',
     llm_mapping: {

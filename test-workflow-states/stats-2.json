@@ -1,0 +1,24 @@
+{
+  "workflowId": "stats-2",
+  "sessionId": "session-2",
+  "projectId": "project-stats",
+  "currentPhase": "initialization",
+  "currentState": "pending",
+  "overallProgress": 0,
+  "startTime": "2025-07-02T18:12:03.533Z",
+  "phases": {
+    "initialization": {
+      "phase": "initialization",
+      "state": "pending",
+      "startTime": "2025-07-02T18:12:03.533Z",
+      "progress": 0,
+      "metadata": {},
+      "retryCount": 0,
+      "maxRetries": 3
+    }
+  },
+  "transitions": [],
+  "metadata": {},
+  "persistedAt": "2025-07-02T18:12:03.533Z",
+  "version": "1.0.0"
+}
