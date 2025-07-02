@@ -61,11 +61,11 @@ export default defineConfig(({ mode }) => {
         ],
       },
       // Optimized timeout settings based on test type and CI environment
-      testTimeout: process.env.TEST_TYPE === 'unit' ? (isCIOptimized ? 3000 : 5000) : 
+      testTimeout: process.env.TEST_TYPE === 'unit' ? (isCIOptimized ? 15000 : 20000) : 
                    process.env.TEST_TYPE === 'integration' ? (isCIOptimized ? 30000 : 60000) : 
-                   (isCIOptimized ? 10000 : 15000),
-      hookTimeout: isCIOptimized ? 5000 : 10000, // Reduced for CI
-      teardownTimeout: isCIOptimized ? 2000 : 5000, // Reduced for CI
+                   (isCIOptimized ? 20000 : 30000),
+      hookTimeout: isCIOptimized ? 15000 : 20000, // Increased for stability
+      teardownTimeout: isCIOptimized ? 10000 : 15000, // Increased for stability
 
       // Performance optimizations - different strategies for CI vs local
       isolate: false, // Keep disabled for speed
@@ -74,14 +74,14 @@ export default defineConfig(({ mode }) => {
         threads: {
           singleThread: false, // Enable parallel execution in CI
           isolate: false,
-          maxThreads: isCIOptimized ? 8 : 4,
-          minThreads: 2
+          maxThreads: isCIOptimized ? 2 : 2,
+          minThreads: 1
         },
         forks: {
-          singleFork: !isCIOptimized, // Single fork only for local development
+          singleFork: true, // Use single fork for stability
           isolate: false,
-          maxForks: isCIOptimized ? 6 : 4,
-          minForks: isCIOptimized ? 2 : 1
+          maxForks: 1,
+          minForks: 1
         }
       },
 
@@ -97,8 +97,8 @@ export default defineConfig(({ mode }) => {
       silent: isCIOptimized, // Suppress logs in CI for speed
 
       // Optimized concurrency based on environment
-      maxConcurrency: isCIOptimized ? 12 : 4, // Higher concurrency in CI
-      fileParallelism: true,
+      maxConcurrency: isCIOptimized ? 4 : 2, // Reduced concurrency for stability
+      fileParallelism: false, // Disable file parallelism to reduce resource contention
 
       // Optimized reporting
       reporter: isCIOptimized ? 

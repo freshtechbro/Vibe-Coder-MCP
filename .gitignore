@@ -44,6 +44,7 @@ test/
 */tests/
 */__integration__/
 tests/
+test-workflow-states/
 
 # IDE - VSCode
 .vscode/*

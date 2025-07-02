@@ -3,29 +3,29 @@ import { RDDEngine, RDDConfig } from '../../core/rdd-engine.js';
 import { AtomicTask, TaskType, TaskPriority, TaskStatus } from '../../types/task.js';
 import { ProjectContext } from '../../types/project-context.js';
 import { OpenRouterConfig } from '../../../../types/workflow.js';
-import { createMockConfig } from '../utils/test-setup.js';
 
-// Mock the LLM helper with proper return values
+// Create a simple mock config locally to avoid conflicts
+const createMockConfig = (): OpenRouterConfig => ({
+  apiKey: 'test-key',
+  baseUrl: 'https://test.openrouter.ai/api/v1',
+  defaultModel: 'test-model',
+  models: {
+    default_generation: 'anthropic/claude-3-sonnet',
+    task_decomposition: 'google/gemini-2.5-flash-preview-05-20'
+  }
+});
+
+// Import mocked functions for proper typing and access
+import { performFormatAwareLlmCall } from '../../../../utils/llmHelper.js';
+
+// Create local mocks to avoid conflicts with global setup.ts
 vi.mock('../../../../utils/llmHelper.js', () => ({
-  performDirectLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
-    isAtomic: false,
-    confidence: 0.5,
-    reasoning: 'Task needs decomposition',
-    estimatedHours: 1.0,
-    complexityFactors: ['test'],
-    recommendations: ['test recommendation']
-  })),
-  performFormatAwareLlmCall: vi.fn().mockResolvedValue(JSON.stringify({
-    tasks: [{
-      title: 'Test Subtask',
-      description: 'Test subtask description',
-      estimatedHours: 0.5,
-      acceptanceCriteria: ['Test criteria'],
-      priority: 'medium',
-      type: 'development'
-    }]
-  }))
+  performDirectLlmCall: vi.fn(),
+  performFormatAwareLlmCall: vi.fn()
 }));
+
+// Create typed mock reference for test manipulation
+const mockPerformFormatAwareLlmCall = vi.mocked(performFormatAwareLlmCall);
 
 // Mock the config loader
 vi.mock('../../utils/config-loader.js', () => ({
@@ -210,7 +210,27 @@ describe('RDDEngine', () => {
         ]
       });
 
-      mockPerformFormatAwareLlmCall.mockResolvedValue(mockSplitResponse);
+      // Override the global mock for this specific test
+      mockPerformFormatAwareLlmCall.mockImplementation(async (prompt: string, config: unknown, taskName?: string) => {
+        console.log('Test-specific mock called:', { taskName, promptLength: prompt?.length || 0 });
+        
+        if (taskName === 'task_decomposition' || taskName?.includes('decomposition')) {
+          console.log('Returning decomposition response:', mockSplitResponse);
+          return mockSplitResponse;
+        }
+        
+        // Fallback for other calls
+        const fallback = JSON.stringify({
+          isAtomic: true,
+          confidence: 0.95,
+          reasoning: "Mock atomic analysis for testing",
+          estimatedHours: 0.5,
+          complexityFactors: ["mock_factor"],
+          recommendations: ["Mock recommendation"]
+        });
+        console.log('Returning fallback response:', fallback);
+        return fallback;
+      });
 
       const result = await engine.decomposeTask(mockTask, mockContext);
 

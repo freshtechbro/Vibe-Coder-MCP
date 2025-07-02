@@ -77,8 +77,13 @@ export function setupUniversalLLMMocking(): void {
     // Mock all LLM calls universally - following existing pattern in test-setup.ts
     vi.mock('../../../utils/llmHelper.js', () => ({
       performFormatAwareLlmCall: vi.fn().mockImplementation(async (prompt: string, config: unknown, taskName?: string) => {
-        // Generate mock responses based on task type for realistic testing
-        if (taskName?.includes('decomposition') || prompt.includes('decompose')) {
+        // Generate mock responses based on prompt content and task type for realistic testing
+        
+        // Task decomposition responses - check task name and prompt content for decomposition keywords
+        if (taskName?.includes('decomposition') || taskName?.includes('task_decomposition') ||
+            prompt.includes('decompose') || prompt.includes('split') || 
+            prompt.includes('subTasks') || prompt.includes('subtasks') || 
+            prompt.includes('break down') || prompt.includes('into smaller')) {
           return JSON.stringify({
             contextualInsights: {
               codebaseAlignment: "Mock alignment with existing patterns",
@@ -86,7 +91,7 @@ export function setupUniversalLLMMocking(): void {
               technologySpecifics: "TypeScript, Node.js, Vitest",
               estimationFactors: "Mock estimation factors"
             },
-            subTasks: [
+            tasks: [
               {
                 title: "Mock decomposed task",
                 description: "Mock task description for testing",
@@ -108,7 +113,9 @@ export function setupUniversalLLMMocking(): void {
           });
         }
         
-        if (taskName?.includes('atomic') || prompt.includes('atomic')) {
+        // Atomic detection responses - check for atomic keywords
+        if (taskName?.includes('atomic') || prompt.includes('atomic') || 
+            prompt.includes('isAtomic')) {
           return JSON.stringify({
             isAtomic: true,
             confidence: 0.95,
@@ -119,7 +126,9 @@ export function setupUniversalLLMMocking(): void {
           });
         }
 
-        if (taskName?.includes('research') || prompt.includes('research')) {
+        // Research evaluation responses
+        if (taskName?.includes('research') || prompt.includes('research') || 
+            prompt.includes('shouldTriggerResearch')) {
           return JSON.stringify({
             decision: {
               shouldTriggerResearch: false,
@@ -130,7 +139,27 @@ export function setupUniversalLLMMocking(): void {
           });
         }
 
-        // Default mock response
+        // Default fallback: If prompt looks like it needs task decomposition, provide that format
+        if (prompt.includes('task') && (prompt.includes('complex') || prompt.includes('break') || 
+            prompt.includes('split') || prompt.length > 200)) {
+          return JSON.stringify({
+            tasks: [
+              {
+                title: "Fallback decomposed task",
+                description: "Fallback mock task description",
+                type: "development",
+                priority: "medium",
+                estimatedHours: 2,
+                filePaths: ["src/fallback/mock.ts"],
+                acceptanceCriteria: ["Fallback acceptance criterion"],
+                tags: ["fallback", "mock"],
+                dependencies: []
+              }
+            ]
+          });
+        }
+
+        // Generic fallback response
         return JSON.stringify({
           result: "Mock LLM response for testing",
           confidence: 0.9,
@@ -179,6 +208,46 @@ setupConfigManagerMock();
 
 // Setup universal LLM mocking for all test environments
 setupUniversalLLMMocking();
+
+/**
+ * Setup storage manager mocking for tests
+ * Prevents file system operations in test environments
+ */
+export function setupStorageManagerMock(): void {
+  const isCIEnvironment = (
+    process.env.CI === 'true' ||
+    process.env.GITHUB_ACTIONS === 'true' ||
+    process.env.VITEST === 'true' ||
+    process.env.NODE_ENV === 'test'
+  );
+
+  if (isCIEnvironment) {
+    // Mock storage manager universally
+    vi.mock('../core/storage/storage-manager.js', () => ({
+      getStorageManager: vi.fn().mockResolvedValue({
+        projectExists: vi.fn().mockResolvedValue(true),
+        epicExists: vi.fn().mockResolvedValue(false),
+        taskExists: vi.fn().mockResolvedValue(false),
+        dependencyExists: vi.fn().mockResolvedValue(false),
+        // Add other required methods as needed
+        loadProject: vi.fn(),
+        saveProject: vi.fn(),
+        loadEpic: vi.fn(),
+        saveEpic: vi.fn(),
+        loadTask: vi.fn(),
+        saveTask: vi.fn(),
+        deleteProject: vi.fn(),
+        deleteEpic: vi.fn(),
+        deleteTask: vi.fn()
+      })
+    }));
+    
+    logger.info('Storage manager mocking setup for CI environment');
+  }
+}
+
+// Setup storage manager mocking
+setupStorageManagerMock();
 
 // Set test-specific environment variables
 process.env.NODE_ENV = 'test';
