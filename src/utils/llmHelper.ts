@@ -1186,6 +1186,21 @@ function relaxedJsonParse(jsonString: string, jobId?: string): unknown {
 function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): unknown {
   const maxDepth = 50; // 13. Deeply Nested Objects limit
   const maxArrayLength = 10000; // 12. Mixed Array Types limit
+  const maxProcessingTime = 5000; // 5 second timeout to prevent hanging
+  const startTime = Date.now();
+
+  // Timeout wrapper for each strategy
+  const withTimeout = (strategy: () => unknown, strategyName: string): unknown => {
+    const strategyStartTime = Date.now();
+    const result = strategy();
+    const strategyTime = Date.now() - strategyStartTime;
+    
+    if (strategyTime > 1000) { // Log if strategy takes more than 1 second
+      logger.warn({ jobId, strategyName, strategyTime }, "Strategy took longer than expected");
+    }
+    
+    return result;
+  };
 
   const strategies = [
     // Strategy 1: Direct parse (with large number pre-check)
@@ -1295,12 +1310,19 @@ function enhancedProgressiveJsonParsing(rawResponse: string, jobId?: string): un
 
   for (let i = 0; i < strategies.length; i++) {
     try {
+      // Check for overall timeout
+      if (Date.now() - startTime > maxProcessingTime) {
+        logger.warn({ jobId, totalTime: Date.now() - startTime, strategy: i + 1 }, "JSON parsing timed out, aborting remaining strategies");
+        throw new Error(`JSON parsing timed out after ${maxProcessingTime}ms`);
+      }
+
       // Enhanced debug logging for relevance scoring
       if (jobId === 'context_curator_relevance_scoring') {
         logger.info({ jobId, strategy: i + 1, strategyName: ['direct', 'mixed-content-smart', 'bracket-completion', 'relaxed-parsing', 'partial-extraction', 'aggressive-extraction'][i] || 'unknown' }, "RELEVANCE SCORING - Trying parsing strategy");
       }
 
-      const result = strategies[i]();
+      const strategyName = ['direct', 'mixed-content-extraction', '4-stage-sanitization', 'bracket-completion', 'partial-extraction', 'relaxed-parsing'][i] || 'unknown';
+      const result = withTimeout(strategies[i], strategyName);
 
       // 16. Circular References detection and 13. Depth limiting
       const sanitizedResult = detectCircularAndLimitDepth(result, maxDepth, maxArrayLength, jobId);
