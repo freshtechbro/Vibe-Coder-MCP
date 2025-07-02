@@ -43,8 +43,10 @@ export default defineConfig(({ mode }) => {
       ],
       exclude: ['node_modules', 'build'],
       coverage: {
+        enabled: !isCIOptimized, // Disable coverage in optimized CI mode
         provider: 'v8', // Specify coverage provider
-        reporter: ['text', 'json', 'html'], // Coverage report formats
+        reporter: isCIOptimized ? ['text'] : ['text', 'json', 'html'], // Optimized for CI
+        skipFull: isCIOptimized, // Skip full coverage in CI
         exclude: [
           'node_modules',
           'build',
@@ -110,26 +112,6 @@ export default defineConfig(({ mode }) => {
       // Disable expensive features in CI
       typecheck: {
         enabled: false // Always disabled for speed
-      },
-
-      // Coverage optimizations
-      coverage: {
-        enabled: !isCIOptimized, // Disable coverage in optimized CI mode
-        provider: 'v8',
-        reporter: isCIOptimized ? ['text'] : ['text', 'json', 'html'],
-        skipFull: isCIOptimized, // Skip full coverage in CI
-        exclude: [
-          'node_modules',
-          'build',
-          '**/__tests__/**',
-          '**/__integration__/**',
-          '**/tests/**',
-          '**/integration/**',
-          '**/integrations/**',
-          'test/e2e/**',
-          'src/testUtils/**',
-          '**/*.d.ts'
-        ],
       },
 
       // Watch mode and cleanup configuration
