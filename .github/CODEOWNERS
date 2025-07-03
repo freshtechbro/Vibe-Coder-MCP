@@ -1,0 +1,8 @@
+# Global code ownership - all changes require approval from repository owner
+* @freshtechbro
+
+# Critical configuration files require extra attention
+package.json @freshtechbro
+vitest.config.ts @freshtechbro
+tsconfig.json @freshtechbro
+.github/ @freshtechbro
