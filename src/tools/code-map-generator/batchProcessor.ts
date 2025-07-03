@@ -106,8 +106,8 @@ export async function processBatches<T, R>(
 
     // NEW: Check memory usage and perform more aggressive cleanup if needed
     const memStats = getMemoryStats();
-    if (memStats.memoryUsagePercentage > 0.7) {
-      logger.info(`Memory usage at ${memStats.memoryUsagePercentage.toFixed(2)}%, running aggressive cleanup after batch ${currentBatch}/${totalBatches}`);
+    if (memStats && memStats.memoryUsagePercentage > 0.7) {
+      logger.info(`Memory usage at ${memStats?.memoryUsagePercentage?.toFixed(2)}%, running aggressive cleanup after batch ${currentBatch}/${totalBatches}`);
       await performAggressiveCleanup(config);
     } else if (i % 5 === 0 && i > 0) {
       // Perform moderate cleanup every 5 batches regardless of memory usage
@@ -212,8 +212,8 @@ export async function processBatchesWithIntermediateStorage<T, I, R>(
 
     // NEW: Check memory usage and perform more aggressive cleanup if needed
     const memStats = getMemoryStats();
-    if (memStats.memoryUsagePercentage > 0.7) {
-      logger.info(`Memory usage at ${memStats.memoryUsagePercentage.toFixed(2)}%, running aggressive cleanup after batch ${currentBatch}/${totalBatches}`);
+    if (memStats && memStats.memoryUsagePercentage > 0.7) {
+      logger.info(`Memory usage at ${memStats?.memoryUsagePercentage?.toFixed(2)}%, running aggressive cleanup after batch ${currentBatch}/${totalBatches}`);
       await performAggressiveCleanup(config);
     } else if (i % 5 === 0 && i > 0) {
       // Perform moderate cleanup every 5 batches regardless of memory usage
@@ -567,8 +567,8 @@ export async function processLanguageBasedBatches<T extends { path: string }, R>
 
     // Check memory usage and perform more aggressive cleanup if needed
     const memStats = getMemoryStats();
-    if (memStats.memoryUsagePercentage > 0.7) {
-      logger.info(`Memory usage at ${memStats.memoryUsagePercentage.toFixed(2)}%, running aggressive cleanup after batch ${currentBatch}/${totalBatches}`);
+    if (memStats && memStats.memoryUsagePercentage > 0.7) {
+      logger.info(`Memory usage at ${memStats?.memoryUsagePercentage?.toFixed(2)}%, running aggressive cleanup after batch ${currentBatch}/${totalBatches}`);
       await performAggressiveCleanup(config);
     } else if (i % 5 === 0 && i > 0) {
       // Perform moderate cleanup every 5 batches regardless of memory usage
@@ -613,8 +613,8 @@ export async function processBatchesWithMemoryCheck<T, R>(
 
     // Check memory usage after each batch
     const memStats = getMemoryStats();
-    if (memStats.memoryUsagePercentage > memoryThreshold) {
-      logger.info(`Memory usage at ${memStats.memoryUsagePercentage.toFixed(2)}%, running aggressive cleanup after batch ${index + 1}/${batches.length}`);
+    if (memStats && memStats.memoryUsagePercentage > memoryThreshold) {
+      logger.info(`Memory usage at ${memStats?.memoryUsagePercentage?.toFixed(2)}%, running aggressive cleanup after batch ${index + 1}/${batches.length}`);
 
       // Use provided cleanup function if available, otherwise use our aggressive cleanup
       if (cleanupFn) {

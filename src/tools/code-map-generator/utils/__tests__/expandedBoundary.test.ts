@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // Import the modules to mock
 import resolve from 'resolve';
 import logger from '../../../../logger.js';
+import * as fs from 'fs';
 
 // Mock the modules
 vi.mock('resolve', () => ({
@@ -18,6 +19,19 @@ vi.mock('resolve', () => ({
   },
   sync: vi.fn()
 }));
+
+vi.mock('fs', () => ({
+  __esModule: true,
+  existsSync: vi.fn()
+}));
+
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof path>('path');
+  return {
+    ...actual,
+    resolve: vi.fn().mockImplementation(actual.resolve)
+  };
+});
 
 vi.mock('../../../../logger.js', () => ({
   __esModule: true,
@@ -36,6 +50,10 @@ describe('Import Resolver with Expanded Security Boundary', () => {
 
     // Clear all mocks
     vi.clearAllMocks();
+    
+    // Reset specific mocks to default state
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    resolve.sync = vi.fn();
   });
 
   afterEach(() => {
@@ -77,6 +95,9 @@ describe('Import Resolver with Expanded Security Boundary', () => {
       }
       return '/path/to/project/src/module.js';
     });
+
+    // Mock fs.existsSync to return false (simulating file doesn't exist)
+    vi.mocked(fs.existsSync).mockReturnValue(false);
 
     const options = {
       projectRoot: '/path/to/project',
@@ -124,6 +145,9 @@ describe('Import Resolver with Expanded Security Boundary', () => {
     resolve.sync = vi.fn().mockImplementation(() => {
       throw new Error('Module not found');
     });
+
+    // Mock fs.existsSync to return false (simulating file doesn't exist)
+    vi.mocked(fs.existsSync).mockReturnValue(false);
 
     const options = {
       projectRoot: '/path/to/project',

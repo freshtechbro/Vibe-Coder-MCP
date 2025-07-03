@@ -215,32 +215,32 @@ export function resolveImport(
     // Default extensions based on language
     const extensions = options.extensions || getDefaultExtensions(options.language);
 
-    // Always try to use expanded boundary resolution for better import resolution
-    // Try to resolve with expanded boundary
-    const expandedResolvedPath = resolveImportWithExpandedBoundary(importPath, basedir, extensions);
+    // Try to resolve with expanded boundary only if the option is enabled
+    if (options.expandSecurityBoundary === true) {
+      const expandedResolvedPath = resolveImportWithExpandedBoundary(importPath, basedir, extensions);
 
-    if (expandedResolvedPath) {
-      // If resolved, process the path but mark it as external
-      let finalPath = expandedResolvedPath;
+      if (expandedResolvedPath) {
+        // If resolved, process the path but mark it as external
+        let finalPath = expandedResolvedPath;
 
-      // Make relative to project root if possible
-      if (options.projectRoot && typeof options.projectRoot === 'string' &&
-          expandedResolvedPath.startsWith(options.projectRoot)) {
-        try {
-          finalPath = path.relative(options.projectRoot, expandedResolvedPath);
-          finalPath = finalPath.replace(/\\/g, '/');
-          if (!finalPath.startsWith('./') && !finalPath.startsWith('../')) {
-            finalPath = `./${finalPath}`;
+        // Make relative to project root if possible
+        if (options.projectRoot && typeof options.projectRoot === 'string' &&
+            expandedResolvedPath.startsWith(options.projectRoot)) {
+          try {
+            finalPath = path.relative(options.projectRoot, expandedResolvedPath);
+            finalPath = finalPath.replace(/\\/g, '/');
+            if (!finalPath.startsWith('./') && !finalPath.startsWith('../')) {
+              finalPath = `./${finalPath}`;
+            }
+          } catch (pathError) {
+            logger.warn({
+              err: pathError,
+              projectRoot: options.projectRoot,
+              resolvedPath: expandedResolvedPath
+            }, 'Error making path relative to project root');
+            // Keep the absolute path if we can't make it relative
+            finalPath = expandedResolvedPath;
           }
-        } catch (pathError) {
-          logger.warn({
-            err: pathError,
-            projectRoot: options.projectRoot,
-            resolvedPath: expandedResolvedPath
-          }, 'Error making path relative to project root');
-          // Keep the absolute path if we can't make it relative
-          finalPath = expandedResolvedPath;
-        }
         }
 
         logger.debug({
@@ -264,6 +264,7 @@ export function resolveImport(
           securityExpanded: true
         }, 'Failed to resolve import with expanded boundary, falling back to standard resolution');
       }
+    }
 
     // Fall back to standard resolution with security checks
     // Try to resolve the import
