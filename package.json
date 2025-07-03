@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "cp -r src/tools/vibe-task-manager/prompts build/tools/vibe-task-manager/ 2>/dev/null || true",
+    "copy-assets": "mkdir -p build/tools/vibe-task-manager && cp -r src/tools/vibe-task-manager/prompts build/tools/vibe-task-manager/",
     "start": "cross-env NODE_ENV=production LOG_LEVEL=info node build/index.js",
     "start:sse": "cross-env NODE_ENV=production LOG_LEVEL=info node build/index.js --sse",
     "dev": "tsc -w & cross-env NODE_ENV=development nodemon build/index.js | pino-pretty",
