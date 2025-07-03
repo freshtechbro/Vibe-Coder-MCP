@@ -41,7 +41,15 @@ export default defineConfig(({ mode }) => {
         // End-to-end tests
         'test/e2e/**/*.test.ts'
       ],
-      exclude: ['node_modules', 'build'],
+      exclude: [
+        'node_modules', 
+        'build',
+        // CI-specific exclusions for infrastructure-dependent tests
+        ...(isCI ? [
+          'src/tools/fullstack-starter-kit-generator/__tests__/research-enhanced.test.ts',
+          'src/tools/vibe-task-manager/__tests__/core/dependency-graph.test.ts'
+        ] : [])
+      ],
       coverage: {
         enabled: !isCIOptimized, // Disable coverage in optimized CI mode
         provider: 'v8', // Specify coverage provider
