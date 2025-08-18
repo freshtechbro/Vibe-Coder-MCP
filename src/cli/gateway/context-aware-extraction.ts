@@ -170,10 +170,10 @@ export class ContextAwareParameterExtractor {
     },
     
     'curate-context': {
-      required: ['task'],
+      required: ['prompt'],
       optional: ['codebase_path', 'relevance_threshold', 'max_files'],
       types: {
-        task: 'string',
+        prompt: 'string',
         codebase_path: 'string',
         relevance_threshold: 'number',
         max_files: 'number'
@@ -524,6 +524,10 @@ export class ContextAwareParameterExtractor {
         
       case 'map-codebase':
         Object.assign(parameters, this.extractCodebasePatterns(input));
+        break;
+        
+      case 'curate-context':
+        Object.assign(parameters, this.extractContextCuratorPatterns(input));
         break;
         
       // Add more tool-specific patterns as needed
@@ -904,6 +908,34 @@ export class ContextAwareParameterExtractor {
       params.path = pathMatch[1].trim();
     }
 
+    return params;
+  }
+
+  private extractContextCuratorPatterns(input: string): Record<string, unknown> {
+    const params: Record<string, unknown> = {};
+    
+    // Extract the task/prompt after common patterns
+    const patterns = [
+      /curate\s+context\s+for\s+(.+)$/i,
+      /prepare\s+context\s+for\s+(.+)$/i,
+      /analyze\s+(?:codebase\s+)?for\s+(.+)$/i,
+      /generate\s+meta-?prompt\s+for\s+(.+)$/i,
+      /create\s+context\s+package\s+for\s+(.+)$/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        params.prompt = match[1].trim();
+        break;
+      }
+    }
+    
+    // If no pattern match, use the entire input as the prompt
+    if (!params.prompt) {
+      params.prompt = input.trim();
+    }
+    
     return params;
   }
 }

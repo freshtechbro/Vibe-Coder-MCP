@@ -434,6 +434,15 @@ class TransportManager {
         this.startupTimestamp = Date.now();
         logger.info('Starting unified communication protocol transport services with dynamic port allocation...');
 
+      // Clean up any orphaned ports from previous instances before allocation
+      logger.info('Cleaning up orphaned ports before service startup...');
+      const cleanedPorts = await PortAllocator.cleanupOrphanedPorts();
+      if (cleanedPorts > 0) {
+        logger.info({ cleanedPorts }, 'Cleaned up orphaned port instances');
+        // Small delay to ensure OS has released the ports
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
       // 1. Get port ranges from environment variables
       const portRanges = getPortRangesFromEnvironment();
 
@@ -546,6 +555,10 @@ class TransportManager {
             path: this.config.websocket.path,
             attempted: allocation.attempted.length
           }, 'WebSocket transport: Started with allocated port');
+          
+          // Register the instance for tracking
+          await PortAllocator.registerInstance(allocation.port, 'websocket');
+          
           this.startedServices.push('websocket');
           serviceSuccesses.push({ service: 'websocket', port: allocation.port });
         } catch (error) {
@@ -623,6 +636,10 @@ class TransportManager {
             cors: this.config.http.cors,
             attempted: allocation.attempted.length
           }, 'HTTP transport: Started with allocated port');
+          
+          // Register the instance for tracking
+          await PortAllocator.registerInstance(allocation.port, 'http');
+          
           this.startedServices.push('http');
           serviceSuccesses.push({ service: 'http', port: allocation.port });
         } catch (error) {
@@ -1011,9 +1028,13 @@ class TransportManager {
           if (serviceName === 'websocket') {
             await websocketServer.start(allocationResult.port);
             this.config.websocket.allocatedPort = allocationResult.port;
+            // Register the instance for tracking
+            await PortAllocator.registerInstance(allocationResult.port, 'websocket');
           } else if (serviceName === 'http') {
             await httpAgentAPI.start(allocationResult.port);
             this.config.http.allocatedPort = allocationResult.port;
+            // Register the instance for tracking
+            await PortAllocator.registerInstance(allocationResult.port, 'http');
           }
 
           logger.info({
@@ -1090,12 +1111,20 @@ class TransportManager {
       // Stop WebSocket transport
       if (this.startedServices.includes('websocket')) {
         await websocketServer.stop();
+        // Unregister the instance
+        if (this.config.websocket.allocatedPort) {
+          await PortAllocator.unregisterInstance(this.config.websocket.allocatedPort);
+        }
         logger.info('WebSocket transport: Stopped');
       }
 
       // Stop HTTP transport
       if (this.startedServices.includes('http')) {
         await httpAgentAPI.stop();
+        // Unregister the instance
+        if (this.config.http.allocatedPort) {
+          await PortAllocator.unregisterInstance(this.config.http.allocatedPort);
+        }
         logger.info('HTTP transport: Stopped');
       }
 

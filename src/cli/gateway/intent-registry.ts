@@ -347,10 +347,11 @@ export class UnifiedIntentRegistry {
       for (const pattern of config.input_patterns) {
         try {
           // Enhanced pattern conversion with variable capturing
+          // First escape special regex characters (but not curly braces yet)
           const regexPattern = pattern
-            .replace(/\{[^}]+\}/g, '([\\w\\s\\-_]+)') // Capture variables
-            .replace(/\s+/g, '\\s+') // Handle multiple spaces
-            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special chars except our captures
+            .replace(/[.*+?^$()|[\]\\]/g, '\\$&') // Escape special chars (except {})
+            .replace(/\{([^}]+)\}/g, '([\\w\\s\\-_./]+)') // Replace placeholders with capture groups (allow / for paths)
+            .replace(/\s+/g, '\\s+'); // Handle multiple spaces
 
           patterns.push(new RegExp(regexPattern, 'i'));
         } catch (error) {

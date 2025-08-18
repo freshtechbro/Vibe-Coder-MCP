@@ -713,9 +713,19 @@ export class UnifiedCommandGateway {
     warnings: string[],
     suggestions: string[]
   ): { errors: string[]; warnings: string[]; suggestions: string[] } {
-    if (!params.task && !params.feature && !params.developmentTask) {
-      errors.push('Task, feature, or development context is required');
-      suggestions.push('Try: "curate context for authentication implementation" or "prepare context for API integration"');
+    // Map common parameter names to expected 'prompt' parameter
+    if (!params.prompt) {
+      // Try to map from common alternatives
+      if (params.task) {
+        params.prompt = params.task;
+      } else if (params.feature) {
+        params.prompt = params.feature;
+      } else if (params.developmentTask) {
+        params.prompt = params.developmentTask;
+      } else {
+        errors.push('Prompt parameter is required for context curation');
+        suggestions.push('Try: "curate context for authentication implementation" or "prepare context for API integration"');
+      }
     }
     
     return { errors, warnings, suggestions };

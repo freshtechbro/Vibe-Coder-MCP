@@ -104,7 +104,17 @@ async function processOneShot(args: string[]): Promise<void> {
     return;
   }
 
-  // Environment validation using centralized systems
+  // Initialize core services BEFORE validation (same as interactive mode)
+  try {
+    await appInitializer.initializeCoreServices();
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to initialize core services');
+    console.error(chalk.red('Failed to initialize services:'), error instanceof Error ? error.message : 'Unknown error');
+    await gracefulExit(1);
+    return;
+  }
+
+  // Environment validation using centralized systems (AFTER initialization)
   const environmentValidation = await validateEnvironment();
   if (!environmentValidation.valid) {
     EnhancedCLIUtils.formatError('Environment validation failed:');
@@ -162,7 +172,7 @@ async function processOneShot(args: string[]): Promise<void> {
       result = {
         content: [{
           type: 'text',
-          text: `Command: "${request}"\nSelected Tool: ${processingResult.selectedTool}\nConfidence: ${(processingResult.intent?.confidence || 0 * 100).toFixed(1)}%\n\nValidation:\n${processingResult.validationErrors.join('\n')}\n\nSuggestions:\n${processingResult.suggestions.join('\n')}\n\nUse --force to execute without confirmation.`
+          text: `Command: "${request}"\nSelected Tool: ${processingResult.selectedTool}\nConfidence: ${((processingResult.intent?.confidence || 0) * 100).toFixed(1)}%\n\nValidation:\n${processingResult.validationErrors.join('\n')}\n\nSuggestions:\n${processingResult.suggestions.join('\n')}\n\nUse --force to execute without confirmation.`
         }]
       };
     } else {

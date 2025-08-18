@@ -490,98 +490,98 @@ export class PortAllocator {
   }
 
   /**
-   * Basic port cleanup - releases ports from previous crashed instances
+   * Enhanced port cleanup - releases ports from previous crashed instances using instance tracking
    * @returns Promise<number> - Number of ports cleaned up
    */
   static async cleanupOrphanedPorts(): Promise<number> {
     const cleanupStartTime = Date.now();
     logger.info({ operation: 'cleanup_start' }, 'Starting port cleanup for orphaned processes');
 
-    const cleanedCount = 0;
-    let checkedCount = 0;
-    let occupiedCount = 0;
-    const commonPortRanges = [
-      { start: 8080, end: 8090, service: 'websocket' },
-      { start: 3001, end: 3020, service: 'http' },
-      { start: 3000, end: 3010, service: 'sse' }
-    ];
-
-    const occupiedPorts: Array<{ port: number; service: string }> = [];
+    let cleanedCount = 0;
+    const orphanedPorts: number[] = [];
 
     try {
-      logger.debug({
-        ranges: commonPortRanges,
-        totalPortsToCheck: commonPortRanges.reduce((sum, r) => sum + (r.end - r.start + 1), 0),
-        operation: 'cleanup_scan_start'
-      }, 'Starting port cleanup scan');
+      // Step 1: Check instance tracking for dead processes
+      logger.debug({ operation: 'cleanup_instance_check' }, 'Checking instance tracking for orphaned processes');
+      
+      const trackedInstances = await this.getActiveInstances();
+      logger.debug({ 
+        instanceCount: trackedInstances.length,
+        operation: 'cleanup_instances_found' 
+      }, 'Found tracked instances');
 
-      for (const range of commonPortRanges) {
-        logger.debug({
-          service: range.service,
-          start: range.start,
-          end: range.end,
-          operation: 'cleanup_range_start'
-        }, `Scanning ${range.service} port range`);
-
-        for (let port = range.start; port <= range.end; port++) {
-          // Skip excluded ports
-          if (this.isPortExcluded(port)) {
-            logger.debug({
-              port,
-              service: range.service,
-              reason: 'excluded',
-              operation: 'cleanup_port_skip'
-            }, 'Skipping excluded port during cleanup');
-            continue;
+      // Clean up instance files for dead processes
+      for (const instance of trackedInstances) {
+        if (!this.isProcessRunning(instance.pid)) {
+          // Process is dead, clean up its instance file
+          orphanedPorts.push(instance.port);
+          
+          try {
+            await this.unregisterInstance(instance.port);
+            cleanedCount++;
+            
+            logger.info({
+              pid: instance.pid,
+              port: instance.port,
+              service: instance.service,
+              operation: 'cleanup_instance_removed'
+            }, 'Cleaned up orphaned instance tracking');
+          } catch (err) {
+            logger.error({
+              err,
+              pid: instance.pid,
+              port: instance.port,
+              operation: 'cleanup_instance_error'
+            }, 'Failed to clean up instance tracking');
           }
-
-          checkedCount++;
-
-          // Check if port is available (if not available, it might be orphaned)
-          const isAvailable = await this.findAvailablePort(port);
-
-          if (!isAvailable) {
-            occupiedCount++;
-            occupiedPorts.push({ port, service: range.service });
-
-            logger.debug({
-              port,
-              service: range.service,
-              operation: 'cleanup_port_occupied'
-            }, 'Port in use - checking if orphaned');
-
-            // Basic cleanup: just log the occupied port
-            // More sophisticated cleanup will be added in later phases
-            logger.debug({
-              port,
-              service: range.service,
-              operation: 'cleanup_port_analysis'
-            }, 'Port occupied by process');
-          } else {
-            logger.debug({
-              port,
-              service: range.service,
-              operation: 'cleanup_port_available'
-            }, 'Port available during cleanup scan');
-          }
+        } else {
+          logger.debug({
+            pid: instance.pid,
+            port: instance.port,
+            service: instance.service,
+            operation: 'cleanup_instance_alive'
+          }, 'Instance process is still running');
         }
+      }
 
-        logger.debug({
-          service: range.service,
-          portsChecked: range.end - range.start + 1,
-          operation: 'cleanup_range_complete'
-        }, `Completed ${range.service} port range scan`);
+      // Step 2: If we found orphaned ports, wait briefly for OS to release them
+      if (orphanedPorts.length > 0) {
+        logger.info({
+          orphanedPorts,
+          cleanedCount,
+          operation: 'cleanup_wait_for_release'
+        }, 'Found orphaned ports, waiting for OS to release them');
+        
+        // Small delay to allow OS to fully release the ports
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      // Step 3: Verify port availability after cleanup
+      const verificationResults: Array<{ port: number; available: boolean }> = [];
+      for (const port of orphanedPorts) {
+        const isAvailable = await this.findAvailablePort(port);
+        verificationResults.push({ port, available: isAvailable });
+        
+        if (isAvailable) {
+          logger.debug({
+            port,
+            operation: 'cleanup_port_verified'
+          }, 'Port successfully released after cleanup');
+        } else {
+          logger.warn({
+            port,
+            operation: 'cleanup_port_still_occupied'
+          }, 'Port still occupied after cleanup (may need more time)');
+        }
       }
 
       const cleanupDuration = Date.now() - cleanupStartTime;
 
       logger.info({
         cleanedCount,
-        checkedCount,
-        occupiedCount,
-        occupiedPorts,
+        orphanedPorts,
+        verificationResults,
         duration: cleanupDuration,
-        averageTimePerPort: checkedCount > 0 ? Math.round(cleanupDuration / checkedCount) : 0,
         operation: 'cleanup_complete'
       }, 'Port cleanup completed');
 
@@ -592,8 +592,7 @@ export class PortAllocator {
       logger.error({
         error,
         cleanedCount,
-        checkedCount,
-        occupiedCount,
+        orphanedPorts,
         duration: cleanupDuration,
         operation: 'cleanup_error'
       }, 'Error during port cleanup');

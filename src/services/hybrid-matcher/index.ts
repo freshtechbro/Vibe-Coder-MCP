@@ -64,13 +64,31 @@ export async function hybridMatch(
   for (const [tool, keywords] of Object.entries(toolKeywords)) {
     if (keywords.some(kw => lowerRequest.includes(kw))) {
       logger.info(`Keyword match for ${tool}`);
+      
+      // Try to extract parameters using existing pattern matching
+      const patternMatch = matchRequest(request);
+      let parameters: Record<string, string> = {};
+      let confidence = 0.85; // Default keyword match confidence
+      let matchedPattern: string = 'keyword_match';
+      
+      // If we found a pattern match for this tool, use its confidence and parameters
+      if (patternMatch && patternMatch.toolName === tool && patternMatch.matchedPattern) {
+        // Extract parameters from the matched pattern
+        parameters = extractParameters(request, patternMatch.matchedPattern);
+        // Use the pattern match confidence if it's higher
+        confidence = Math.max(confidence, patternMatch.confidence);
+        // Use the actual matched pattern for better tracking
+        matchedPattern = patternMatch.matchedPattern;
+        logger.debug(`Enhanced keyword match with pattern extraction for ${tool}: ${JSON.stringify(parameters)}`);
+      }
+      
       return {
         toolName: tool,
-        confidence: 0.85,
-        matchedPattern: 'keyword_match',
-        parameters: {},
+        confidence,
+        matchedPattern,
+        parameters,
         matchMethod: 'rule' as const,
-        requiresConfirmation: false
+        requiresConfirmation: confidence < 0.9 // High confidence (0.9) skips confirmation
       };
     }
   }

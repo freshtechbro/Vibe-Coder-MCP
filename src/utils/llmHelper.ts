@@ -72,7 +72,11 @@ export async function performDirectLlmCall(
     'epic_identification',
     'atomic_detection',
     'task_validation',
-    'project_analysis'
+    'project_analysis',
+    // Context curator tasks that need JSON
+    'context_curator_file_discovery',
+    'context_curator_relevance_scoring',
+    'context_curator_meta_prompt_generation'
   ];
 
   // Define tasks that should NEVER be JSON optimized (expect other formats)
@@ -138,17 +142,25 @@ export async function performDirectLlmCall(
   logger.info({ modelSelected: modelToUse, logicalTaskName }, `Selected model for direct LLM call.`);
 
   try {
+    // Build request body with conditional response_format
+    const requestBody: Record<string, unknown> = {
+      model: modelToUse,
+      messages: [
+        { role: "system", content: optimizedSystemPrompt },
+        { role: "user", content: optimizedUserPrompt }
+      ],
+      max_tokens: 8000, // Increased from 4000 to handle larger template generations
+      temperature: temperature // Use the provided or default temperature
+    };
+
+    // Add response_format only for JSON tasks to ensure JSON-only output
+    if (shouldOptimizeForJson) {
+      requestBody.response_format = { type: "json_object" };
+    }
+
     const response = await axios.post(
       `${config.baseUrl}/chat/completions`,
-      {
-        model: modelToUse,
-        messages: [
-          { role: "system", content: optimizedSystemPrompt },
-          { role: "user", content: optimizedUserPrompt }
-        ],
-        max_tokens: 8000, // Increased from 4000 to handle larger template generations
-        temperature: temperature // Use the provided or default temperature
-      },
+      requestBody,
       {
         headers: {
           "Content-Type": "application/json",
@@ -1485,49 +1497,147 @@ function detectCircularAndLimitDepth(obj: unknown, maxDepth: number, maxArrayLen
 }
 
 /**
+ * Type for JSON-like objects
+ */
+type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+type JsonArray = Array<JsonValue>;
+
+/**
+ * Deep merge helper function for nested object merging
+ */
+function deepMerge(target: JsonValue, source: JsonValue): JsonValue {
+  if (!source) return target;
+  if (!target) return source;
+  
+  // Handle non-object types
+  if (typeof target !== 'object' || target === null || 
+      typeof source !== 'object' || source === null) {
+    return source;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(source)) {
+    if (Array.isArray(target)) {
+      const combined = [...target, ...source];
+      // Deduplicate based on stringified content or specific properties
+      const seen = new Set<string>();
+      return combined.filter((item: JsonValue) => {
+        let identifier: string;
+        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+          const obj = item as JsonObject;
+          identifier = (obj.path as string) || (obj.id as string) || JSON.stringify(item);
+        } else {
+          identifier = JSON.stringify(item);
+        }
+        if (seen.has(identifier)) {
+          return false;
+        }
+        seen.add(identifier);
+        return true;
+      });
+    } else {
+      return source;
+    }
+  }
+  
+  // Handle objects
+  const targetObj = target as JsonObject;
+  const sourceObj = source as JsonObject;
+  const result: JsonObject = { ...targetObj };
+  
+  for (const key in sourceObj) {
+    if (Object.prototype.hasOwnProperty.call(sourceObj, key)) {
+      if (key in result) {
+        result[key] = deepMerge(result[key], sourceObj[key]);
+      } else {
+        result[key] = sourceObj[key];
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Merges multiple JSON responses from Context Curator intelligently
+ */
+function mergeContextCuratorJsonResponses(jsonBlocks: JsonValue[]): JsonValue {
+  if (jsonBlocks.length === 0) return {};
+  if (jsonBlocks.length === 1) return jsonBlocks[0];
+  
+  let merged = jsonBlocks[0];
+  for (let i = 1; i < jsonBlocks.length; i++) {
+    merged = deepMerge(merged, jsonBlocks[i]);
+  }
+  
+  return merged;
+}
+
+/**
  * Extracts JSON from mixed content using improved bracket matching and markdown code block handling
- * Now supports multiple JSON blocks and prioritizes blocks containing "tasks" array
+ * Now collects and merges ALL valid JSON blocks to prevent data loss
  */
 function extractJsonFromMixedContent(content: string, jobId?: string): string {
   const trimmed = content.trim();
+  const validJsonBlocks: JsonValue[] = [];
 
   // First, try to extract ALL markdown code blocks
   const codeBlockMatches = Array.from(trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)```/gs));
   
   if (codeBlockMatches.length > 0) {
-    // Priority 1: Find block containing "tasks" array
-    for (const match of codeBlockMatches) {
-      if (match[1] && match[1].includes('"tasks"')) {
+    // Collect ALL valid JSON blocks from markdown
+    for (let i = 0; i < codeBlockMatches.length; i++) {
+      const block = codeBlockMatches[i][1];
+      if (!block) continue;
+      
+      try {
+        const parsed = JSON.parse(block.trim());
+        validJsonBlocks.push(parsed);
         logger.debug({ 
           jobId, 
-          extractionMethod: "markdown_code_block_with_tasks",
-          blockIndex: codeBlockMatches.indexOf(match),
-          totalBlocks: codeBlockMatches.length 
-        }, "Extracted JSON from Markdown code block containing tasks array");
-        return match[1].trim();
+          extractionMethod: "markdown_code_block_collection",
+          blockIndex: i,
+          totalBlocks: codeBlockMatches.length,
+          hasRelevantFiles: !!parsed.relevantFiles,
+          hasFileScores: !!parsed.fileScores,
+          hasTasks: !!parsed.tasks
+        }, "Collected valid JSON block from Markdown");
+      } catch {
+        // This block isn't valid JSON, continue to next
+        continue;
       }
     }
     
-    // Priority 2: Return the largest JSON block (likely has most content)
-    let largestBlock = '';
-    let largestIndex = -1;
-    for (let i = 0; i < codeBlockMatches.length; i++) {
-      const block = codeBlockMatches[i][1] || '';
-      if (block.length > largestBlock.length) {
-        largestBlock = block;
-        largestIndex = i;
-      }
-    }
-    
-    if (largestBlock) {
+    // If we collected multiple blocks, merge them
+    if (validJsonBlocks.length > 1) {
+      const merged = mergeContextCuratorJsonResponses(validJsonBlocks);
+      const mergedKeys = typeof merged === 'object' && merged !== null && !Array.isArray(merged) 
+        ? Object.keys(merged as JsonObject) 
+        : [];
       logger.debug({ 
         jobId, 
-        extractionMethod: "markdown_code_block_largest",
-        blockIndex: largestIndex,
-        totalBlocks: codeBlockMatches.length,
-        blockSize: largestBlock.length
-      }, "Extracted largest JSON block from multiple Markdown code blocks");
-      return largestBlock.trim();
+        extractionMethod: "markdown_code_block_merged",
+        totalBlocksMerged: validJsonBlocks.length,
+        mergedKeys
+      }, "Merged multiple JSON blocks from Markdown");
+      return JSON.stringify(merged);
+    } else if (validJsonBlocks.length === 1) {
+      // Single valid block found
+      const block = validJsonBlocks[0];
+      const blockObj = typeof block === 'object' && block !== null && !Array.isArray(block) 
+        ? block as JsonObject 
+        : {};
+      logger.debug({ 
+        jobId, 
+        extractionMethod: "markdown_code_block_single",
+        hasRelevantFiles: !!blockObj.relevantFiles,
+        hasFileScores: !!blockObj.fileScores,
+        hasTasks: !!blockObj.tasks
+      }, "Extracted single valid JSON block from Markdown");
+      return JSON.stringify(validJsonBlocks[0]);
     }
   }
 
