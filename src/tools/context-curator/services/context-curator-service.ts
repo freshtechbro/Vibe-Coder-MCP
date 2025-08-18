@@ -5,7 +5,7 @@
  * Intent Analysis → Prompt Refinement → File Discovery → Relevance Scoring → Meta-Prompt Generation
  */
 
-import { promises as fs } from 'fs';
+import fs from 'fs-extra';
 import path from 'path';
 import { ContextCuratorLLMService } from './llm-integration.js';
 import { ContextCuratorConfigLoader } from './config-loader.js';
@@ -548,7 +548,7 @@ export class ContextCuratorService {
         fromCache
       }, 'About to extract file contents from codemap');
 
-      context.fileContents = await this.extractFileContentsWithOptimization(codemapContent);
+      context.fileContents = await this.extractFileContentsWithOptimization(codemapContent, context.input.maxFiles);
 
       context.completedPhases++;
       const progress = Math.round((context.completedPhases / context.totalPhases) * 100);
@@ -605,10 +605,14 @@ export class ContextCuratorService {
 
     try {
       // Enhanced analysis with language detection and comprehensive project analysis
-      const patternAnalysis = this.extractArchitecturalPatterns(context.codemapContent!);
-      const projectAnalysis = this.detectProjectType(context.codemapContent!);
-      const languageAnalysis = await this.detectPrimaryLanguages(context.codemapContent!);
+      // Parallelize independent sub-tasks for faster intent analysis
+      const [patternAnalysis, projectAnalysis, languageAnalysis] = await Promise.all([
+        this.extractArchitecturalPatterns(context.codemapContent!),
+        this.detectProjectType(context.codemapContent!),
+        this.detectPrimaryLanguages(context.codemapContent!)
+      ]);
 
+      const path = await import('path');
       const additionalContext = {
         projectType: projectAnalysis.projectType,
         projectAnalysis,
@@ -616,7 +620,9 @@ export class ContextCuratorService {
         existingPatterns: patternAnalysis.patterns,
         patternConfidence: patternAnalysis.confidence,
         patternEvidence: patternAnalysis.evidence,
-        technicalConstraints: []
+        technicalConstraints: [],
+        projectPath: context.input.projectPath,
+        projectName: path.basename(context.input.projectPath)
       };
 
       const baseIntentAnalysis = await this.llmService.performIntentAnalysis(
@@ -699,6 +705,7 @@ export class ContextCuratorService {
       const patternAnalysis = this.extractArchitecturalPatterns(context.codemapContent!);
 
       // Enhanced additional context using Phase 2 analysis data
+      const path = await import('path');
       const additionalContext = {
         projectAnalysis: context.intentAnalysis?.projectAnalysis,
         languageAnalysis: context.intentAnalysis?.languageAnalysis,
@@ -708,7 +715,9 @@ export class ContextCuratorService {
         technicalConstraints: this.deriveConstraintsFromProject(context.intentAnalysis?.projectAnalysis),
         qualityRequirements: this.deriveQualityRequirements(context.intentAnalysis?.languageAnalysis),
         timelineConstraints: undefined,
-        teamExpertise: this.inferTeamExpertise(context.intentAnalysis?.projectAnalysis)
+        teamExpertise: this.inferTeamExpertise(context.intentAnalysis?.projectAnalysis),
+        projectPath: context.input.projectPath,
+        projectName: path.basename(context.input.projectPath)
       };
 
       context.promptRefinement = await this.llmService.performPromptRefinement(
@@ -2912,12 +2921,15 @@ export class ContextCuratorService {
         'structural_analysis'
       ];
 
+      const path = await import('path');
       const additionalContext = {
         filePatterns: context.input.includePatterns,
         excludePatterns: context.input.excludePatterns,
         focusDirectories: context.input.focusAreas,
         maxFiles: MAX_FILES_PER_STRATEGY,
-        tokenBudget: TOKEN_BUDGET
+        tokenBudget: TOKEN_BUDGET,
+        projectPath: context.input.projectPath,
+        projectName: path.basename(context.input.projectPath)
       };
 
       // Execute all strategies with resilient error handling
@@ -3018,12 +3030,12 @@ export class ContextCuratorService {
       }
       
       const fileCount = context.fileDiscovery.relevantFiles.length;
-      const useChunkedProcessing = fileCount > 40;
+      const useChunkedProcessing = fileCount > 20; // Lower threshold for earlier chunking
       const diagnostics: string[] = [];
 
       if (useChunkedProcessing) {
-        diagnostics.push(`File count (${fileCount}) exceeds threshold (40). Using chunked processing.`);
-        diagnostics.push(`Expected chunks: ${Math.ceil(fileCount / 20)}`);
+        diagnostics.push(`File count (${fileCount}) exceeds threshold (20). Using chunked processing.`);
+        diagnostics.push(`Expected chunks: ${Math.ceil(fileCount / 10)}`); // Updated for new chunk size
       } else {
         diagnostics.push(`File count (${fileCount}) within threshold. Using standard processing.`);
       }
@@ -3929,8 +3941,8 @@ export class ContextCuratorService {
     const filesWithContent: PrioritizedFile[] = [];
 
     for (const file of prioritizedFiles) {
-      if (file.includeContent && (file.priorityLevel === 'high' || file.priorityLevel === 'medium')) {
-        // Extract actual file content for high and medium priority files
+      if (file.includeContent && file.priorityLevel === 'high') {
+        // Extract actual file content ONLY for high priority files
         const result = await this.extractSingleFileContent(file.path, securityConfig);
         filesWithContent.push({
           ...file,
@@ -3939,7 +3951,7 @@ export class ContextCuratorService {
           path: result?.resolvedPath || file.path
         });
       } else {
-        // For low priority files, just include path information
+        // For medium and low priority files, just include path information
         filesWithContent.push({
           ...file,
           content: undefined
@@ -4136,14 +4148,28 @@ export class ContextCuratorService {
       const outputDir = process.env.VIBE_CODER_OUTPUT_DIR || path.join(process.cwd(), 'VibeCoderOutput');
       const codemapDir = path.join(outputDir, 'code-map-generator');
 
-      if (await fs.pathExists(codemapDir)) {
-        const files = await fs.readdir(codemapDir);
-        const codemapFiles = files.filter(f => f.endsWith('.md')).sort().reverse();
+      // Add environment detection and graceful fallback for fs.readdir operations
+      if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+        if (await fs.pathExists(codemapDir)) {
+          try {
+            const files = await fs.readdir(codemapDir);
+            const codemapFiles = files.filter(f => f.endsWith('.md')).sort().reverse();
 
-        if (codemapFiles.length > 0) {
-          const latestCodemap = path.join(codemapDir, codemapFiles[0]);
-          codemapContent = await fs.readFile(latestCodemap, 'utf-8');
+            if (codemapFiles.length > 0) {
+              const latestCodemap = path.join(codemapDir, codemapFiles[0]);
+              codemapContent = await fs.readFile(latestCodemap, 'utf-8');
+            }
+          } catch (error) {
+            logger.warn({ 
+              error: error instanceof Error ? error.message : 'Unknown error', 
+              codemapDir 
+            }, 'Unable to read codemap directory');
+            return null;
+          }
         }
+      } else {
+        logger.debug('Running in browser/worker context - skipping filesystem operations');
+        return null;
       }
 
       if (!codemapContent) {
@@ -4326,6 +4352,32 @@ export class ContextCuratorService {
    * Convert ContextFile to ProcessedFile format
    */
   private convertToProcessedFile(file: ContextFile): ProcessedFile {
+    // Use actual scores from file discovery if available, otherwise use defaults
+    const actualScore = file.actualRelevanceScore ?? 0.5;
+    const actualConfidence = file.actualConfidence ?? 0.8;
+    
+    // Determine modification likelihood based on actual relevance score
+    const modificationLikelihood: 'very_high' | 'high' | 'medium' | 'low' | 'very_low' = 
+      actualScore >= 0.9 ? 'very_high' :
+      actualScore >= 0.7 ? 'high' :
+      actualScore >= 0.5 ? 'medium' :
+      actualScore >= 0.3 ? 'low' : 'very_low';
+    
+    // Build reasoning array based on actual data
+    const reasoning: string[] = [];
+    if (file.actualCategories && file.actualCategories.length > 0) {
+      reasoning.push(`File categorized as ${file.actualCategories.join(', ')} priority with confidence ${actualConfidence.toFixed(2)}`);
+    }
+    reasoning.push(`Relevance score: ${actualScore.toFixed(2)}`);
+    if (reasoning.length === 0) {
+      reasoning.push('Included based on file discovery');
+    }
+    
+    // Ensure we have at least one category for schema compliance
+    const categories = file.actualCategories && file.actualCategories.length > 0 
+      ? file.actualCategories 
+      : ['general'];
+    
     return {
       path: file.path,
       content: file.content || '',
@@ -4336,17 +4388,17 @@ export class ContextCuratorService {
       tokenEstimate: file.tokenCount,
       contentSections: [],
       relevanceScore: {
-        overall: 0.5,
-        confidence: 0.8,
-        modificationLikelihood: 'medium' as const,
-        reasoning: ['Included based on file discovery'],
-        categories: [],
-        imports: [],
-        exports: [],
-        functions: [],
-        classes: []
+        overall: actualScore,
+        confidence: actualConfidence,
+        modificationLikelihood,
+        reasoning,
+        categories,
+        imports: [], // TODO: Future enhancement - extract via AST parsing
+        exports: [], // TODO: Future enhancement - extract via AST parsing
+        functions: [], // TODO: Future enhancement - extract via AST parsing (optional field)
+        classes: [] // TODO: Future enhancement - extract via AST parsing (optional field)
       },
-      reasoning: `Included ${file.language} file based on analysis`,
+      reasoning: `Included ${file.language} file based on analysis (relevance: ${actualScore.toFixed(2)}, confidence: ${actualConfidence.toFixed(2)})`,
       language: file.language,
       lastModified: file.lastModified,
       size: file.size
@@ -4357,10 +4409,18 @@ export class ContextCuratorService {
    * Convert ContextFile to FileReference format
    */
   private convertToFileReference(file: ContextFile): FileReference {
+    // Use actual relevance score if available, otherwise default to 0.3 for low priority
+    const actualScore = file.actualRelevanceScore ?? 0.3;
+    const actualConfidence = file.actualConfidence ?? 0.5;
+    
+    // Build reasoning based on actual data
+    const priority = file.actualCategories?.[0] || 'low';
+    const reasoning = `${priority.charAt(0).toUpperCase() + priority.slice(1)} priority ${file.language} file included for reference (relevance: ${actualScore.toFixed(2)}, confidence: ${actualConfidence.toFixed(2)})`;
+    
     return {
       path: file.path,
-      relevanceScore: 0.3, // Low priority files have lower relevance
-      reasoning: `Low priority ${file.language} file included for reference`,
+      relevanceScore: actualScore,
+      reasoning,
       tokenEstimate: file.tokenCount,
       lastModified: file.lastModified,
       size: file.size,
@@ -4472,17 +4532,17 @@ export class ContextCuratorService {
 
         // Note: reasoning extraction removed as it's not used in the current implementation
 
-        // Ensure content is properly included for high and medium priority files
+        // Ensure content is properly included ONLY for high priority files
         let fileContent = file.file?.content;
-        if ((priorityLevel === 'high' || priorityLevel === 'medium') && !hasContent) {
+        if (priorityLevel === 'high' && !hasContent) {
           logger.warn({
             filePath: file.file?.path,
             priorityLevel,
             relevanceScore,
             confidence
-          }, 'High/medium priority file missing content - attempting to extract');
+          }, 'High priority file missing content - attempting to extract');
 
-          // Attempt to extract content if missing for high/medium priority files
+          // Attempt to extract content if missing for high priority files
           try {
             const result = await this.extractSingleFileContent(file.file?.path || '', securityConfig);
             if (result) {
@@ -4506,8 +4566,8 @@ export class ContextCuratorService {
           }
         }
 
-        // Calculate actual token estimate for the content
-        const actualContent = fileContent || (priorityLevel === 'low' ? null : file.file?.content || '');
+        // Calculate actual token estimate for the content (only HIGH priority gets content)
+        const actualContent = fileContent || (priorityLevel === 'high' ? file.file?.content || '' : null);
         let tokenEstimate = 0;
 
         if (actualContent && typeof actualContent === 'string') {
@@ -4649,10 +4709,11 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
 
   /**
    * Extract file contents with optimization for files above 1000 LOC
+   * @param codemapContent The codemap content to extract files from
+   * @param maxFiles Maximum number of files to extract (configurable, defaults to 500)
    */
-  private async extractFileContentsWithOptimization(codemapContent: string): Promise<Map<string, string>> {
+  private async extractFileContentsWithOptimization(codemapContent: string, maxFiles: number = 500): Promise<Map<string, string>> {
     const fileContents = new Map<string, string>();
-    const MAX_FILES = 200; // Limit files to prevent memory exhaustion
     const MEMORY_THRESHOLD = 1024 * 1024 * 1024; // 1GB RSS limit
 
     try {
@@ -4677,9 +4738,9 @@ ${(task.subtasks || []).map(subtask => `              <subtask id="${escapeXml(s
         }
 
         // File count limit to prevent memory exhaustion
-        if (matchCount > MAX_FILES) {
+        if (matchCount > maxFiles) {
           logger.warn({ 
-            maxFiles: MAX_FILES, 
+            maxFiles: maxFiles, 
             totalMatches: matchCount 
           }, 'File limit reached, stopping content extraction');
           break;

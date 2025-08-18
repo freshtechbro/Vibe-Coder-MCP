@@ -368,7 +368,7 @@ export const generateRules: ToolExecutor = async (
 
 // Tool definition for the rules generator tool
 const rulesToolDefinition: ToolDefinition = {
-  name: "generate-rules",
+  name: "rules-generator",
   description: "Creates project-specific development rules based on product description, user stories, and research.",
   inputSchema: rulesInputSchemaShape, // Use the raw shape
   executor: generateRules // Reference the adapted function

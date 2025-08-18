@@ -90,8 +90,8 @@ export class TaskStreamer {
 
   private constructor(config?: Partial<StreamConfig>) {
     this.config = {
-      batchSize: 5,
-      streamInterval: 5000, // 5 seconds
+      batchSize: 3, // Reduced from 5 for faster task distribution
+      streamInterval: 2000, // Reduced from 5000ms for more responsive feedback
       maxQueueSize: 1000,
       priorityThreshold: 2, // High priority and above
       enableRealTimeStreaming: true,

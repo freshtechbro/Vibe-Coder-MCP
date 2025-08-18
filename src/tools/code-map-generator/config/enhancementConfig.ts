@@ -96,7 +96,8 @@ export const DEFAULT_ENHANCEMENT_CONFIG: CodeMapEnhancementConfig = {
     reduceClassDetails: true,
     consolidateRepetitiveContent: true, // Enhanced with pattern-based consolidation
     focusOnPublicInterfaces: true,
-    adaptiveOptimization: true
+    adaptiveOptimization: true,
+    skipFunctionCallGraph: true // Set to true for massive performance improvement
   },
 
   // PATTERN-BASED CONSOLIDATION: Enhanced consolidation settings
@@ -162,7 +163,8 @@ export const QUALITY_FIRST_PRESETS = {
       reduceClassDetails: false,
       consolidateRepetitiveContent: true,
       focusOnPublicInterfaces: false,
-      adaptiveOptimization: false
+      adaptiveOptimization: false,
+      skipFunctionCallGraph: true
     },
     contentDensity: {
       enabled: true,
@@ -185,7 +187,8 @@ export const QUALITY_FIRST_PRESETS = {
       reduceClassDetails: true,
       consolidateRepetitiveContent: true,
       focusOnPublicInterfaces: true,
-      adaptiveOptimization: true
+      adaptiveOptimization: true,
+      skipFunctionCallGraph: true
     },
     contentDensity: {
       enabled: true,
@@ -209,7 +212,8 @@ export const QUALITY_FIRST_PRESETS = {
       reduceClassDetails: true,
       consolidateRepetitiveContent: true, // Enhanced with pattern-based consolidation
       focusOnPublicInterfaces: true,
-      adaptiveOptimization: true
+      adaptiveOptimization: true,
+      skipFunctionCallGraph: true
     },
 
     patternConsolidation: {
@@ -253,6 +257,8 @@ export class EnhancementConfigManager {
    * Gets the current configuration.
    */
   getConfig(): CodeMapEnhancementConfig {
+    console.warn(`🔍 DEBUG: getConfig called - skipFunctionCallGraph: ${this.config.universalOptimization?.skipFunctionCallGraph}`);
+    console.warn(`🔍 DEBUG: Full universalOptimization in getConfig: ${JSON.stringify(this.config.universalOptimization)}`);
     return { ...this.config };
   }
 
@@ -277,11 +283,16 @@ export class EnhancementConfigManager {
    */
   applyPreset(preset: 'conservative' | 'balanced' | 'maximum'): void {
     const presetConfig = QUALITY_FIRST_PRESETS[preset];
+    
+    console.warn(`🔍 DEBUG: Applying preset '${preset}'`);
+    console.warn(`🔍 DEBUG: Preset universalOptimization.skipFunctionCallGraph: ${presetConfig.universalOptimization?.skipFunctionCallGraph}`);
 
     this.config.maxOptimizationLevel = presetConfig.maxOptimizationLevel;
     this.config.qualityThresholds = { ...presetConfig.qualityThresholds };
     this.config.universalOptimization = { ...presetConfig.universalOptimization };
     this.config.contentDensity = { ...this.config.contentDensity, ...presetConfig.contentDensity };
+    
+    console.warn(`🔍 DEBUG: After applying preset, config.universalOptimization.skipFunctionCallGraph: ${this.config.universalOptimization?.skipFunctionCallGraph}`);
 
     // Apply pattern consolidation settings if available in preset
     if ('patternConsolidation' in presetConfig) {

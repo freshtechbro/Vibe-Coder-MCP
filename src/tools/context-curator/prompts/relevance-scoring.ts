@@ -84,6 +84,19 @@ Assess how likely each file is to be modified:
 
 ## RESPONSE FORMAT
 
+## CRITICAL JSON OUTPUT REQUIREMENTS
+
+YOU MUST FOLLOW THESE RULES EXACTLY:
+1. OUTPUT FORMAT: Respond with ONLY raw JSON - no other text whatsoever
+2. NO MARKDOWN: DO NOT wrap your response in \`\`\`json or \`\`\` blocks
+3. NO EXPLANATIONS: DO NOT include any text before or after the JSON
+4. NO COMMENTS: JSON must not contain comments
+5. DIRECT PARSE: Your response must be directly parseable by JSON.parse()
+6. START AND END: Begin with { or [ and end with } or ]
+
+❌ FORBIDDEN: markdown blocks, explanatory text, "Here is the JSON:"
+✅ CORRECT: {"fileScores":[{"filePath":"src/file.ts","relevanceScore":0.9}]}
+
 🚨 CRITICAL: You MUST score ALL files in the input list. Respond with a valid JSON object matching this exact structure with a fileScores array containing EVERY file:
 
 {

@@ -10,8 +10,8 @@ import { z } from 'zod';
  */
 export const PRIORITY_THRESHOLDS = {
   HIGH: {
-    relevanceScore: 0.7,
-    confidence: 0.8
+    relevanceScore: 0.6,  // Reduced from 0.7 for more coverage
+    confidence: 0.7       // Reduced from 0.8 for more coverage
   },
   MEDIUM: {
     relevanceScore: 0.4,
@@ -254,7 +254,7 @@ export const contextCuratorInputSchema = z.object({
   /** Type of development task */
   taskType: taskTypeSchema.default('general'),
   /** Maximum number of files to include */
-  maxFiles: z.number().min(1).max(1000).default(100),
+  maxFiles: z.number().min(1).max(1000).default(500),
   /** File patterns to include */
   includePatterns: z.array(z.string()).default(['**/*']),
   /** File patterns to exclude */

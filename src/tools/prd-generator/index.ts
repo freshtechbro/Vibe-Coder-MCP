@@ -340,7 +340,7 @@ export const generatePRD: ToolExecutor = async (
 
 // Tool definition for the PRD generator tool
 const prdToolDefinition: ToolDefinition = {
-  name: "generate-prd",
+  name: "prd-generator",
   description: "Creates comprehensive product requirements documents based on a product description and research.",
   inputSchema: prdInputSchemaShape, // Use the raw shape
   executor: generatePRD // Reference the adapted function

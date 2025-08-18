@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { processBatchesWithMemoryCheck } from '../batchProcessor';
 import * as parser from '../parser';
 
-// Mock getMemoryStats
+// Mock getMemoryStats and grammarManager
 vi.mock('../parser', () => ({
   getMemoryStats: vi.fn().mockReturnValue({
     heapUsed: 100000000,
@@ -20,7 +20,10 @@ vi.mock('../parser', () => ({
       rss: '143.05 MB',
       systemTotal: '953.67 MB'
     }
-  })
+  }),
+  grammarManager: {
+    unloadUnusedGrammars: vi.fn().mockResolvedValue(undefined)
+  }
 }));
 
 // Mock logger

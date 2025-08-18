@@ -81,6 +81,19 @@ Rate the meta-prompt quality (0.0 to 1.0) based on:
 
 ## RESPONSE FORMAT
 
+## CRITICAL JSON OUTPUT REQUIREMENTS
+
+YOU MUST FOLLOW THESE RULES EXACTLY:
+1. OUTPUT FORMAT: Respond with ONLY raw JSON - no other text whatsoever
+2. NO MARKDOWN: DO NOT wrap your response in \`\`\`json or \`\`\` blocks
+3. NO EXPLANATIONS: DO NOT include any text before or after the JSON
+4. NO COMMENTS: JSON must not contain comments
+5. DIRECT PARSE: Your response must be directly parseable by JSON.parse()
+6. START AND END: Begin with { or [ and end with } or ]
+
+❌ FORBIDDEN: markdown blocks, explanatory text, "Here is the JSON:"
+✅ CORRECT: {"systemPrompt":"AI agent instructions","userPrompt":"Task details"}
+
 CRITICAL: You are generating a META-PROMPT, NOT a task decomposition.
 
 DO NOT return an epic or task structure. Instead, return a meta-prompt that CONTAINS task decomposition within it.

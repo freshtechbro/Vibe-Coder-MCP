@@ -5,6 +5,16 @@ import logger from '../../logger.js';
 import { CodeMapGeneratorConfig } from './types.js';
 import { writeFileSecure, readFileSecure } from './fsUtils.js';
 import { getOutputDirectory, getBaseOutputDir } from './directoryUtils.js';
+import { MemoryCache } from './cache/memoryCache.js';
+
+// Create a cache for compiled regex patterns to improve performance
+// This dramatically reduces regex compilation overhead in nested loops
+// Using a large cache size to prevent thrashing on large codebases
+const regexCache = new MemoryCache<string, RegExp>({
+  name: 'function-call-regex',
+  maxEntries: 50000,  // Increased to handle large codebases without thrashing
+  maxAge: 3600000     // 1 hour cache lifetime
+});
 
 export interface GraphNode {
   id: string; // Unique identifier for the node (e.g., file path, class name)
@@ -776,7 +786,12 @@ async function processFunctionCallGraphWithStorage(
 
                 // Simple regex to find function name possibly followed by ( or .
                 // This is very basic and will have false positives/negatives.
-                const callRegex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);
+                // Use cached regex for massive performance improvement
+                let callRegex = regexCache.get(calleeName);
+                if (!callRegex) {
+                  callRegex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);
+                  regexCache.set(calleeName, callRegex);
+                }
                 if (callRegex.test(functionBody)) {
                   batchEdges.push({
                     from: callerId,
@@ -920,7 +935,12 @@ function processFunctionCallGraphDirectly(
 
           // Simple regex to find function name possibly followed by ( or .
           // This is very basic and will have false positives/negatives.
-          const callRegex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);
+          // Use cached regex for massive performance improvement
+          let callRegex = regexCache.get(calleeName);
+          if (!callRegex) {
+            callRegex = new RegExp(`\\b${escapeRegExp(calleeName)}\\b\\s*(?:\\(|\\.)`);
+            regexCache.set(calleeName, callRegex);
+          }
           if (callRegex.test(functionBody)) {
             edges.push({
               from: callerId,

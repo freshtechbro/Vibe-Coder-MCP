@@ -491,7 +491,7 @@ If any modules were dynamically generated because their templates were missing, 
 };
 
 const starterKitToolDefinition: ToolDefinition = {
-  name: "generate-fullstack-starter-kit",
+  name: "fullstack-starter-kit-generator",
   description: "Generates full-stack project starter kits by composing YAML modules based on user requirements, tech stacks, research-informed recommendations, and then provides setup scripts. Dynamically generates missing YAML modules using LLM.",
   inputSchema: starterKitInputSchemaShape,
   executor: generateFullstackStarterKit

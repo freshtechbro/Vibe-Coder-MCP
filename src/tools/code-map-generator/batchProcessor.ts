@@ -18,7 +18,7 @@ import { getMetricsCollector } from './performanceMetrics.js';
  * @returns The batch size
  */
 export function getBatchSize(config: CodeMapGeneratorConfig): number {
-  return config.processing?.batchSize || 100;
+  return config.processing?.batchSize || 25; // Reduced from 100 for better memory management
 }
 
 /**
@@ -451,7 +451,7 @@ async function clearAllCaches(): Promise<void> {
 
     // Unload unused grammars if grammar manager is available
     if (grammarManager) {
-      await grammarManager.unloadUnusedGrammars(); // Unload unused grammars
+      // await grammarManager.unloadUnusedGrammars(); // COMMENTED - Keep grammars loaded between batches
     }
   } catch (error) {
     logger.warn({ err: error }, 'Error clearing caches during aggressive cleanup');
@@ -547,8 +547,8 @@ async function performLanguageChangeCleanup(): Promise<void> {
   // Unload unused grammars
   if (grammarManager) {
     try {
-      await grammarManager.unloadUnusedGrammars(); // Unload unused grammars
-      logger.debug('Unloaded unused grammars during language change');
+      // await grammarManager.unloadUnusedGrammars(); // COMMENTED - Keep grammars loaded during processing
+      logger.debug('Skipping grammar unload during language change to improve performance');
     } catch (error) {
       logger.warn({ err: error }, 'Error unloading unused grammars during language change');
     }
@@ -688,12 +688,16 @@ export async function processLanguageBasedBatches<T extends { path: string }, R>
           logger.warn({ err: error }, 'Error preparing grammars for batch');
         }
       } else {
-        // Free up memory by unloading unused grammars
-        try {
-          await grammarManager.unloadUnusedGrammars();
-          logger.debug('Unloaded unused grammars to free memory');
-        } catch {
-          logger.debug('Could not unload unused grammars');
+        // Only unload grammars in critical memory situations
+        if (memStats && memStats.memoryUsagePercentage > 0.85) { // Raised from 0.6 to 0.85
+          try {
+            await grammarManager.unloadUnusedGrammars(); // Only when critical
+            logger.warn('Critical memory pressure, unloading unused grammars');
+          } catch {
+            logger.debug('Could not unload unused grammars');
+          }
+        } else {
+          logger.debug('Memory usage moderate, keeping grammars loaded for performance');
         }
       }
     }
@@ -771,6 +775,12 @@ export async function processBatchesWithMemoryCheck<T, R>(
         global.gc();
       }
     }
+  }
+
+  // Final cleanup - only unload grammars when completely done
+  if (grammarManager) {
+    logger.info('All batch processing complete, performing final grammar cleanup');
+    await grammarManager.unloadUnusedGrammars();
   }
 
   return results;

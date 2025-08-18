@@ -232,12 +232,12 @@ describe('Context Curator Type Definitions', () => {
 
       const parsed = contextCuratorInputSchema.parse(minimalInput);
       expect(parsed.taskType).toBe('general');
-      expect(parsed.maxFiles).toBe(100);
+      expect(parsed.maxFiles).toBe(500);
       expect(parsed.includePatterns).toEqual(['**/*']);
       expect(parsed.excludePatterns).toEqual(['node_modules/**', '.git/**', 'dist/**', 'build/**']);
       expect(parsed.focusAreas).toEqual([]);
       expect(parsed.useCodeMapCache).toBe(true);
-      expect(parsed.codeMapCacheMaxAgeMinutes).toBe(120);
+      expect(parsed.codeMapCacheMaxAgeMinutes).toBe(1440);
     });
 
     it('should reject invalid input', () => {

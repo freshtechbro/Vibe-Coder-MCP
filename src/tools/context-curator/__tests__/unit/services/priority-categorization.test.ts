@@ -66,8 +66,8 @@ describe('Context Curator Priority Categorization', () => {
 
   describe('Priority Thresholds Configuration', () => {
     it('should have correct threshold values', () => {
-      expect(PRIORITY_THRESHOLDS.HIGH.relevanceScore).toBe(0.7);
-      expect(PRIORITY_THRESHOLDS.HIGH.confidence).toBe(0.8);
+      expect(PRIORITY_THRESHOLDS.HIGH.relevanceScore).toBe(0.6);
+      expect(PRIORITY_THRESHOLDS.HIGH.confidence).toBe(0.7);
       expect(PRIORITY_THRESHOLDS.MEDIUM.relevanceScore).toBe(0.4);
       expect(PRIORITY_THRESHOLDS.MEDIUM.confidence).toBe(0.6);
     });
@@ -76,11 +76,11 @@ describe('Context Curator Priority Categorization', () => {
   describe('File Priority Categorization Logic', () => {
     it('should categorize files as HIGH priority when both score and confidence meet thresholds', () => {
       const testCases = [
-        { score: 0.7, confidence: 0.8, expected: 'high' }, // Minimum thresholds
+        { score: 0.6, confidence: 0.7, expected: 'high' }, // Minimum thresholds (updated)
         { score: 0.85, confidence: 0.9, expected: 'high' }, // Well above thresholds
         { score: 1.0, confidence: 1.0, expected: 'high' }, // Maximum values
-        { score: 0.7, confidence: 0.85, expected: 'high' }, // Score at threshold, confidence above
-        { score: 0.8, confidence: 0.8, expected: 'high' }  // Both above minimum
+        { score: 0.6, confidence: 0.85, expected: 'high' }, // Score at threshold, confidence above
+        { score: 0.8, confidence: 0.7, expected: 'high' }  // Both at or above minimum
       ];
 
       testCases.forEach(({ score, confidence, expected }) => {
@@ -94,10 +94,10 @@ describe('Context Curator Priority Categorization', () => {
     it('should categorize files as MEDIUM priority when score/confidence are below HIGH but meet MEDIUM thresholds', () => {
       const testCases = [
         { score: 0.4, confidence: 0.6, expected: 'medium' }, // Minimum thresholds
-        { score: 0.5, confidence: 0.7, expected: 'medium' }, // Above minimum
-        { score: 0.69, confidence: 0.79, expected: 'medium' }, // Just below HIGH
-        { score: 0.7, confidence: 0.7, expected: 'medium' }, // High score, medium confidence
-        { score: 0.6, confidence: 0.9, expected: 'medium' }  // Medium score, high confidence
+        { score: 0.5, confidence: 0.65, expected: 'medium' }, // Above minimum but below HIGH
+        { score: 0.59, confidence: 0.69, expected: 'medium' }, // Just below HIGH thresholds
+        { score: 0.55, confidence: 0.6, expected: 'medium' }, // Mid-range values
+        { score: 0.4, confidence: 0.65, expected: 'medium' }  // Low score, medium confidence
       ];
 
       testCases.forEach(({ score, confidence, expected }) => {

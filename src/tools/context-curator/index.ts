@@ -291,7 +291,7 @@ export const contextCuratorExecutor: ToolExecutor = async (
       userPrompt: params.prompt as string,
       projectPath: (params.target_directory as string === '/' || !params.target_directory) ? process.cwd() : params.target_directory as string,
       taskType: taskType as 'feature_addition' | 'refactoring' | 'bug_fix' | 'performance_optimization' | 'general',
-      maxFiles: 100, // Default max files, separate from token budget
+      maxFiles: 500, // Default max files, separate from token budget
       includePatterns: ['**/*'],
       excludePatterns: ['node_modules/**', '.git/**', 'dist/**', 'build/**'],
       focusAreas: [],

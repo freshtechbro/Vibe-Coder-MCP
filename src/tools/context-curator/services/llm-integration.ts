@@ -233,6 +233,8 @@ export class ContextCuratorLLMService {
       patternConfidence?: { [pattern: string]: number };
       patternEvidence?: { [pattern: string]: string[] };
       technicalConstraints?: string[];
+      projectPath?: string;
+      projectName?: string;
     }
   ): Promise<IntentAnalysisResult> {
     const taskId = getIntentAnalysisTaskId();
@@ -286,6 +288,8 @@ export class ContextCuratorLLMService {
       qualityRequirements?: string[];
       timelineConstraints?: string;
       teamExpertise?: string[];
+      projectPath?: string;
+      projectName?: string;
     }
   ): Promise<PromptRefinementResult> {
     const taskId = getPromptRefinementTaskId();
@@ -451,6 +455,8 @@ export class ContextCuratorLLMService {
       focusDirectories?: string[];
       maxFiles?: number;
       tokenBudget?: number;
+      projectPath?: string;
+      projectName?: string;
     }
   ): Promise<FileDiscoveryResult> {
     const taskId = getFileDiscoveryTaskId(searchStrategy);
@@ -749,7 +755,7 @@ CRITICAL RETRY INSTRUCTIONS:
       categoryFilters?: string[];
       minRelevanceThreshold?: number;
     } | undefined,
-    chunkSize: number = 20
+    chunkSize: number = 10 // Reduced from 20 for better memory management
   ): Promise<RelevanceScoringResult> {
     const files = fileDiscoveryResult.relevantFiles;
     const chunks = [];

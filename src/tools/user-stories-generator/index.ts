@@ -286,7 +286,7 @@ export const generateUserStories: ToolExecutor = async (
 // --- Tool Registration ---
 
 const userStoriesToolDefinition: ToolDefinition = {
-  name: "generate-user-stories",
+  name: "user-stories-generator",
   description: "Creates detailed user stories with acceptance criteria based on a product description and research.",
   inputSchema: userStoriesInputSchemaShape,
   executor: generateUserStories

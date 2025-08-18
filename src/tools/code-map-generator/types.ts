@@ -441,6 +441,12 @@ export interface UniversalOptimizationConfig {
    * Default: false
    */
   adaptiveOptimization?: boolean;
+
+  /**
+   * Whether to skip expensive function call graph generation for performance.
+   * Default: false
+   */
+  skipFunctionCallGraph?: boolean;
 }
 
 /**

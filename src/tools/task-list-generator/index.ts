@@ -526,7 +526,7 @@ export const generateTaskList: ToolExecutor = async (
 
 // --- Tool Registration ---
 const taskListToolDefinition: ToolDefinition = {
-  name: "generate-task-list",
+  name: "task-list-generator",
   description: "Creates structured development task lists, decomposing high-level tasks into detailed sub-tasks with implementation guidance.",
   inputSchema: taskListInputSchemaShape,
   executor: generateTaskList

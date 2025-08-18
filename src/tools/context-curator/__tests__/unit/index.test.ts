@@ -60,7 +60,7 @@ vi.doMock('../../types/context-curator.js', async () => {
         userPrompt: input.userPrompt || 'Test prompt',
         projectPath: input.projectPath || '/test/project',
         taskType: input.taskType || 'general',
-        maxFiles: input.maxFiles || 100,
+        maxFiles: input.maxFiles || 500,
         includePatterns: input.includePatterns || ['**/*'],
         excludePatterns: input.excludePatterns || ['node_modules/**'],
         focusAreas: input.focusAreas || [],

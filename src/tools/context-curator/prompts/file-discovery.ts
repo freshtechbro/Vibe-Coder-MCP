@@ -73,6 +73,19 @@ Assess how likely each file is to be modified:
 
 ## RESPONSE FORMAT
 
+## CRITICAL JSON OUTPUT REQUIREMENTS
+
+YOU MUST FOLLOW THESE RULES EXACTLY:
+1. OUTPUT FORMAT: Respond with ONLY raw JSON - no other text whatsoever
+2. NO MARKDOWN: DO NOT wrap your response in \`\`\`json or \`\`\` blocks
+3. NO EXPLANATIONS: DO NOT include any text before or after the JSON
+4. NO COMMENTS: JSON must not contain comments
+5. DIRECT PARSE: Your response must be directly parseable by JSON.parse()
+6. START AND END: Begin with { or [ and end with } or ]
+
+❌ FORBIDDEN: markdown blocks, explanatory text, "Here is the JSON:"
+✅ CORRECT: {"relevantFiles":[{"path":"src/file.ts","priority":"high"}]}
+
 CRITICAL: Respond with a valid JSON object matching this exact structure:
 
 {
@@ -141,9 +154,27 @@ export function buildFileDiscoveryPrompt(
     focusDirectories?: string[];
     maxFiles?: number;
     tokenBudget?: number;
+    projectPath?: string;
+    projectName?: string;
   }
 ): string {
-  let prompt = `DEVELOPMENT REQUEST:
+  let prompt = '';
+  
+  // Inject project context if available
+  if (additionalContext?.projectPath) {
+    // Extract project name from path (last segment)
+    const projectName = additionalContext.projectName || 
+      additionalContext.projectPath.split('/').filter(Boolean).pop() || 
+      'current project';
+    prompt = `PROJECT CONTEXT:
+You are analyzing: ${projectName}
+Location: ${additionalContext.projectPath}
+CRITICAL: All references must be within THIS specific project.
+
+`;
+  }
+  
+  prompt += `DEVELOPMENT REQUEST:
 ${originalPrompt}
 
 INTENT ANALYSIS:

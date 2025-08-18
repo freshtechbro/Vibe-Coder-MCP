@@ -706,7 +706,23 @@ try {
       }
     }
 
-    const functionCallGraph = await buildFunctionCallGraph(fileInfosWithEnhancedImports, tempSourceCodeCache, config, jobId);
+    // Get enhancement configuration to check if we should skip function call graph
+    const enhancementConfigForSkip = EnhancementConfigManager.getInstance().getConfig();
+    
+    // Skip function call graph generation if configured for performance
+    logger.warn(`🔍 DEBUG: Checking skipFunctionCallGraph configuration`);
+    logger.warn(`🔍 DEBUG: enhancementConfigForSkip.universalOptimization exists: ${!!enhancementConfigForSkip.universalOptimization}`);
+    logger.warn(`🔍 DEBUG: enhancementConfigForSkip.universalOptimization?.skipFunctionCallGraph value: ${enhancementConfigForSkip.universalOptimization?.skipFunctionCallGraph}`);
+    logger.warn(`🔍 DEBUG: Full universalOptimization config: ${JSON.stringify(enhancementConfigForSkip.universalOptimization)}`);
+    
+    const shouldSkipFunctionCallGraph = enhancementConfigForSkip.universalOptimization?.skipFunctionCallGraph;
+    logger.warn(`🔍 DEBUG: Should skip function call graph: ${shouldSkipFunctionCallGraph}`);
+    
+    const functionCallGraph = shouldSkipFunctionCallGraph 
+      ? { nodes: [], edges: [] }  // Return empty graph when skipped
+      : await buildFunctionCallGraph(fileInfosWithEnhancedImports, tempSourceCodeCache, config, jobId);
+    
+    logger.warn(`🔍 DEBUG: Function call graph result - nodes: ${functionCallGraph.nodes.length}, edges: ${functionCallGraph.edges.length}`);
 
     const fileDepNodes = fileDepGraph.nodes;
     const fileDepEdges = fileDepGraph.edges;
