@@ -16,7 +16,7 @@
   },
   
   "toolTimeouts": {
-    "generate-prd": {
+    "prd-generator": {
       "timeoutOperation": "llmRequest",
       "customTimeoutMs": 120000,
       "description": "PRD generation requires research and multiple LLM calls"

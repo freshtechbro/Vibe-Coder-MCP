@@ -8,14 +8,14 @@
       "steps": [
         {
           "id": "step1_user_stories",
-          "toolName": "generate-user-stories",
+          "toolName": "user-stories-generator",
           "params": {
             "productDescription": "{workflow.input.productDescription}"
           }
         },
         {
           "id": "step2_task_list",
-          "toolName": "generate-task-list",
+          "toolName": "task-list-generator",
           "params": {
             "productDescription": "{workflow.input.productDescription}",
             "userStories": "{steps.step1_user_stories.output.content[0].text}"
@@ -23,7 +23,7 @@
         },
         {
           "id": "step3_rules",
-          "toolName": "generate-rules",
+          "toolName": "rules-generator",
           "params": {
             "productDescription": "{workflow.input.productDescription}",
             "userStories": "{steps.step1_user_stories.output.content[0].text}"
@@ -55,7 +55,7 @@
         },
         {
           "id": "step2_prd",
-          "toolName": "generate-prd",
+          "toolName": "prd-generator",
           "params": {
             "productDescription": "{workflow.input.projectType}",
             "researchContext": "{steps.step1_research.output.content[0].text}"
@@ -63,7 +63,7 @@
         },
         {
           "id": "step3_user_stories",
-          "toolName": "generate-user-stories",
+          "toolName": "user-stories-generator",
           "params": {
             "productDescription": "{steps.step2_prd.output.content[0].text}"
           }
@@ -103,7 +103,7 @@
         },
         {
           "id": "step3_generate_tasks",
-          "toolName": "generate-task-list",
+          "toolName": "task-list-generator",
           "params": {
             "productDescription": "{workflow.input.analysisGoal}",
             "codebaseContext": "{steps.step2_curate_context.output.content[0].text}"
@@ -178,7 +178,7 @@
         },
         {
           "id": "step2_generate_starter",
-          "toolName": "generate-fullstack-starter-kit",
+          "toolName": "fullstack-starter-kit-generator",
           "params": {
             "projectName": "{workflow.input.projectName}",
             "frontend": "{workflow.input.frontend}",
@@ -189,7 +189,7 @@
         },
         {
           "id": "step3_create_tasks",
-          "toolName": "generate-task-list",
+          "toolName": "task-list-generator",
           "params": {
             "productDescription": "{workflow.input.projectName} with {workflow.input.frontend} frontend and {workflow.input.backend} backend",
             "features": "{workflow.input.features}"
