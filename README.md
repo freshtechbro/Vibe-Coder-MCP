@@ -10,39 +10,26 @@
 
 Vibe Coder is an MCP (Model Context Protocol) server designed to supercharge your AI assistant (like Cursor, Cline AI, or Claude Desktop) with powerful tools for software development. It helps with research, planning, generating requirements, creating starter projects, and more!
 
-## 🆕 What's New in Version 0.3.0
+## 🆕 What's New in Version 0.3.1
 
-### 🎯 Major NLP and Pattern Matching Improvements
-- **✨ Enhanced Natural Language Processing**
-  - Reconnected and optimized pattern matching system achieving 94%+ accuracy
-  - Added 314 semantically relevant patterns across all 15 tools
-  - Implemented ultra-fast keyword prefiltering (<1ms response time)
-  - Lowered semantic matching threshold from 0.70 to 0.60 for better coverage
+### 🔧 Installation & Version Synchronization
+- **✨ Global Installation Alignment**
+  - Fixed global and local version synchronization issues
+  - Enhanced clean build process for both local and global installations
+  - Improved global package installation workflow using proper tarball builds
+  - Better version consistency across all project files
 
-- **🚀 Intelligent Request Routing**
-  - Multi-layer matching pipeline: Keyword → Pattern → Semantic → Sequential → Fallback
-  - Pattern matching now handles 90% confidence for exact matches
-  - Keyword prefiltering provides instant matches for common requests
-  - Sequential thinking now aware of all 15 tools (previously only 6)
+- **📝 Documentation Updates**
+  - Updated all version references across configuration files
+  - Synchronized setup scripts (setup.sh, setup.bat) to reflect new version
+  - Updated README, CHANGELOG, and system instructions
+  - Enhanced .vibe-config.json version alignment
 
-- **📊 Comprehensive Pattern Coverage**
-  - Each tool now has 15-33 unique patterns (up from 2-13)
-  - Patterns are semantically relevant to actual tool functionality
-  - Eliminated pattern conflicts between similar tools
-  - Added support for natural language variations and conversational queries
-
-### 🔧 Technical Improvements
-- **Performance Enhancements**
-  - Pattern matching: <5ms for 90% confidence matches
-  - Keyword matching: <1ms for 85% confidence matches
-  - Overall accuracy improved from ~20% to 94%+ for defined patterns
-  - Reduced fallback usage by 75%
-
-- **Code Quality**
-  - Fully type-safe implementation with zero TypeScript errors
-  - All changes follow existing architectural patterns
-  - Respects centralized configuration, security, and transport systems
-  - Comprehensive test coverage for NLP improvements
+- **🏗️ Build Process Improvements**
+  - Streamlined clean build workflow for release preparation
+  - Enhanced global installation process to avoid symlink issues
+  - Better CI/CD preparation with proper version management
+  - Improved packaging workflow for NPM publication
 
 ### Previous Releases
 
@@ -561,8 +548,8 @@ Vibe Coder MCP integrates with MCP-compatible clients to provide the following c
 ### 📋 **Research & Planning Suite**
 *   **Research Tool**: Deep research using Perplexity Sonar via OpenRouter
 *   **Context Curation**: Intelligent codebase analysis with 8-phase workflow pipeline and intelligent codemap caching for AI-driven development
-*   **Document Generators**: PRDs (`generate-prd`), user stories (`generate-user-stories`), task lists (`generate-task-list`), development rules (`generate-rules`)
-*   **Project Scaffolding**: Full-stack starter kits (`generate-fullstack-starter-kit`) with dynamic template generation
+*   **Document Generators**: PRDs (`prd-generator`), user stories (`user-stories-generator`), task lists (`task-list-generator`), development rules (`rules-generator`)
+*   **Project Scaffolding**: Full-stack starter kits (`fullstack-starter-kit-generator`) with dynamic template generation
 *   **Workflow Execution**: Predefined sequences of tool calls defined in `workflows.json`
 
 ### ⚡ **Performance & Reliability**
@@ -788,11 +775,11 @@ The location varies depending on your AI assistant:
       // A list of tool names that the MCP client is allowed to execute automatically
       "autoApprove": [
         "research",
-        "generate-rules",
-        "generate-user-stories",
-        "generate-task-list",
-        "generate-prd",
-        "generate-fullstack-starter-kit",
+        "rules-generator",
+        "user-stories-generator",
+        "task-list-generator",
+        "prd-generator",
+        "fullstack-starter-kit-generator",
         "refactor-code",
         "git-summary",
         "run-workflow",
@@ -1306,14 +1293,14 @@ Refer to these individual READMEs for in-depth information:
 
 ### Planning & Documentation Tools
 
-*   **Rules Generator (`generate-rules`):** Creates project-specific development rules and guidelines.
-*   **PRD Generator (`generate-prd`):** Generates comprehensive product requirements documents.
-*   **User Stories Generator (`generate-user-stories`):** Creates detailed user stories with acceptance criteria.
-*   **Task List Generator (`generate-task-list`):** Builds structured development task lists with dependencies.
+*   **Rules Generator (`rules-generator`):** Creates project-specific development rules and guidelines.
+*   **PRD Generator (`prd-generator`):** Generates comprehensive product requirements documents.
+*   **User Stories Generator (`user-stories-generator`):** Creates detailed user stories with acceptance criteria.
+*   **Task List Generator (`task-list-generator`):** Builds structured development task lists with dependencies.
 
 ### Project Scaffolding Tool
 
-*   **Fullstack Starter Kit Generator (`generate-fullstack-starter-kit`):** Creates customized project starter kits with specified frontend/backend technologies, including basic setup scripts and configuration.
+*   **Fullstack Starter Kit Generator (`fullstack-starter-kit-generator`):** Creates customized project starter kits with specified frontend/backend technologies, including basic setup scripts and configuration.
 
 ### Workflow & Orchestration
 

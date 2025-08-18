@@ -5,6 +5,27 @@ All notable changes to the Vibe Coder MCP project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-08-18
+
+### Fixed
+- **Global Installation Alignment**
+  - Ensured global and local versions are properly synchronized
+  - Updated all version references across configuration files
+  - Fixed global installation process to use proper package build
+
+### Changed
+- **Version Synchronization**
+  - Updated package.json version to 0.3.1
+  - Updated all setup scripts (setup.sh, setup.bat) to reflect new version
+  - Updated configuration templates and system instructions
+  - Synchronized .vibe-config.json version number
+
+### Improved
+- **Build Process**
+  - Enhanced clean build process for both local and global installations
+  - Improved global package installation workflow
+  - Better version consistency across all project files
+
 ## [0.3.0] - 2025-01-11
 
 ### Added

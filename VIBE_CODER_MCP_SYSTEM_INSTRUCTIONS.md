@@ -1,6 +1,6 @@
 # Vibe Coder MCP System Instructions
 
-**Version**: 0.1.0 (Initial NPM Release - Production Ready)
+**Version**: 0.3.1 (Production Ready)
 **NPM Package**: `vibe-coder-mcp`
 **Purpose**: Comprehensive system prompt for AI agents and MCP clients consuming the Vibe Coder MCP server
 **Target Clients**: Claude Desktop, Augment, Cursor, Windsurf, Roo Code, Cline, and other MCP-compatible clients
