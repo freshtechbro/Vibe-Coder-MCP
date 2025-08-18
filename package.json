@@ -1,6 +1,6 @@
 {
   "name": "vibe-coder-mcp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Production-ready MCP server with complete agent integration, multi-transport support, and comprehensive development automation tools for AI-assisted workflows.",
   "main": "build/index.js",
   "type": "module",
@@ -113,7 +113,6 @@
     "@xenova/transformers": "^2.17.1",
     "axios": "^1.6.7",
     "boxen": "^7.1.1",
-    "chalk": "^5.3.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.0",
     "cors": "^2.8.5",
@@ -147,6 +146,7 @@
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@vitest/coverage-v8": "^3.0.9",
     "@vitest/ui": "^3.0.9",
+    "chalk": "^5.5.0",
     "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
     "eventsource": "^2.0.2",

@@ -1,5 +1,5 @@
 @echo off
-REM Setup script for Vibe Coder MCP Server (Production Ready v0.3.0)
+REM Setup script for Vibe Coder MCP Server (Production Ready v0.3.1)
 setlocal enabledelayedexpansion
 
 REM Color codes for Windows (using PowerShell for colored output)
@@ -9,7 +9,7 @@ set "YELLOW=[33m"
 set "BLUE=[34m"
 set "NC=[0m"
 
-echo Setting up Vibe Coder MCP Server v0.3.0...
+echo Setting up Vibe Coder MCP Server v0.3.1...
 echo ==================================================
 echo Production-ready MCP server with complete agent integration
 echo Multi-transport support • Real-time notifications • Dynamic port allocation
