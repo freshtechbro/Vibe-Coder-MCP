@@ -7,7 +7,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/freshtechbro/Vibe-Coder-MCP?style=flat-square&logo=github&logoColor=white&cacheSeconds=300)](https://github.com/freshtechbro/Vibe-Coder-MCP/stargazers)
-[![Security Score](https://mcpampel.com/badge/freshtechbro/Vibe-Coder-MCP.svg)](https://mcpampel.com/repo/freshtechbro/Vibe-Coder-MCP)
+[![Security Score](https://img.shields.io/endpoint?url=https://mcpampel.com/badge/freshtechbro/Vibe-Coder-MCP.json&style=flat-square&cacheSeconds=300)](https://mcpampel.com/repo/freshtechbro/Vibe-Coder-MCP)
 
 Vibe Coder is an MCP (Model Context Protocol) server designed to supercharge your AI assistant (like Cursor, Cline AI, or Claude Desktop) with powerful tools for software development. It helps with research, planning, generating requirements, creating starter projects, and more!
 
